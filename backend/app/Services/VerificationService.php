@@ -8,7 +8,6 @@ use App\Jobs\ProcessPayoutJob;
 use App\Models\ProofSubmission;
 use App\Models\TaskReservation;
 use App\Notifications\EventNotification;
-use App\Services\ReservationCapacityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,8 +21,7 @@ class VerificationService
         private readonly AuditLogService $audit,
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function moveToReview(ProofSubmission $submission, int $actorId): ProofSubmission
     {
@@ -43,7 +41,7 @@ class VerificationService
                 'Proof under review',
                 'Your proof has been opened by the verification team.',
                 'processing',
-                ['reservation_id' => $reservation->id, 'proof_submission_id' => $proof->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation', 'verification']);
@@ -94,7 +92,7 @@ class VerificationService
                 'Proof approved',
                 sprintf('Your %s proof was approved. Your %s payout is now queued.', $reservation->task->title, $payout->amount.' '.$payout->currency),
                 'success',
-                ['reservation_id' => $reservation->id, 'payout_id' => $payout->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id],
             ), $reservation->getAttribute('demo_batch_id'));
             if (! $reservation->getAttribute('demo_batch_id')) {
                 ProcessPayoutJob::dispatch($payout->id)->afterCommit();
@@ -126,7 +124,7 @@ class VerificationService
                 'Changes requested',
                 $reason,
                 'warning',
-                ['reservation_id' => $reservation->id, 'proof_submission_id' => $proof->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);
@@ -157,7 +155,7 @@ class VerificationService
                 'Proof rejected',
                 $reason,
                 'error',
-                ['reservation_id' => $proof->task_reservation_id, 'proof_submission_id' => $proof->id],
+                ['reservation_id' => $proof->task_reservation_id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);

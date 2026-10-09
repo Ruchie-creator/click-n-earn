@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
-use App\Services\ReferralService;
 use App\Services\AuditLogService;
+use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -90,6 +91,26 @@ class AuthController extends ApiController
         $before = $user->toArray();
         $user->fill($data)->save();
         $audit->record('profile.updated', $user, $request, before: $before, after: $user->fresh()->toArray(), actorId: $user->id);
+
+        return $this->ok($this->userPayload($user->fresh()));
+    }
+
+    public function updateProfilePhoto(Request $request, AuditLogService $audit): JsonResponse
+    {
+        $data = $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'extensions:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=3000,max_height=3000'],
+        ]);
+
+        $user = $request->user();
+        $before = $user->toArray();
+        $previousPath = $user->avatar_path;
+        $newPath = $data['avatar']->storePublicly('avatars/'.$user->id, 'public');
+        $user->forceFill(['avatar_path' => $newPath])->save();
+        $audit->record('profile.photo_updated', $user, $request, before: $before, after: $user->fresh()->toArray(), actorId: $user->id);
+
+        if ($previousPath && str_starts_with($previousPath, 'avatars/'.$user->id.'/') && ! str_contains($previousPath, '..')) {
+            Storage::disk('public')->delete($previousPath);
+        }
 
         return $this->ok($this->userPayload($user->fresh()));
     }

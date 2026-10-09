@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\LedgerStatus;
 use App\Enums\ReservationStatus;
 use App\Models\Task;
 use App\Models\TaskReservation;
@@ -53,8 +54,7 @@ class ReservationController extends ApiController
         ReservationCapacityService $capacity,
         LedgerService $ledger,
         EventNotificationService $notifications,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         abort_unless($reservation->user_id === $request->user()->id, 404);
         DB::transaction(function () use ($reservation, $request, $transitions, $capacity, $ledger, $notifications): void {
             $locked = TaskReservation::query()->lockForUpdate()->with('user')->findOrFail($reservation->id);
@@ -66,13 +66,13 @@ class ReservationController extends ApiController
             }
 
             $transitions->transition($locked, ReservationStatus::CANCELLED->value, $request->user()->id, 'Cancelled by member.');
-            $ledger->updateReservationStatus($locked, \App\Enums\LedgerStatus::CANCELLED);
+            $ledger->updateReservationStatus($locked, LedgerStatus::CANCELLED);
             $capacity->release($locked);
             $notifications->notifyOnce($locked->user, 'reservation.cancelled.'.$locked->id, new EventNotification(
                 'Reservation cancelled',
                 'Your reserved reward was released.',
                 'info',
-                ['reservation_id' => $locked->id],
+                ['reservation_id' => $locked->id, 'task_id' => $locked->task_id],
             ), $locked->getAttribute('demo_batch_id'));
         });
 

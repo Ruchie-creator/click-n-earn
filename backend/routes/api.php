@@ -2,11 +2,11 @@
 
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\Admin\DemoDataController;
+use App\Http\Controllers\Api\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PayoutController as AdminPayoutController;
 use App\Http\Controllers\Api\Admin\ReferralController as AdminReferralController;
-use App\Http\Controllers\Api\Admin\SubmissionController as AdminSubmissionController;
 use App\Http\Controllers\Api\Admin\SettingController as AdminSettingController;
-use App\Http\Controllers\Api\Admin\NotificationController as AdminNotificationController;
+use App\Http\Controllers\Api\Admin\SubmissionController as AdminSubmissionController;
 use App\Http\Controllers\Api\Admin\TaskController as AdminTaskController;
 use App\Http\Controllers\Api\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
     Route::get('me', [AuthController::class, 'me']);
     Route::patch('profile', [AuthController::class, 'updateProfile']);
     Route::put('me', [AuthController::class, 'updateProfile']);
+    Route::post('profile/photo', [AuthController::class, 'updateProfilePhoto']);
     Route::post('password', [AuthController::class, 'updatePassword']);
     Route::post('email/verify', [AuthController::class, 'verifyEmail']);
     Route::post('logout', [AuthController::class, 'logout']);

@@ -32,6 +32,7 @@ export type ApiUser = {
   role: 'member' | 'admin' | 'super_admin'
   account_status: string
   referral_code?: string | null
+  avatar_url?: string | null
 }
 
 export type ApiTask = {
@@ -98,6 +99,13 @@ export type NotificationItem = {
   title: string
   body: string
   type?: string
+  event_type?: string
+  event_key?: string
+  task_id?: number
+  reservation_id?: number
+  proof_submission_id?: number
+  payout_id?: number
+  referral_id?: number
   read?: boolean
   created_at?: string
 }

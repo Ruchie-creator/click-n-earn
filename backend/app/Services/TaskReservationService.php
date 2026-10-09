@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\ReservationStatus;
 use App\Enums\LedgerStatus;
+use App\Enums\ReservationStatus;
 use App\Models\Task;
 use App\Models\TaskReservation;
 use App\Models\User;
@@ -20,8 +20,7 @@ class TaskReservationService
         private readonly AuditLogService $audit,
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function reserve(User $user, Task|int $task, ?string $demoKey = null): TaskReservation
     {
@@ -81,7 +80,7 @@ class TaskReservationService
                 'Reserved Reward confirmed',
                 sprintf('Your %s reward is reserved. Complete the purchase and submit proof before the deadline.', $taskModel->title),
                 'warning',
-                ['reservation_id' => $reservation->id, 'expected_payout' => $reservation->expected_payout],
+                ['reservation_id' => $reservation->id, 'task_id' => $taskModel->id, 'expected_payout' => $reservation->expected_payout],
             ), $demoBatchId);
 
             return $reservation->load('task');
@@ -103,7 +102,7 @@ class TaskReservationService
                 'Reserved task expired',
                 'Your reservation expired before proof was submitted. Any reserved reward has been released.',
                 'warning',
-                ['reservation_id' => $reservation->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $reservation->fresh('task');

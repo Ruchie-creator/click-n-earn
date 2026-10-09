@@ -1,4 +1,4 @@
-import { ChangeEvent, ReactNode, useRef } from 'react'
+import { ChangeEvent, ReactNode, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
@@ -8,9 +8,11 @@ import {
   ArrowUpRight,
   BadgeDollarSign,
   Bell,
+  Bookmark,
   BookOpenCheck,
   BriefcaseBusiness,
   Check,
+  CheckCheck,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -24,6 +26,7 @@ import {
   FileClock,
   FileText,
   HelpCircle,
+  Info,
   Image as ImageIcon,
   Landmark,
   LayoutDashboard,
@@ -47,7 +50,10 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
-import type { Task } from './data'
+import type { NotificationItem, Task } from './data'
+import type { ApiUser } from './api/contracts'
+import { api } from './api'
+import type { ToastKind } from './feedback'
 
 export type AppPage =
   | 'landing'
@@ -75,11 +81,18 @@ export type AppPage =
   | 'admin-transactions'
   | 'admin-notifications'
   | 'admin-settings'
+  | 'admin-profile'
 
 export type StatusTone = 'success' | 'warning' | 'processing' | 'error' | 'info' | 'neutral'
 
 export const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(amount)
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
 
 export function Logo({ onClick, compact = false, light = false }: { onClick?: () => void; compact?: boolean; light?: boolean }) {
   return (
@@ -93,10 +106,12 @@ export function Logo({ onClick, compact = false, light = false }: { onClick?: ()
   )
 }
 
-export function Avatar({ initials, size = 'md', tone = 'navy' }: { initials: string; size?: 'sm' | 'md' | 'lg'; tone?: 'navy' | 'indigo' | 'blue' }) {
+export function Avatar({ initials, size = 'md', tone = 'navy', src, alt = '' }: { initials: string; size?: 'sm' | 'md' | 'lg'; tone?: 'navy' | 'indigo' | 'blue'; src?: string | null; alt?: string }) {
   const sizeClass = size === 'sm' ? 'h-8 w-8 text-[10px]' : size === 'lg' ? 'h-14 w-14 text-sm' : 'h-10 w-10 text-xs'
   const toneClass = tone === 'indigo' ? 'bg-indigo text-white' : tone === 'blue' ? 'bg-soft-blue text-navy' : 'bg-[#E7EDF5] text-navy'
-  return <span className={`grid shrink-0 place-items-center rounded-full font-bold ${sizeClass} ${toneClass}`}>{initials}</span>
+  return <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full font-bold ${sizeClass} ${toneClass}`}>
+    {src ? <img src={src} alt={alt} className="h-full w-full object-cover" /> : initials}
+  </span>
 }
 
 export function StatusBadge({ children, tone = 'neutral', dot = false }: { children: ReactNode; tone?: StatusTone; dot?: boolean }) {
@@ -185,10 +200,21 @@ export function TaskCard({ task, onView }: { task: Task; onView: (task: Task) =>
   )
 }
 
-export function FileUpload({ files, onFilesChange, onFilesSelected }: { files: string[]; onFilesChange: (files: string[]) => void; onFilesSelected?: (files: File[]) => void }) {
+export function FileUpload({ files, onFilesChange, onFilesSelected, selectedFile }: { files: string[]; onFilesChange: (files: string[]) => void; onFilesSelected?: (files: File[]) => void; selectedFile?: File | null }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(selectedFile)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [selectedFile])
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-      const selectedFiles = Array.from(event.target.files ?? [])
+    const selectedFiles = Array.from(event.target.files ?? [])
     const selected = selectedFiles.slice(0, 1)
     onFilesSelected?.(selected)
     if (selected.length) onFilesChange([selected[0].name])
@@ -202,7 +228,22 @@ export function FileUpload({ files, onFilesChange, onFilesSelected }: { files: s
         <span className="mt-1 text-xs text-muted">PNG, JPG or PDF · max 10MB</span>
       </button>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,application/pdf" className="hidden" onChange={handleChange} />
-      {files.length > 0 && <div className="mt-3 space-y-2">{files.map((file, index) => <div key={`${file}-${index}`} className="flex items-center justify-between rounded-lg border border-line bg-white px-3 py-2.5"><div className="flex min-w-0 items-center gap-2.5"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-soft-blue text-navy"><FileText size={15} /></span><span className="truncate text-xs font-medium text-ink">{file}</span></div><button onClick={() => onFilesChange(files.filter((_, fileIndex) => fileIndex !== index))} className="btn-ghost min-h-8 px-2 text-subtle hover:text-error" aria-label={`Remove ${file}`}><X size={15} /></button></div>)}</div>}
+      {files.length > 0 && <div className="mt-3 rounded-xl border border-line bg-white p-3">
+        {selectedFile && previewUrl && <div className="mb-3 overflow-hidden rounded-lg border border-line bg-canvas">
+          {selectedFile.type.startsWith('image/') ? <button type="button" onClick={() => setPreviewOpen(true)} className="block w-full" aria-label={`Open a larger preview of ${selectedFile.name}`}><img src={previewUrl} alt={`Preview of ${selectedFile.name}`} className="max-h-52 w-full object-contain" /></button>
+            : selectedFile.type === 'application/pdf' ? <iframe title={`Preview of ${selectedFile.name}`} src={previewUrl} className="h-48 w-full bg-white" /> : null}
+        </div>}
+        {files.map((file, index) => <div key={`${file}-${index}`} className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-soft-blue text-navy">{selectedFile?.type.startsWith('image/') ? <ImageIcon size={16} /> : <FileText size={16} />}</span>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-ink">{file}</p><p className="mt-0.5 text-[11px] text-muted">{selectedFile ? formatFileSize(selectedFile.size) : 'Selected proof file'}</p></div>
+          {selectedFile?.type.startsWith('image/') && <button type="button" onClick={() => setPreviewOpen(true)} className="btn-ghost min-h-9 px-2 text-xs">Preview</button>}
+          {selectedFile?.type === 'application/pdf' && previewUrl && <a href={previewUrl} target="_blank" rel="noreferrer" className="btn-ghost min-h-9 px-2 text-xs">Open PDF</a>}
+          <button type="button" onClick={() => { onFilesChange(files.filter((_, fileIndex) => fileIndex !== index)); onFilesSelected?.([]) }} className="btn-ghost min-h-9 px-2 text-subtle hover:text-error" aria-label={`Remove ${file}`}><X size={15} /></button>
+        </div>)}
+      </div>}
+      <Modal open={previewOpen && Boolean(previewUrl && selectedFile?.type.startsWith('image/'))} title={selectedFile?.name || 'Proof preview'} description="Review the selected image before submitting your proof." onClose={() => setPreviewOpen(false)} size="lg">
+        {previewUrl && <img src={previewUrl} alt={`Larger preview of ${selectedFile?.name || 'selected proof'}`} className="mx-auto max-h-[72dvh] max-w-full rounded-xl object-contain shadow-sm" />}
+      </Modal>
     </div>
   )
 }
@@ -212,7 +253,7 @@ export function EmptyState({ icon: Icon = ClipboardList, title, description, act
 }
 
 export function Toast({ message, onClose }: { message: string; onClose: () => void }) {
-  return <div className="fixed bottom-5 left-1/2 z-[80] flex w-[calc(100%-32px)] max-w-sm -translate-x-1/2 items-center gap-3 rounded-xl bg-navy px-4 py-3 text-sm font-medium text-white shadow-soft fade-up"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/15 text-[#B9D7FF]"><Check size={14} /></span><span className="flex-1">{message}</span><button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white" aria-label="Dismiss notification"><X size={15} /></button></div>
+  return <div className="toast-card toast-info" role="status"><span className="toast-icon"><Info size={17} /></span><span className="flex-1 text-sm font-medium">{message}</span><button onClick={onClose} className="toast-dismiss" aria-label="Dismiss notification"><X size={15} /></button></div>
 }
 
 function navIcon(page: string): LucideIcon {
@@ -235,6 +276,7 @@ function navIcon(page: string): LucideIcon {
     'admin-transactions': ReceiptText,
     'admin-notifications': Bell,
     'admin-settings': Settings2,
+    'admin-profile': UserRound,
   }
   return icons[page] ?? LayoutDashboard
 }
@@ -243,7 +285,7 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onSwitch
   const groups = admin ? [
     { label: 'Command center', items: [['admin-dashboard', 'Dashboard'], ['admin-tasks', 'Tasks'], ['admin-submissions', 'Submissions'], ['admin-verification', 'Verification queue'], ['admin-payouts', 'Payouts']] },
     { label: 'Manage', items: [['admin-users', 'Users'], ['admin-referrals', 'Referrals'], ['admin-transactions', 'Transactions']] },
-    { label: 'System', items: [['admin-notifications', 'Notifications'], ['admin-settings', 'Settings']] },
+    { label: 'System', items: [['admin-notifications', 'Notifications'], ['admin-settings', 'Settings'], ['admin-profile', 'Profile']] },
   ] : [
     { label: 'Overview', items: [['dashboard', 'Dashboard'], ['tasks', 'Available tasks'], ['my-tasks', 'My tasks']] },
     { label: 'Money', items: [['earnings', 'Earnings'], ['referrals', 'Referrals'], ['payouts', 'Payouts']] },
@@ -262,9 +304,89 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onSwitch
   </>
 }
 
-export function Topbar({ admin, userName, unreadCount, onMenu, onNavigate, onToast }: { admin: boolean; userName: string; unreadCount: number; onMenu: () => void; onNavigate: (page: AppPage) => void; onToast: (message: string) => void }) {
+export function Topbar({ admin, user, userName, unreadCount, notifications = [], onMenu, onNavigate, onToast, onLogout, onRefresh, onNotificationSelect }: { admin: boolean; user?: ApiUser | null; userName: string; unreadCount: number; notifications?: NotificationItem[]; onMenu: () => void; onNavigate: (page: AppPage) => void; onToast: (message: string, kind?: ToastKind) => void; onLogout: () => void; onRefresh: () => Promise<void>; onNotificationSelect: (notification: NotificationItem) => void }) {
   const initials = userName.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || '—'
-  return <header className="sticky top-0 z-30 flex h-[64px] items-center border-b border-line bg-white/95 px-4 backdrop-blur sm:px-6 md:h-[76px] lg:px-8"><div className="flex min-w-0 flex-1 items-center gap-3"><button onClick={onMenu} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-soft-blue hover:text-navy md:hidden" aria-label="Open navigation"><Menu size={20} /></button><div className="relative hidden w-full max-w-[290px] sm:block"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input className="form-field h-10 bg-canvas pl-9 pr-3 text-xs" placeholder={admin ? 'Search users, tasks...' : 'Search tasks...'} /></div></div><div className="flex items-center gap-1.5 sm:gap-2"><ClientPreviewBadge /><button className="grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" onClick={() => onToast('Help center is not configured.')} aria-label="Open help center"><HelpCircle size={19} /></button><button onClick={() => onNavigate(admin ? 'admin-notifications' : 'notifications')} className="relative grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" aria-label={`${unreadCount} unread notifications`}><Bell size={19} />{unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-error px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}</button><div className="ml-1 h-7 w-px bg-line" /><button onClick={() => onNavigate(admin ? 'admin-settings' : 'profile')} className="flex min-h-10 items-center gap-2 rounded-lg px-1.5 text-left transition-colors hover:bg-soft-blue"><Avatar initials={initials} size="sm" tone={admin ? 'indigo' : 'navy'} /><span className="hidden max-w-[110px] truncate text-xs font-semibold text-ink sm:block">{userName || '—'}</span><ChevronDown size={14} className="hidden text-subtle sm:block" /></button></div></header>
+  const [openMenu, setOpenMenu] = useState<'notifications' | 'profile' | null>(null)
+  const menuRoot = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const notificationTrigger = useRef<HTMLButtonElement>(null)
+  const profileTrigger = useRef<HTMLButtonElement>(null)
+  const menuName = openMenu
+
+  useEffect(() => {
+    if (!openMenu) return
+    const closeOutside = (event: PointerEvent) => { if (!menuRoot.current?.contains(event.target as Node)) setOpenMenu(null) }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [openMenu])
+
+  useEffect(() => {
+    if (!openMenu) return
+    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())
+  }, [openMenu])
+
+  const closeMenu = (restoreFocus = false) => {
+    setOpenMenu(null)
+    if (restoreFocus) (menuName === 'notifications' ? notificationTrigger.current : profileTrigger.current)?.focus()
+  }
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') { event.preventDefault(); closeMenu(true); return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || [])
+    if (!items.length) return
+    event.preventDefault()
+    const activeIndex = items.indexOf(document.activeElement as HTMLElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : event.key === 'ArrowDown' ? (activeIndex + 1) % items.length : (activeIndex <= 0 ? items.length - 1 : activeIndex - 1)
+    items[next].focus()
+  }
+
+  const toggleMenu = (name: 'notifications' | 'profile') => setOpenMenu((current) => current === name ? null : name)
+  const selectNotification = async (notification: NotificationItem) => {
+    closeMenu()
+    try {
+      if (notification.unread) await api.markNotificationRead(notification.id)
+      await onRefresh()
+    } catch {
+      onToast('We could not update that notification. Opening its related section.', 'warning')
+    }
+    onNotificationSelect(notification)
+  }
+  const markAllRead = async () => {
+    try {
+      await api.markAllNotificationsRead()
+      await onRefresh()
+      onToast('Notifications marked as read.', 'success')
+    } catch {
+      onToast('We could not update notifications. Please try again.', 'error')
+    }
+  }
+  const profileLinks: Array<{ label: string; page?: AppPage; action?: () => void }> = admin
+    ? [{ label: 'Admin dashboard', page: 'admin-dashboard' }, { label: 'Settings', page: 'admin-settings' }, { label: 'Profile', page: 'admin-profile' }, { label: 'Notifications', page: 'admin-notifications' }, { label: 'Sign out', action: onLogout }]
+    : [{ label: 'Dashboard', page: 'dashboard' }, { label: 'Available tasks', page: 'tasks' }, { label: 'Profile', page: 'profile' }, { label: 'Notifications', page: 'notifications' }, { label: 'Sign out', action: onLogout }]
+
+  return <header className="sticky top-0 z-30 flex h-[64px] items-center border-b border-line bg-white/95 px-4 backdrop-blur sm:px-6 md:h-[76px] lg:px-8">
+    <div className="flex min-w-0 flex-1 items-center gap-3"><button onClick={onMenu} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-soft-blue hover:text-navy md:hidden" aria-label="Open navigation"><Menu size={20} /></button><div className="relative hidden w-full max-w-[290px] sm:block"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input className="form-field h-10 bg-canvas pl-9 pr-3 text-xs" placeholder={admin ? 'Search users, tasks...' : 'Search tasks...'} /></div></div>
+    <div ref={menuRoot} className="relative flex items-center gap-1.5 sm:gap-2" onKeyDown={handleMenuKeyDown}>
+      <ClientPreviewBadge />
+      <button className="grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" onClick={() => onToast('Help center is not configured.')} aria-label="Open help center"><HelpCircle size={19} /></button>
+      <button ref={notificationTrigger} type="button" onClick={() => toggleMenu('notifications')} className="relative grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" aria-label={`${unreadCount} unread notifications`} aria-haspopup="menu" aria-expanded={openMenu === 'notifications'}><Bell size={19} />{unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-error px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}</button>
+      <div className="ml-1 h-7 w-px bg-line" />
+      <button ref={profileTrigger} type="button" onClick={() => toggleMenu('profile')} className="flex min-h-10 items-center gap-2 rounded-lg px-1.5 text-left transition-colors hover:bg-soft-blue" aria-haspopup="menu" aria-expanded={openMenu === 'profile'}><Avatar initials={initials} src={user?.avatar_url} alt={`${userName} profile photo`} size="sm" tone={admin ? 'indigo' : 'navy'} /><span className="hidden max-w-[110px] truncate text-xs font-semibold text-ink sm:block">{userName || '—'}</span><ChevronDown size={14} className="hidden text-subtle sm:block" /></button>
+      {openMenu === 'notifications' && <div ref={panelRef} className="topbar-menu topbar-notifications" role="menu" aria-label="Recent notifications">
+        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5"><div><p className="text-sm font-semibold text-ink">Notifications</p><p className="mt-0.5 text-[11px] text-muted">{unreadCount ? `${unreadCount} unread updates` : 'You’re all caught up'}</p></div><span className="grid h-8 w-8 place-items-center rounded-lg bg-soft-blue text-navy"><Bell size={16} /></span></div>
+        {unreadCount > 0 && <button type="button" role="menuitem" onClick={() => void markAllRead()} className="flex min-h-10 w-full items-center gap-2 border-b border-line px-4 text-xs font-semibold text-navy transition-colors hover:bg-canvas"><CheckCheck size={14} /> Mark all as read</button>}
+        <div className="max-h-[min(55vh,420px)] overflow-y-auto thin-scroll">
+          {notifications.length ? notifications.slice(0, 6).map((notification) => <button type="button" role="menuitem" key={notification.id} onClick={() => void selectNotification(notification)} className={`flex min-h-[64px] w-full items-start gap-3 border-b border-line px-4 py-3 text-left transition-colors hover:bg-canvas ${notification.unread ? 'bg-[#F8FAFC]' : ''}`}><span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${notification.tone === 'success' ? 'bg-[#ECFDF3] text-success' : notification.tone === 'warning' ? 'bg-[#FFF7ED] text-warning' : 'bg-soft-blue text-navy'}`}>{notification.icon === 'check' ? <CheckCircle2 size={15} /> : notification.icon === 'bookmark' ? <Bookmark size={15} /> : <FileCheck2 size={15} />}</span><span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><span className="text-xs font-semibold leading-4 text-ink">{notification.title}</span>{notification.unread && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}</span><span className="mt-1 block line-clamp-2 text-[11px] leading-4 text-muted">{notification.body}</span><span className="mt-1 block text-[10px] text-subtle">{notification.time}</span></span></button>) : <div className="px-5 py-8 text-center"><span className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-canvas text-subtle"><Bell size={18} /></span><p className="mt-3 text-xs font-semibold text-ink">No notifications yet</p><p className="mt-1 text-[11px] text-muted">Updates about your account will appear here.</p></div>}
+        </div>
+        <button type="button" role="menuitem" onClick={() => { closeMenu(); onNavigate(admin ? 'admin-notifications' : 'notifications') }} className="flex min-h-11 w-full items-center justify-between px-4 text-xs font-semibold text-navy transition-colors hover:bg-canvas">View all notifications <ChevronRight size={15} /></button>
+      </div>}
+      {openMenu === 'profile' && <div ref={panelRef} className="topbar-menu topbar-profile" role="menu" aria-label="Profile menu">
+        <div className="flex items-center gap-3 border-b border-line px-4 py-3.5"><Avatar initials={initials} src={user?.avatar_url} alt={`${userName} profile photo`} size="md" tone={admin ? 'indigo' : 'navy'} /><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{userName || 'Account'}</p><p className="truncate text-[11px] text-muted">{user?.email || (admin ? 'Admin account' : 'Member account')}</p></div></div>
+        <div className="p-1.5">{profileLinks.map((link) => <button type="button" role="menuitem" key={link.label} onClick={() => { closeMenu(); if (link.action) link.action(); else if (link.page) onNavigate(link.page) }} className="flex min-h-10 w-full items-center rounded-lg px-3 text-left text-xs font-medium text-muted transition-colors hover:bg-soft-blue hover:text-navy">{link.label}</button>)}</div>
+      </div>}
+    </div>
+  </header>
 }
 
 export function ClientPreviewBadge() {
@@ -277,9 +399,38 @@ export function CopyButton({ value, onCopied }: { value: string; onCopied?: () =
 }
 
 export function Modal({ open, title, description, onClose, children, size = 'md' }: { open: boolean; title: string; description?: string; onClose: () => void; children: ReactNode; size?: 'sm' | 'md' | 'lg' }) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const previousFocus = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    if (!open) return
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const focusFrame = window.requestAnimationFrame(() => {
+      const first = contentRef.current?.querySelector<HTMLElement>('input, button, textarea, select, [tabindex="0"]')
+      if (first) first.focus()
+      else contentRef.current?.focus()
+    })
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return }
+      if (event.key !== 'Tab') return
+      const focusable = contentRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex="0"]')
+      if (!focusable?.length) { event.preventDefault(); contentRef.current?.focus(); return }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocus.current?.focus()
+    }
+  }, [open])
   if (!open) return null
   const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl'
-  return <div className="fixed inset-0 z-[70] flex items-end justify-center bg-navy/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"><div className={`max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-soft sm:rounded-2xl sm:p-6 ${width}`}><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold tracking-[-0.02em] text-ink">{title}</h2>{description && <p className="mt-1 text-xs leading-5 text-muted">{description}</p>}</div><button onClick={onClose} className="btn-ghost -mr-2 -mt-2 min-h-9 px-2 text-muted" aria-label="Close modal"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>
+  return <div className="fixed inset-0 z-[70] flex items-end justify-center bg-navy/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div ref={contentRef} className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-soft sm:rounded-2xl sm:p-6 ${width}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={description ? 'modal-description' : undefined} tabIndex={-1}><div className="flex items-start justify-between gap-4"><div><h2 id="modal-title" className="text-lg font-semibold tracking-[-0.02em] text-ink">{title}</h2>{description && <p id="modal-description" className="mt-1 text-xs leading-5 text-muted">{description}</p>}</div><button onClick={onClose} className="btn-ghost -mr-2 -mt-2 min-h-9 px-2 text-muted" aria-label="Close modal"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>
 }
 
 export function TableEmpty({ message }: { message: string }) {

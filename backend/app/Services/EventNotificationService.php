@@ -26,7 +26,11 @@ class EventNotificationService
         $isDemoNotification = filled($demoBatchId);
 
         $outbox = DB::transaction(function () use ($recipient, $eventKey, $notification, $demoBatchId, $isDemoNotification): NotificationOutbox {
-            $payload = array_merge($notification->toDatabase($recipient), ['event_key' => $eventKey]);
+            $eventType = implode('.', array_slice(explode('.', $eventKey), 0, 2));
+            $payload = array_merge($notification->toDatabase($recipient), [
+                'event_type' => $eventType,
+                'event_key' => $eventKey,
+            ]);
             $outbox = NotificationOutbox::query()->firstOrCreate(
                 ['user_id' => $recipient->id, 'event_key' => $eventKey],
                 [

@@ -54,6 +54,39 @@ export async function apiDownload(path: string): Promise<Blob> {
   return response.blob()
 }
 
+export function apiUpload<T>(path: string, body: FormData, onProgress?: (progress: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', apiUrl(path))
+    request.setRequestHeader('Accept', 'application/json')
+    const token = getToken()
+    if (token) request.setRequestHeader('Authorization', 'Bearer ' + token)
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress?.(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    }
+    request.onload = () => {
+      let payload: { message?: string; errors?: Record<string, string[]> }
+      try {
+        payload = JSON.parse(request.responseText || '{}') as typeof payload
+      } catch {
+        reject(new Error('The server returned an invalid response.'))
+        return
+      }
+      if (request.status < 200 || request.status >= 300) {
+        const error = new Error(payload?.message || 'The upload could not be completed.') as ApiError
+        error.status = request.status
+        error.details = payload?.errors
+        reject(error)
+        return
+      }
+      resolve(payload as T)
+    }
+    request.onerror = () => reject(new TypeError('We could not reach the server.'))
+    request.onabort = () => reject(new Error('The upload was cancelled.'))
+    request.send(body)
+  })
+}
+
 export function apiUrl(path: string): string {
   return API_URL + (path.startsWith('/') ? path : '/' + path)
 }

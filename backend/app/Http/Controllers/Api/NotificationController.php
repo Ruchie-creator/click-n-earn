@@ -12,14 +12,29 @@ class NotificationController extends ApiController
         $notifications = $request->user()->notifications()->latest()->paginate(30);
 
         return $this->ok([
-            'items' => $notifications->getCollection()->map(fn ($notification): array => [
-                'id' => $notification->id,
-                'title' => data_get($notification->data, 'title', 'Click & Earn update'),
-                'body' => data_get($notification->data, 'body', ''),
-                'type' => data_get($notification->data, 'type', 'info'),
-                'read' => $notification->read_at !== null,
-                'created_at' => $notification->created_at?->toISOString(),
-            ])->values(),
+            'items' => $notifications->getCollection()->map(function ($notification): array {
+                $data = $notification->data;
+                $eventKey = data_get($data, 'event_key');
+                $eventType = data_get($data, 'event_type') ?? ($eventKey
+                    ? implode('.', array_slice(explode('.', $eventKey), 0, 2))
+                    : null);
+
+                return [
+                    'id' => $notification->id,
+                    'title' => data_get($data, 'title', 'Click & Earn update'),
+                    'body' => data_get($data, 'body', ''),
+                    'type' => data_get($data, 'type', 'info'),
+                    'event_type' => $eventType,
+                    'event_key' => $eventKey,
+                    'task_id' => data_get($data, 'task_id'),
+                    'reservation_id' => data_get($data, 'reservation_id'),
+                    'proof_submission_id' => data_get($data, 'proof_submission_id'),
+                    'payout_id' => data_get($data, 'payout_id'),
+                    'referral_id' => data_get($data, 'referral_id'),
+                    'read' => $notification->read_at !== null,
+                    'created_at' => $notification->created_at?->toISOString(),
+                ];
+            })->values(),
             'unread_count' => $request->user()->unreadNotifications()->count(),
             'meta' => ['current_page' => $notifications->currentPage(), 'last_page' => $notifications->lastPage(), 'total' => $notifications->total()],
         ]);

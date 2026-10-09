@@ -1,7 +1,7 @@
-import { apiDownload, apiFetch, getToken, setToken } from './client'
+import { apiDownload, apiFetch, apiUpload, getToken, setToken } from './client'
 import type { AdminDashboardData, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
 
-export { apiDownload, apiFetch, getToken, setToken }
+export { apiDownload, apiFetch, apiUpload, getToken, setToken }
 export type { ApiError } from './client'
 export type * from './contracts'
 
@@ -77,13 +77,21 @@ export const api = {
     return apiFetch<ApiEnvelope<ApiPayoutMethod>>('/payout-methods/' + id, { method: 'PUT', body: JSON.stringify(payload) })
   },
   updateProfile(payload: { name?: string; phone?: string; country?: string }) {
-    return apiFetch('/me', { method: 'PUT', body: JSON.stringify(payload) })
+    return apiFetch<ApiEnvelope<ApiUser>>('/me', { method: 'PUT', body: JSON.stringify(payload) })
+  },
+  updateProfilePhoto(file: File, onProgress?: (progress: number) => void) {
+    const body = new FormData()
+    body.append('avatar', file)
+    return apiUpload<ApiEnvelope<ApiUser>>('/profile/photo', body, onProgress)
   },
   changePassword(payload: { current_password: string; password: string; password_confirmation: string }) {
     return apiFetch('/password', { method: 'POST', body: JSON.stringify(payload) })
   },
   notifications() {
     return apiFetch<ApiEnvelope<NotificationData>>('/notifications')
+  },
+  markNotificationRead(id: string) {
+    return apiFetch('/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' })
   },
   markAllNotificationsRead() {
     return apiFetch('/notifications/read-all', { method: 'POST' })
@@ -123,6 +131,9 @@ export const api = {
   },
   adminSubmissions() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminSubmission[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/submissions')
+  },
+  adminSubmission(id: string | number) {
+    return apiFetch<ApiEnvelope<ApiAdminSubmission>>('/admin/submissions/' + id)
   },
   downloadAdminSubmission(id: string | number) {
     return apiDownload('/admin/submissions/' + id + '/download')

@@ -34,6 +34,13 @@ export type NotificationItem = {
   icon: string
   unread: boolean
   tone: string
+  eventType?: string
+  eventKey?: string
+  taskId?: number
+  reservationId?: number
+  proofSubmissionId?: number
+  payoutId?: number
+  referralId?: number
 }
 
 export type ReferralItem = { id: number; name: string; joined: string; status: string; reward: number; rewardStatus?: string }
@@ -126,6 +133,7 @@ export let adminTasks: Task[] = []
 export let reservations: ReservationItem[] = []
 export let activity: ActivityItem[] = []
 export let notifications: NotificationItem[] = []
+export let notificationUnreadCount = 0
 export let payouts: Array<{ id: string; date: string; method: string; amount: number; status: string; reference: string }> = []
 export let referrals: ReferralItem[] = []
 export let verificationQueue: VerificationQueueItem[] = []
@@ -243,7 +251,8 @@ function mapTask(task: BackendTask): Task {
 export function hydrateMarketplaceData(payload: {
   tasks?: BackendTask[]
   reservations?: BackendReservation[]
-  notifications?: Array<{ id: string; title: string; body: string; type?: string; read?: boolean; created_at?: string | null }>
+  notifications?: Array<{ id: string; title: string; body: string; type?: string; event_type?: string; event_key?: string; task_id?: number; reservation_id?: number; proof_submission_id?: number; payout_id?: number; referral_id?: number; read?: boolean; created_at?: string | null }>
+  unreadCount?: number
 }): void {
   if (payload.tasks !== undefined) tasks = payload.tasks.map(mapTask)
   if (payload.reservations !== undefined) {
@@ -286,8 +295,16 @@ export function hydrateMarketplaceData(payload: {
       icon: item.type === 'success' ? 'check' : item.type === 'warning' ? 'bookmark' : item.type === 'info' ? 'sparkle' : 'file',
       unread: !item.read,
       tone: item.type === 'success' ? 'success' : item.type === 'warning' ? 'warning' : item.type === 'info' ? 'info' : 'processing',
+      eventType: item.event_type,
+      eventKey: item.event_key,
+      taskId: item.task_id,
+      reservationId: item.reservation_id,
+      proofSubmissionId: item.proof_submission_id,
+      payoutId: item.payout_id,
+      referralId: item.referral_id,
     }))
   }
+  if (payload.unreadCount !== undefined) notificationUnreadCount = payload.unreadCount
 }
 
 export function hydrateDashboardData(stats: Record<string, string | number>, referralCode?: string): void {
@@ -516,6 +533,7 @@ export function hydrateAdminNotifications(items: Array<{ id: number; title: stri
 
 export function markNotificationsRead(): void {
   notifications = notifications.map((notification) => ({ ...notification, unread: false }))
+  notificationUnreadCount = 0
 }
 
 export function clearAllData(): void {
@@ -524,6 +542,7 @@ export function clearAllData(): void {
   reservations = []
   activity = []
   notifications = []
+  notificationUnreadCount = 0
   payouts = []
   referrals = []
   verificationQueue = []
