@@ -1,0 +1,26 @@
+# Local environment files; commit only the safe templates.
+.env
+.env.*
+!.env.example
+!.env.preview.example
+!.env.production.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Dependencies and generated frontend output.
+node_modules/
+backend/node_modules/
+backend/vendor/
+dist/
+backend/public/build/
+
+# Laravel runtime data, uploads, logs, and cache.
+backend/bootstrap/cache/*.php
+!backend/bootstrap/cache/.gitignore
+backend/storage/**
+!backend/storage/**/.gitignore
+backend/public/storage
+backend/database/*.sqlite
+backend/database/*.sqlite-*
+backend/.phpunit.result.cache
