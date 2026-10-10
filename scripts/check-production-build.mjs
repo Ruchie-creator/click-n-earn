@@ -63,6 +63,25 @@ for (const file of sourceFiles) {
 }
 
 const outputFiles = await listFiles(outputRoot)
+const taskImagePaths = new Set()
+for (const file of sourceFiles) {
+  if (!file.endsWith('.ts') && !file.endsWith('.tsx')) continue
+  const content = await readFile(file, 'utf8')
+  for (const match of content.matchAll(/\/task-images\/[a-z0-9-]+\.jpg/gi)) {
+    taskImagePaths.add(match[0])
+  }
+}
+
+for (const imagePath of taskImagePaths) {
+  for (const [label, imageRoot] of [['public', publicRoot], ['production build', outputRoot]]) {
+    try {
+      await readFile(path.join(imageRoot, imagePath.slice(1)))
+    } catch {
+      failures.push(`${label}: task image is missing: ${imagePath}`)
+    }
+  }
+}
+
 for (const file of outputFiles) {
   const content = await readFile(file)
   const source = content.toString('utf8')

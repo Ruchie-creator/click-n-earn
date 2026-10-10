@@ -225,6 +225,41 @@ type BackendReservation = {
   } | null
 }
 
+const taskImagesByCategory: Record<string, string> = {
+  'content tools': '/task-images/ai-writing-tool.jpg',
+  learning: '/task-images/ai-writing-tool.jpg',
+  marketing: '/task-images/digital-marketing-toolkit.jpg',
+  growth: '/task-images/digital-marketing-toolkit.jpg',
+  productivity: '/task-images/productivity-template-bundle.jpg',
+  design: '/task-images/social-design-pack.jpg',
+  research: '/task-images/seo-research-toolkit.jpg',
+  business: '/task-images/business-planning-template.jpg',
+  finance: '/task-images/analytics-dashboard-toolkit.jpg',
+  'creator tools': '/task-images/creator-resource-pack.jpg',
+  analytics: '/task-images/analytics-dashboard-toolkit.jpg',
+}
+
+const knownTaskImagePaths = new Set(Object.values(taskImagesByCategory))
+const defaultTaskImage = '/task-images/business-planning-template.jpg'
+
+function taskImageFallback(category: string): string {
+  const normalized = category.trim().toLowerCase()
+  const exact = taskImagesByCategory[normalized]
+  if (exact) return exact
+  if (normalized.includes('marketing')) return taskImagesByCategory.marketing
+  if (normalized.includes('productivity') || normalized.includes('planning')) return taskImagesByCategory.productivity
+  if (normalized.includes('design') || normalized.includes('social')) return taskImagesByCategory.design
+  if (normalized.includes('research') || normalized.includes('seo')) return taskImagesByCategory.research
+  if (normalized.includes('business')) return taskImagesByCategory.business
+  if (normalized.includes('creator')) return taskImagesByCategory['creator tools']
+  if (normalized.includes('analytics') || normalized.includes('data')) return taskImagesByCategory.analytics
+  if (normalized.includes('finance') || normalized.includes('payment')) return taskImagesByCategory.finance
+  if (normalized.includes('learn') || normalized.includes('education')) return taskImagesByCategory.learning
+  if (normalized.includes('growth')) return taskImagesByCategory.growth
+  if (normalized.includes('content') || normalized.includes('writing') || normalized.includes('ai')) return taskImagesByCategory['content tools']
+  return defaultTaskImage
+}
+
 function mapTask(task: BackendTask): Task {
   const remaining = task.slots ?? Math.max(0, (task.available_slots ?? 0) - (task.reserved_slots ?? 0) - (task.completed_slots ?? 0))
   return {
@@ -233,7 +268,7 @@ function mapTask(task: BackendTask): Task {
     shortDescription: task.short_description || task.description,
     description: task.description,
     category: task.category,
-    image: task.image || '',
+    image: task.image && knownTaskImagePaths.has(task.image) ? task.image : taskImageFallback(task.category),
     productPrice: task.product_price ?? task.reimbursement_amount ?? 0,
     incentive: task.incentive ?? 0,
     slots: remaining,

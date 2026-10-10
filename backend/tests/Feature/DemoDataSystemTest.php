@@ -50,6 +50,8 @@ class DemoDataSystemTest extends TestCase
         $this->assertSame(0, Artisan::call('demo:seed'), Artisan::output());
         $first = app(DemoDataService::class)->status();
         $batchId = DemoBatch::query()->where('slug', 'client-preview')->value('id');
+        $sampleTask = Task::query()->where('demo_batch_id', $batchId)->where('demo_key', 'task-ai-writing-tool')->firstOrFail();
+        $this->assertSame('/task-images/ai-writing-tool.jpg', $sampleTask->image_path);
 
         $this->assertSame([
             'users' => 3,
@@ -69,6 +71,10 @@ class DemoDataSystemTest extends TestCase
 
         $this->assertSame(0, Artisan::call('demo:seed'), Artisan::output());
         $second = app(DemoDataService::class)->status();
+
+        $sampleTask->forceFill(['image_path' => null])->save();
+        $this->assertSame(0, Artisan::call('demo:seed'), Artisan::output());
+        $this->assertSame('/task-images/ai-writing-tool.jpg', $sampleTask->fresh()->image_path);
 
         $this->assertSame($batchId, DemoBatch::query()->where('slug', 'client-preview')->value('id'));
         $this->assertSame($first['counts'], $second['counts']);

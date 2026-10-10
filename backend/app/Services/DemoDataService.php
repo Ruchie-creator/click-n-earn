@@ -285,6 +285,10 @@ class DemoDataService
             ->where('demo_key', $demoKey)
             ->first();
         if ($task) {
+            if (! $task->image_path) {
+                $task->forceFill(['image_path' => '/task-images/'.$slug.'.jpg'])->save();
+            }
+
             return $task;
         }
         if (Task::query()->where('slug', $slug)->exists()) {
@@ -296,7 +300,7 @@ class DemoDataService
             'slug' => $slug,
             'description' => $description.' This scenario is fictional; the checkout link is a reserved, non-purchasable placeholder.',
             'category' => $category,
-            'image_path' => null,
+            'image_path' => '/task-images/'.$slug.'.jpg',
             'external_checkout_url' => 'https://preview.clickandearn.invalid/checkout/'.$slug,
             'reimbursement_amount' => $reimbursement,
             'incentive_amount' => $incentive,

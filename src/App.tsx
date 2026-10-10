@@ -358,9 +358,9 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar admin={admin} page={page} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} onSwitchMode={() => navigate(admin ? 'dashboard' : 'admin-dashboard')} canAccessAdmin={canAccessAdmin} onLogout={() => void handleLogout()} unreadCount={notificationUnreadCount} reviewCount={Number(adminStats.pendingVerification) || 0} />
+      <Sidebar admin={admin} page={page} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} onOpenAdmin={() => navigate('admin-dashboard')} canAccessAdmin={canAccessAdmin} onLogout={() => void handleLogout()} unreadCount={notificationUnreadCount} reviewCount={Number(adminStats.pendingVerification) || 0} />
       <div className="min-h-screen md:pl-[264px]">
-          <Topbar admin={admin} user={currentUser} userName={currentUser?.name || ''} unreadCount={notificationUnreadCount} notifications={notifications} onMenu={() => setMobileOpen(true)} onNavigate={navigate} onToast={setToast} onLogout={() => void handleLogout()} onRefresh={refreshMemberData} onNotificationSelect={(notification) => {
+          <Topbar admin={admin} page={page} user={currentUser} userName={currentUser?.name || ''} unreadCount={notificationUnreadCount} notifications={notifications} onMenu={() => setMobileOpen(true)} onNavigate={navigate} onToast={setToast} onLogout={() => void handleLogout()} onRefresh={refreshMemberData} onNotificationSelect={(notification) => {
             const inAdminWorkspace = adminPages.includes(page) && canAccessAdmin
             if (inAdminWorkspace && notification.proofSubmissionId) {
               setRequestedSubmissionId(notification.proofSubmissionId)

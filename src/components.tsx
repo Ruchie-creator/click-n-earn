@@ -2,7 +2,6 @@ import { ChangeEvent, ReactNode, useEffect, useRef, useState, type KeyboardEvent
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
-  ArrowDownUp,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -96,12 +95,16 @@ function formatFileSize(bytes: number): string {
 
 export function Logo({ onClick, compact = false, light = false }: { onClick?: () => void; compact?: boolean; light?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={`group flex items-center gap-3 text-left ${onClick ? 'focus-visible-only' : ''}`} aria-label="Click & Earn home">
-      <span className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl ${light ? 'bg-white/10' : 'bg-navy'} shadow-sm`}>
-        <span className="absolute h-4 w-4 rounded-[5px] border-2 border-white" />
-        <span className="absolute h-1.5 w-1.5 rounded-full bg-[#8BB1E4]" />
-      </span>
-      {!compact && <span className={`text-[17px] font-bold tracking-[-0.04em] ${light ? 'text-white' : 'text-ink'}`}>Click <span className={light ? 'text-[#8BB1E4]' : 'text-accent'}>&amp;</span> Earn</span>}
+    <button type="button" onClick={onClick} className={`group flex shrink-0 items-center text-left ${onClick ? 'focus-visible-only' : ''}`} aria-label="Click & Earn home">
+      {compact ? (
+        <span className="block h-10 w-10 overflow-hidden rounded-xl bg-navy shadow-sm">
+          <img src="/brand/icon.png" alt="" className="h-full w-full object-cover" />
+        </span>
+      ) : (
+        <span className={`block h-12 w-[184px] overflow-hidden rounded-lg ${light ? 'bg-white shadow-sm' : ''}`}>
+          <img src="/brand/logo.png" alt="" className="h-full w-full object-cover" />
+        </span>
+      )}
     </button>
   )
 }
@@ -175,7 +178,7 @@ export function TaskCard({ task, onView }: { task: Task; onView: (task: Task) =>
   return (
     <article className="card lift overflow-hidden">
       <div className="relative aspect-[1.65/1] overflow-hidden bg-[#E9EEF5]">
-        {task.image && <img src={task.image} alt="" className="task-image h-full w-full object-cover transition-transform duration-500 hover:scale-[1.03]" />}
+        {task.image && <img src={task.image} alt="" loading="lazy" decoding="async" className="task-image h-full w-full object-cover transition-transform duration-500 hover:scale-[1.03]" />}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
           <StatusBadge tone={statusTone} dot>{task.status}</StatusBadge>
           <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-navy shadow-sm">{task.category}</span>
@@ -281,7 +284,7 @@ function navIcon(page: string): LucideIcon {
   return icons[page] ?? LayoutDashboard
 }
 
-export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onSwitchMode, canAccessAdmin, onLogout, unreadCount = 0, reviewCount = 0 }: { admin: boolean; page: AppPage; onNavigate: (page: AppPage) => void; mobileOpen: boolean; onClose: () => void; onSwitchMode: () => void; canAccessAdmin: boolean; onLogout: () => void; unreadCount?: number; reviewCount?: number }) {
+export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onOpenAdmin, canAccessAdmin, onLogout, unreadCount = 0, reviewCount = 0 }: { admin: boolean; page: AppPage; onNavigate: (page: AppPage) => void; mobileOpen: boolean; onClose: () => void; onOpenAdmin: () => void; canAccessAdmin: boolean; onLogout: () => void; unreadCount?: number; reviewCount?: number }) {
   const groups = admin ? [
     { label: 'Command center', items: [['admin-dashboard', 'Dashboard'], ['admin-tasks', 'Tasks'], ['admin-submissions', 'Submissions'], ['admin-verification', 'Verification queue'], ['admin-payouts', 'Payouts']] },
     { label: 'Manage', items: [['admin-users', 'Users'], ['admin-referrals', 'Referrals'], ['admin-transactions', 'Transactions']] },
@@ -298,13 +301,13 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onSwitch
       <div className="flex flex-1 flex-col px-3 py-5">
         {admin && <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><ShieldCheck size={16} /></span><div><p className="text-[11px] font-semibold text-white">Admin workspace</p><p className="mt-0.5 text-[10px] text-white/50">Click & Earn operations</p></div></div>}
         <nav className="space-y-6">{groups.map((group) => <div key={group.label}><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">{group.label}</p><div className="mt-2 space-y-1">{group.items.map(([itemPage, label]) => { const Icon = navIcon(itemPage); const active = page === itemPage; const count = itemPage === 'notifications' ? unreadCount : itemPage === 'admin-verification' ? reviewCount : 0; return <button key={itemPage} onClick={() => { onNavigate(itemPage as AppPage); onClose() }} className={`sidebar-link flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition-[background-color,color] duration-200 ${active ? 'bg-white text-navy shadow-sm' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.8} /><span className="flex-1">{label}</span>{count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-soft-blue text-navy' : 'bg-white/10 text-white/65'}`}>{count}</span>}</button> })}</div></div>)}</nav>
-        <div className="mt-auto pt-6"><div className="rounded-2xl border border-white/10 bg-white/5 p-3.5"><div className="flex items-start justify-between"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><HelpCircle size={16} /></span><button className="text-white/35 hover:text-white"><MoreHorizontal size={17} /></button></div><p className="mt-3 text-xs font-semibold text-white">Need a hand?</p><p className="mt-1 text-[11px] leading-4 text-white/50">Our support team is here to help with submissions.</p><button className="mt-3 text-[11px] font-semibold text-[#B9D7FF] hover:text-white">Visit help center <ArrowRight className="ml-1 inline" size={12} /></button></div>{canAccessAdmin && <button onClick={onSwitchMode} className="mt-3 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ArrowDownUp size={15} />{admin ? 'Switch to member view' : 'Open admin workspace'}</button>}<button onClick={() => onNavigate('landing')} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ArrowRight size={15} />View public site</button><button onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><LogOut size={15} />Sign out</button></div>
+        <div className="mt-auto pt-6"><div className="rounded-2xl border border-white/10 bg-white/5 p-3.5"><div className="flex items-start justify-between"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><HelpCircle size={16} /></span><button className="text-white/35 hover:text-white"><MoreHorizontal size={17} /></button></div><p className="mt-3 text-xs font-semibold text-white">Need a hand?</p><p className="mt-1 text-[11px] leading-4 text-white/50">Our support team is here to help with submissions.</p><button className="mt-3 text-[11px] font-semibold text-[#B9D7FF] hover:text-white">Visit help center <ArrowRight className="ml-1 inline" size={12} /></button></div>{canAccessAdmin && !admin && <button onClick={onOpenAdmin} className="mt-3 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ShieldCheck size={15} />Open admin workspace</button>}<button onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><LogOut size={15} />Sign out</button></div>
       </div>
     </aside>
   </>
 }
 
-export function Topbar({ admin, user, userName, unreadCount, notifications = [], onMenu, onNavigate, onToast, onLogout, onRefresh, onNotificationSelect }: { admin: boolean; user?: ApiUser | null; userName: string; unreadCount: number; notifications?: NotificationItem[]; onMenu: () => void; onNavigate: (page: AppPage) => void; onToast: (message: string, kind?: ToastKind) => void; onLogout: () => void; onRefresh: () => Promise<void>; onNotificationSelect: (notification: NotificationItem) => void }) {
+export function Topbar({ admin, page, user, userName, unreadCount, notifications = [], onMenu, onNavigate, onToast, onLogout, onRefresh, onNotificationSelect }: { admin: boolean; page: AppPage; user?: ApiUser | null; userName: string; unreadCount: number; notifications?: NotificationItem[]; onMenu: () => void; onNavigate: (page: AppPage) => void; onToast: (message: string, kind?: ToastKind) => void; onLogout: () => void; onRefresh: () => Promise<void>; onNotificationSelect: (notification: NotificationItem) => void }) {
   const initials = userName.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || '—'
   const [openMenu, setOpenMenu] = useState<'notifications' | 'profile' | null>(null)
   const menuRoot = useRef<HTMLDivElement>(null)
@@ -368,7 +371,7 @@ export function Topbar({ admin, user, userName, unreadCount, notifications = [],
   return <header className="sticky top-0 z-30 flex h-[64px] items-center border-b border-line bg-white/95 px-4 backdrop-blur sm:px-6 md:h-[76px] lg:px-8">
     <div className="flex min-w-0 flex-1 items-center gap-3"><button onClick={onMenu} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-soft-blue hover:text-navy md:hidden" aria-label="Open navigation"><Menu size={20} /></button><div className="relative hidden w-full max-w-[290px] sm:block"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input className="form-field h-10 bg-canvas pl-9 pr-3 text-xs" placeholder={admin ? 'Search users, tasks...' : 'Search tasks...'} /></div></div>
     <div ref={menuRoot} className="relative flex items-center gap-1.5 sm:gap-2" onKeyDown={handleMenuKeyDown}>
-      <ClientPreviewBadge />
+      {page !== 'admin-dashboard' && <ClientPreviewBadge />}
       <button className="grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" onClick={() => onToast('Help center is not configured.')} aria-label="Open help center"><HelpCircle size={19} /></button>
       <button ref={notificationTrigger} type="button" onClick={() => toggleMenu('notifications')} className="relative grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" aria-label={`${unreadCount} unread notifications`} aria-haspopup="menu" aria-expanded={openMenu === 'notifications'}><Bell size={19} />{unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-error px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}</button>
       <div className="ml-1 h-7 w-px bg-line" />
