@@ -31,6 +31,9 @@ Route::prefix('auth')->middleware('throttle:auth')->group(function (): void {
 });
 
 Route::post('webhooks/airwallex', [WebhookController::class, 'airwallex'])->middleware('throttle:api');
+Route::get('profile-photos/{user}', [AuthController::class, 'showProfilePhoto'])
+    ->middleware('throttle:api')
+    ->name('profile-photos.show');
 
 Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function (): void {
     Route::get('me', [AuthController::class, 'me']);

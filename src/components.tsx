@@ -93,16 +93,17 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
-export function Logo({ onClick, compact = false, light = false }: { onClick?: () => void; compact?: boolean; light?: boolean }) {
+export function Logo({ onClick, compact = false, light = false, inverted = false }: { onClick?: () => void; compact?: boolean; light?: boolean; inverted?: boolean }) {
+  const imageClass = `h-full w-full object-cover ${inverted ? 'brightness-0 invert' : ''}`
   return (
     <button type="button" onClick={onClick} className={`group flex shrink-0 items-center text-left ${onClick ? 'focus-visible-only' : ''}`} aria-label="Click & Earn home">
       {compact ? (
         <span className="block h-10 w-10 overflow-hidden rounded-xl bg-navy shadow-sm">
-          <img src="/brand/icon.png" alt="" className="h-full w-full object-cover" />
+          <img src="/brand/icon.png" alt="" className={imageClass} />
         </span>
       ) : (
-        <span className={`block h-12 w-[184px] overflow-hidden rounded-lg ${light ? 'bg-white shadow-sm' : ''}`}>
-          <img src="/brand/logo.png" alt="" className="h-full w-full object-cover" />
+        <span className={`block h-12 w-[184px] overflow-hidden rounded-lg ${light && !inverted ? 'bg-white shadow-sm' : ''}`}>
+          <img src="/brand/logo.png" alt="" className={imageClass} />
         </span>
       )}
     </button>
@@ -110,10 +111,12 @@ export function Logo({ onClick, compact = false, light = false }: { onClick?: ()
 }
 
 export function Avatar({ initials, size = 'md', tone = 'navy', src, alt = '' }: { initials: string; size?: 'sm' | 'md' | 'lg'; tone?: 'navy' | 'indigo' | 'blue'; src?: string | null; alt?: string }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  useEffect(() => setImageFailed(false), [src])
   const sizeClass = size === 'sm' ? 'h-8 w-8 text-[10px]' : size === 'lg' ? 'h-14 w-14 text-sm' : 'h-10 w-10 text-xs'
   const toneClass = tone === 'indigo' ? 'bg-indigo text-white' : tone === 'blue' ? 'bg-soft-blue text-navy' : 'bg-[#E7EDF5] text-navy'
   return <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full font-bold ${sizeClass} ${toneClass}`}>
-    {src ? <img src={src} alt={alt} className="h-full w-full object-cover" /> : initials}
+    {src && !imageFailed ? <img src={src} alt={alt} className="h-full w-full object-cover" onError={() => setImageFailed(true)} /> : initials}
   </span>
 }
 
@@ -299,7 +302,6 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onOpenAd
     <aside className={`sidebar-scroll dark-scroll fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col overflow-y-auto bg-navy text-white transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex h-[76px] items-center justify-between border-b border-white/10 px-5"><Logo light /><button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white md:hidden" aria-label="Close navigation"><X size={18} /></button></div>
       <div className="flex flex-1 flex-col px-3 py-5">
-        {admin && <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><ShieldCheck size={16} /></span><div><p className="text-[11px] font-semibold text-white">Admin workspace</p><p className="mt-0.5 text-[10px] text-white/50">Click & Earn operations</p></div></div>}
         <nav className="space-y-6">{groups.map((group) => <div key={group.label}><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">{group.label}</p><div className="mt-2 space-y-1">{group.items.map(([itemPage, label]) => { const Icon = navIcon(itemPage); const active = page === itemPage; const count = itemPage === 'notifications' ? unreadCount : itemPage === 'admin-verification' ? reviewCount : 0; return <button key={itemPage} onClick={() => { onNavigate(itemPage as AppPage); onClose() }} className={`sidebar-link flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition-[background-color,color] duration-200 ${active ? 'bg-white text-navy shadow-sm' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.8} /><span className="flex-1">{label}</span>{count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-soft-blue text-navy' : 'bg-white/10 text-white/65'}`}>{count}</span>}</button> })}</div></div>)}</nav>
         <div className="mt-auto pt-6"><div className="rounded-2xl border border-white/10 bg-white/5 p-3.5"><div className="flex items-start justify-between"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><HelpCircle size={16} /></span><button className="text-white/35 hover:text-white"><MoreHorizontal size={17} /></button></div><p className="mt-3 text-xs font-semibold text-white">Need a hand?</p><p className="mt-1 text-[11px] leading-4 text-white/50">Our support team is here to help with submissions.</p><button className="mt-3 text-[11px] font-semibold text-[#B9D7FF] hover:text-white">Visit help center <ArrowRight className="ml-1 inline" size={12} /></button></div>{canAccessAdmin && !admin && <button onClick={onOpenAdmin} className="mt-3 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ShieldCheck size={15} />Open admin workspace</button>}<button onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><LogOut size={15} />Sign out</button></div>
       </div>
@@ -371,7 +373,6 @@ export function Topbar({ admin, page, user, userName, unreadCount, notifications
   return <header className="sticky top-0 z-30 flex h-[64px] items-center border-b border-line bg-white/95 px-4 backdrop-blur sm:px-6 md:h-[76px] lg:px-8">
     <div className="flex min-w-0 flex-1 items-center gap-3"><button onClick={onMenu} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-soft-blue hover:text-navy md:hidden" aria-label="Open navigation"><Menu size={20} /></button><div className="relative hidden w-full max-w-[290px] sm:block"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input className="form-field h-10 bg-canvas pl-9 pr-3 text-xs" placeholder={admin ? 'Search users, tasks...' : 'Search tasks...'} /></div></div>
     <div ref={menuRoot} className="relative flex items-center gap-1.5 sm:gap-2" onKeyDown={handleMenuKeyDown}>
-      {page !== 'admin-dashboard' && <ClientPreviewBadge />}
       <button className="grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" onClick={() => onToast('Help center is not configured.')} aria-label="Open help center"><HelpCircle size={19} /></button>
       <button ref={notificationTrigger} type="button" onClick={() => toggleMenu('notifications')} className="relative grid h-10 w-10 place-items-center rounded-lg text-muted transition-colors hover:bg-soft-blue hover:text-navy" aria-label={`${unreadCount} unread notifications`} aria-haspopup="menu" aria-expanded={openMenu === 'notifications'}><Bell size={19} />{unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-error px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}</button>
       <div className="ml-1 h-7 w-px bg-line" />
@@ -390,11 +391,6 @@ export function Topbar({ admin, page, user, userName, unreadCount, notifications
       </div>}
     </div>
   </header>
-}
-
-export function ClientPreviewBadge() {
-  if (import.meta.env.VITE_CLIENT_PREVIEW !== 'true') return null
-  return <span title="Client Preview environment" aria-label="Client Preview environment" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#D9E2EC] bg-[#EEF3FA] px-2.5 py-1.5 text-[10px] font-semibold text-navy"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#4F6FAE]" /><span className="hidden sm:inline">Client Preview</span><span className="sm:hidden">Preview</span></span>
 }
 
 export function CopyButton({ value, onCopied }: { value: string; onCopied?: () => void }) {

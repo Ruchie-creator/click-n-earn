@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuthController extends ApiController
 {
@@ -78,6 +79,23 @@ class AuthController extends ApiController
     public function me(Request $request): JsonResponse
     {
         return $this->ok($this->userPayload($request->user()));
+    }
+
+    public function showProfilePhoto(User $user): StreamedResponse
+    {
+        $path = $user->avatar_path;
+        abort_unless(
+            is_string($path)
+                && str_starts_with($path, 'avatars/'.$user->id.'/')
+                && ! str_contains($path, '..')
+                && Storage::disk('public')->exists($path),
+            404,
+        );
+
+        return Storage::disk('public')->response($path, basename($path), [
+            'Cache-Control' => 'public, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function updateProfile(Request $request, AuditLogService $audit): JsonResponse

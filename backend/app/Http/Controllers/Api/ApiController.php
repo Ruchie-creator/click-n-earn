@@ -9,7 +9,6 @@ use App\Models\TaskReservation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Storage;
 
 abstract class ApiController extends \App\Http\Controllers\Controller
 {
@@ -35,7 +34,9 @@ abstract class ApiController extends \App\Http\Controllers\Controller
             'account_status' => $this->enumValue($user->account_status),
             'referral_code' => $user->referral_code,
             'email_verified_at' => $user->email_verified_at?->toISOString(),
-            'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
+            'avatar_url' => $user->avatar_path
+                ? route('profile-photos.show', ['user' => $user->id, 'v' => basename($user->avatar_path)])
+                : null,
         ];
     }
 

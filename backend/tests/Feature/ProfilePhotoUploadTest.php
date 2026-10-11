@@ -32,7 +32,10 @@ class ProfilePhotoUploadTest extends TestCase
         $this->assertStringStartsWith('avatars/'.$member->id.'/', $updatedMember->avatar_path);
         Storage::disk('public')->assertExists($updatedMember->avatar_path);
         Storage::disk('public')->assertMissing($previousPath);
-        $response->assertJsonPath('data.avatar_url', Storage::disk('public')->url($updatedMember->avatar_path));
+        $response->assertJsonPath('data.avatar_url', route('profile-photos.show', [
+            'user' => $updatedMember->id,
+            'v' => basename($updatedMember->avatar_path),
+        ]));
         $this->assertDatabaseHas('audit_logs', [
             'actor_id' => $member->id,
             'action' => 'profile.photo_updated',
@@ -53,6 +56,20 @@ class ProfilePhotoUploadTest extends TestCase
         ])->assertOk()->assertJsonPath('data.id', $admin->id);
 
         Storage::disk('public')->assertExists($admin->fresh()->avatar_path);
+    }
+
+    public function test_a_profile_photo_is_available_from_its_api_url_without_a_storage_symlink(): void
+    {
+        Storage::fake('public');
+        $member = User::factory()->create();
+        $path = 'avatars/'.$member->id.'/profile.png';
+        Storage::disk('public')->put($path, 'profile image bytes');
+        $member->forceFill(['avatar_path' => $path])->save();
+
+        $response = $this->get(route('profile-photos.show', ['user' => $member->id]));
+
+        $response->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->assertSame('profile image bytes', $response->streamedContent());
     }
 
     public function test_profile_photo_upload_requires_authentication(): void
