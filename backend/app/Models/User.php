@@ -4,12 +4,16 @@ namespace App\Models;
 
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
+use App\Notifications\PasswordResetNotification;
 use Database\Factories\UserFactory;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Auth\Passwords\CanResetPassword;
-use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -47,47 +51,47 @@ class User extends Authenticatable implements CanResetPasswordContract
         ];
     }
 
-    public function referredBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function referredBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'referred_by');
     }
 
-    public function referredUsers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function referredUsers(): HasMany
     {
         return $this->hasMany(self::class, 'referred_by');
     }
 
-    public function reservations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function reservations(): HasMany
     {
         return $this->hasMany(TaskReservation::class);
     }
 
-    public function tasksCreated(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function tasksCreated(): HasMany
     {
         return $this->hasMany(Task::class, 'created_by');
     }
 
-    public function referralsSent(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function referralsSent(): HasMany
     {
         return $this->hasMany(Referral::class, 'referrer_id');
     }
 
-    public function referralReceived(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function referralReceived(): HasOne
     {
         return $this->hasOne(Referral::class, 'referred_user_id');
     }
 
-    public function ledgerEntries(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function ledgerEntries(): HasMany
     {
         return $this->hasMany(LedgerEntry::class);
     }
 
-    public function payoutMethods(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function payoutMethods(): HasMany
     {
         return $this->hasMany(PayoutMethod::class);
     }
 
-    public function payouts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function payouts(): HasMany
     {
         return $this->hasMany(Payout::class);
     }
@@ -100,5 +104,10 @@ class User extends Authenticatable implements CanResetPasswordContract
             static fn (UserRole|string $role): string => $role instanceof UserRole ? $role->value : $role,
             $roles,
         ), true);
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new PasswordResetNotification($token));
     }
 }

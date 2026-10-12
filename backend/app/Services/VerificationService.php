@@ -26,7 +26,7 @@ class VerificationService
     public function moveToReview(ProofSubmission $submission, int $actorId): ProofSubmission
     {
         return DB::transaction(function () use ($submission, $actorId): ProofSubmission {
-            [$proof, $reservation] = $this->lockProofAndReservation($submission->id, ['user']);
+            [$proof, $reservation] = $this->lockProofAndReservation($submission->id, ['user', 'task']);
             if ($reservation->status === ReservationStatus::UNDER_REVIEW) {
                 return $proof->fresh(['reservation', 'verification']);
             }
@@ -92,7 +92,7 @@ class VerificationService
                 'Proof approved',
                 sprintf('Your %s proof was approved. Your %s payout is now queued.', $reservation->task->title, $payout->amount.' '.$payout->currency),
                 'success',
-                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'currency' => $payout->currency],
             ), $reservation->getAttribute('demo_batch_id'));
             if (! $reservation->getAttribute('demo_batch_id')) {
                 ProcessPayoutJob::dispatch($payout->id)->afterCommit();
@@ -124,7 +124,7 @@ class VerificationService
                 'Changes requested',
                 $reason,
                 'warning',
-                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'reviewer_note' => $reason],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);
@@ -138,7 +138,7 @@ class VerificationService
         }
 
         return DB::transaction(function () use ($submission, $actorId, $reason): ProofSubmission {
-            [$proof, $reservation] = $this->lockProofAndReservation($submission->id, ['user']);
+            [$proof, $reservation] = $this->lockProofAndReservation($submission->id, ['user', 'task']);
             if ($reservation->status === ReservationStatus::REJECTED && $proof->status === ReservationStatus::REJECTED->value) {
                 return $proof->fresh(['reservation']);
             }
@@ -155,7 +155,7 @@ class VerificationService
                 'Proof rejected',
                 $reason,
                 'error',
-                ['reservation_id' => $proof->task_reservation_id, 'task_id' => $reservation->task_id, 'proof_submission_id' => $proof->id],
+                ['reservation_id' => $proof->task_reservation_id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'reason' => $reason],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);

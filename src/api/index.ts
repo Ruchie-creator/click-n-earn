@@ -129,6 +129,15 @@ export const api = {
   adminUpdateSetting(key: string, value: Record<string, unknown>) {
     return apiFetch<ApiEnvelope<{ key: string; value: Record<string, unknown> }>>('/admin/settings/' + encodeURIComponent(key), { method: 'PATCH', body: JSON.stringify({ value }) })
   },
+  adminEmailStatus() {
+    return apiFetch<ApiEnvelope<{ configured: boolean; sender_email: string; sender_name: string; queue_connection: string; recent_failures: Array<{ id: number; event_key: string; email_attempts: number; email_last_error: string; updated_at: string }>; events: string[] }>>('/admin/email/status')
+  },
+  adminEmailPreview(event: 'welcome' | 'reserved' | 'proof_submitted' | 'proof_approved' | 'changes_requested' | 'payout_processing' | 'payout_paid' | 'payout_failed') {
+    return apiFetch<ApiEnvelope<{ html: string }>>('/admin/email/preview', { method: 'POST', body: JSON.stringify({ event }) })
+  },
+  adminSendTestEmail() {
+    return apiFetch('/admin/email/test', { method: 'POST' })
+  },
   adminSubmissions() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminSubmission[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/submissions')
   },

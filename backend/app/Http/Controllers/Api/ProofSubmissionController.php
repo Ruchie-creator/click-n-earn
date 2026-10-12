@@ -241,14 +241,14 @@ class ProofSubmissionController extends ApiController
                 'Proof submitted',
                 sprintf('Your proof for %s was received and queued for review.', $taskTitle),
                 'processing',
-                ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id],
+                ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle],
             ), $proof->getAttribute('demo_batch_id'));
             User::query()->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])->get()->each(
                 fn (User $admin) => $notifications->notifyOnce($admin, 'proof.submitted.admin.'.$proof->id, new EventNotification(
                     'New proof submitted',
                     sprintf('%s submitted proof for %s.', $request->user()->name, $taskTitle),
                     'info',
-                    ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id],
+                    ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle, 'member' => $request->user()->name, 'submitted_at' => $proof->created_at?->format('M j, Y g:i A'), 'admin_notification' => true],
                 ), $proof->getAttribute('demo_batch_id')),
             );
             if ($proof->getAttribute('demo_batch_id')) {

@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Notifications\EventNotification;
 use App\Services\AuditLogService;
+use App\Services\EventNotificationService;
 use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuthController extends ApiController
 {
-    public function register(Request $request, ReferralService $referrals): JsonResponse
+    public function register(Request $request, ReferralService $referrals, EventNotificationService $notifications): JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -44,6 +46,12 @@ class AuthController extends ApiController
 
             return $user;
         });
+
+        $notifications->notifyOnce($user, 'welcome.'.$user->id, new EventNotification(
+            'Welcome to Click & Earn',
+            'Discover available tasks, complete them with confidence, and track your earnings in one place.',
+            'success',
+        ));
 
         return $this->authResponse($user, 201);
     }
@@ -133,13 +141,19 @@ class AuthController extends ApiController
         return $this->ok($this->userPayload($user->fresh()));
     }
 
-    public function updatePassword(Request $request): JsonResponse
+    public function updatePassword(Request $request, EventNotificationService $notifications): JsonResponse
     {
         $data = $request->validate([
             'current_password' => ['required', 'current_password:sanctum'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
         $request->user()->update(['password' => $data['password']]);
+        $notifications->notifyOnce($request->user(), 'password.changed.'.now()->timestamp, new EventNotification(
+            'Your password was changed',
+            'Your Click & Earn password has been updated successfully.',
+            'success',
+            ['event_key' => 'password.changed'],
+        ));
 
         return $this->message('Password updated successfully.');
     }
@@ -152,15 +166,21 @@ class AuthController extends ApiController
         return $this->message('If an account exists for that email, reset instructions have been sent.', 202);
     }
 
-    public function resetPassword(Request $request): JsonResponse
+    public function resetPassword(Request $request, EventNotificationService $notifications): JsonResponse
     {
         $data = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
-        $status = Password::reset($data, function (User $user, string $password): void {
+        $status = Password::reset($data, function (User $user, string $password) use ($notifications): void {
             $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+            $notifications->notifyOnce($user, 'password.changed.reset.'.$user->id.'.'.now()->timestamp, new EventNotification(
+                'Your password was changed',
+                'Your Click & Earn password has been reset successfully.',
+                'success',
+                ['event_key' => 'password.changed'],
+            ));
         });
 
         if ($status !== Password::PASSWORD_RESET) {

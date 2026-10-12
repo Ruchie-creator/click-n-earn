@@ -80,7 +80,7 @@ class TaskReservationService
                 'Reserved Reward confirmed',
                 sprintf('Your %s reward is reserved. Complete the purchase and submit proof before the deadline.', $taskModel->title),
                 'warning',
-                ['reservation_id' => $reservation->id, 'task_id' => $taskModel->id, 'expected_payout' => $reservation->expected_payout],
+                ['reservation_id' => $reservation->id, 'task_id' => $taskModel->id, 'task' => $taskModel->title, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'expires_at' => $reservation->expires_at?->format('M j, Y g:i A'), 'currency' => config('payout.currency', 'USD')],
             ), $demoBatchId);
 
             return $reservation->load('task');
@@ -102,7 +102,7 @@ class TaskReservationService
                 'Reserved task expired',
                 'Your reservation expired before proof was submitted. Any reserved reward has been released.',
                 'warning',
-                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id],
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task?->title],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $reservation->fresh('task');

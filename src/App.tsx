@@ -206,10 +206,13 @@ function AppShell() {
         setAuthChecking(false)
         const roleCanAccessAdmin = response.data.role === 'admin' || response.data.role === 'super_admin'
         const savedPage = window.history.state?.clickEarnPage
+        const requestedPage = new URLSearchParams(window.location.search).get('page')
         const allowedSavedPage = typeof savedPage === 'string'
           && (memberPages.includes(savedPage as AppPage) || (roleCanAccessAdmin && adminPages.includes(savedPage as AppPage)))
+        const allowedRequestedPage = typeof requestedPage === 'string'
+          && (memberPages.includes(requestedPage as AppPage) || (roleCanAccessAdmin && adminPages.includes(requestedPage as AppPage)))
         const landingPage: AppPage = roleCanAccessAdmin ? 'admin-dashboard' : 'tasks'
-        const nextPage = allowedSavedPage ? savedPage as AppPage : landingPage
+        const nextPage = allowedRequestedPage ? requestedPage as AppPage : allowedSavedPage ? savedPage as AppPage : landingPage
         setPage(nextPage)
         window.history.replaceState({ ...window.history.state, clickEarnPage: nextPage }, '', window.location.href)
       })
@@ -238,7 +241,11 @@ function AppShell() {
     setCurrentUser(user)
     setAuthenticated(true)
     setAuthChecking(false)
-    const nextPage: AppPage = user.role === 'admin' || user.role === 'super_admin' ? 'admin-dashboard' : 'tasks'
+    const requestedPage = new URLSearchParams(window.location.search).get('page') as AppPage | null
+    const isAdmin = user.role === 'admin' || user.role === 'super_admin'
+    const nextPage: AppPage = requestedPage && (memberPages.includes(requestedPage) || (isAdmin && adminPages.includes(requestedPage)))
+      ? requestedPage
+      : isAdmin ? 'admin-dashboard' : 'tasks'
     window.history.replaceState({ clickEarnPage: nextPage, selectedTaskId: '', selectedReservationId: null }, '', window.location.href)
     setPage(nextPage)
   }
@@ -1062,7 +1069,7 @@ function AdminGenericPage({ page, onToast }: { page: AppPage; onToast: (message:
   if (page === 'admin-referrals') return <AdminReferralsPage />
   if (page === 'admin-transactions') return <AdminTransactionsPage />
   if (page === 'admin-notifications') return <AdminNotificationsPage />
-  return <><AdminSettingsPage onToast={onToast} />{import.meta.env.VITE_CLIENT_PREVIEW === 'true' && <DemoDataPanel onToast={onToast} />}</>
+  return <><AdminSettingsPage onToast={onToast} /><EmailSettingsCard onToast={onToast} />{import.meta.env.VITE_CLIENT_PREVIEW === 'true' && <DemoDataPanel onToast={onToast} />}</>
 }
 
 function AdminUsersPage() {
@@ -1145,6 +1152,58 @@ function AdminSettingsPage({ onToast }: { onToast: (message: string) => void }) 
     }
   }
   return <div className="space-y-7"><PageHeader eyebrow="Workspace controls" title="Settings" description="Manage the operational defaults that shape task funding, verification, and payout workflows." actions={<><button disabled={!settingsLoaded} onClick={() => void loadSettings()} className="btn-secondary disabled:opacity-50">Reload settings</button><button disabled={saving || !settingsLoaded} onClick={() => void saveSettings()} className="btn-primary disabled:cursor-wait disabled:opacity-60"><Check size={16} /> {saving ? 'Saving...' : 'Save settings'}</button></>} />{loadError && <div role="alert" className="rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] px-4 py-3 text-xs leading-5 text-error">{loadError} Settings controls remain unavailable until the API can be reached.</div>}<div className="grid gap-5 xl:grid-cols-2"><section className="card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy"><ShieldCheck size={19} /></span><div><p className="eyebrow">Verification rules</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Proof review defaults</h2></div></div><div className="mt-5 space-y-4"><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Require transaction reference</span><input disabled={!settingsLoaded} type="checkbox" checked={requireReference} onChange={(event) => setRequireReference(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Auto-detect purchase amount</span><input disabled={!settingsLoaded} type="checkbox" checked={autoDetect} onChange={(event) => setAutoDetect(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Flag mismatched currency</span><input disabled={!settingsLoaded} type="checkbox" checked={flagCurrency} onChange={(event) => setFlagCurrency(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Notify member on request changes</span><input disabled={!settingsLoaded} type="checkbox" checked={notifyChanges} onChange={(event) => setNotifyChanges(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label></div></section><section className="card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#FFF7ED] text-warning"><Landmark size={19} /></span><div><p className="eyebrow">Payout settings</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Settlement defaults</h2></div></div><div className="mt-5 space-y-4"><label className="block text-xs font-semibold text-ink">Default payout window<input disabled={!settingsLoaded} className="form-field mt-2" value={payoutWindow} onChange={(event) => setPayoutWindow(event.target.value)} /></label><label className="block text-xs font-semibold text-ink">Minimum payout threshold<input disabled={!settingsLoaded} className="form-field mt-2" type="number" min="0" step="0.01" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span><span className="block text-xs font-semibold text-ink">Pause new payouts</span><span className="mt-1 block text-[11px] font-normal text-muted">Use during scheduled maintenance</span></span><input disabled={!settingsLoaded} type="checkbox" checked={pausePayouts} onChange={(event) => setPausePayouts(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label></div></section><section className="card p-5 sm:p-6 xl:col-span-2"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#ECFDF3] text-success"><Globe2 size={19} /></span><div><p className="eyebrow">Platform identity</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Workspace details</h2></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Workspace name<input disabled={!settingsLoaded} className="form-field mt-2" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} /></label><label className="text-xs font-semibold text-ink">Support email<input disabled={!settingsLoaded} type="email" className="form-field mt-2" value={supportEmail} onChange={(event) => setSupportEmail(event.target.value)} /></label></div></section></div></div>
+}
+
+function EmailSettingsCard({ onToast }: { onToast: (message: string) => void }) {
+  const [configured, setConfigured] = useState<boolean | null>(null)
+  const [sender, setSender] = useState('')
+  const [queue, setQueue] = useState('')
+  const [failures, setFailures] = useState<Array<{ id: number; event_key: string; email_attempts: number; email_last_error: string }>>([])
+  const [preview, setPreview] = useState('')
+  const [mobile, setMobile] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [testState, setTestState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const load = async () => {
+    try {
+      const response = await api.adminEmailStatus()
+      setConfigured(response.data.configured)
+      setSender(`${response.data.sender_name} <${response.data.sender_email}>`)
+      setQueue(response.data.queue_connection)
+      setFailures(response.data.recent_failures)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : 'Email settings could not be loaded.')
+    }
+  }
+  useEffect(() => { void load() }, [])
+  const showPreview = async (event: 'welcome' | 'reserved' | 'proof_submitted' | 'proof_approved' | 'changes_requested' | 'payout_processing' | 'payout_paid' | 'payout_failed') => {
+    setBusy(true)
+    try {
+      const response = await api.adminEmailPreview(event)
+      setPreview(response.data.html)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : 'Email preview could not be rendered.')
+    } finally { setBusy(false) }
+  }
+  const sendTest = async () => {
+    setBusy(true)
+    setTestState('sending')
+    try {
+      await api.adminSendTestEmail()
+      setTestState('success')
+      onToast('Test email sent successfully.')
+      void load()
+    } catch (error) {
+      setTestState('error')
+      onToast(error instanceof Error ? error.message : 'Test email could not be sent.')
+    } finally { setBusy(false) }
+  }
+  return <><section className="card mx-auto max-w-[1240px] p-5 sm:p-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="eyebrow">Transactional email</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Delivery and template tools</h2><p className="mt-1 text-xs leading-5 text-muted">SMTP secrets stay on the server. Test messages are sent only to your signed-in admin address.</p></div><div className={`rounded-full px-3 py-1 text-xs font-semibold ${configured ? 'bg-[#ECFDF3] text-success' : 'bg-[#FEF2F2] text-error'}`}>{configured === null ? 'Checking…' : configured ? 'Configured' : 'Not configured'}</div></div>
+    <div className="mt-5 grid gap-3 text-xs sm:grid-cols-2"><div className="rounded-xl border border-line bg-canvas p-3"><span className="text-muted">Sender</span><p className="mt-1 break-all font-semibold text-ink">{sender || 'Not configured'}</p></div><div className="rounded-xl border border-line bg-canvas p-3"><span className="text-muted">Queue connection</span><p className="mt-1 font-semibold text-ink">{queue || 'Unavailable'}</p></div></div>
+    <div className="mt-5 flex flex-wrap gap-2"><button disabled={busy} onClick={() => void sendTest()} className="btn-primary disabled:opacity-60"><Send size={15} />{busy ? 'Sending test email…' : 'Send Test Email'}</button>{(['welcome', 'reserved', 'proof_submitted', 'proof_approved', 'changes_requested', 'payout_processing', 'payout_paid', 'payout_failed'] as const).map((event) => <button key={event} disabled={busy} onClick={() => void showPreview(event)} className="btn-secondary capitalize disabled:opacity-60">Preview {event.replace(/_/g, ' ')}</button>)}</div>
+    {preview && <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-semibold text-ink">Template preview</p><button onClick={() => setMobile((value) => !value)} className="btn-secondary">{mobile ? 'Desktop width' : 'Mobile width'}</button></div><div className="overflow-auto rounded-xl border border-line bg-canvas p-3"><iframe title="Transactional email preview" srcDoc={preview} className={`mx-auto block min-h-[720px] border-0 bg-white shadow-sm ${mobile ? 'w-[375px]' : 'w-full max-w-[640px]'}`} /></div></div>}
+    {failures.length > 0 && <div className="mt-5 rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] p-3"><p className="text-xs font-semibold text-error">Recent delivery failures</p><ul className="mt-2 space-y-1 text-xs text-muted">{failures.map((failure) => <li key={failure.id}>{failure.event_key} · {failure.email_attempts} attempts · {failure.email_last_error}</li>)}</ul></div>}
+  </section><Modal open={testState !== 'idle'} title={testState === 'success' ? 'Test email sent successfully' : testState === 'error' ? 'Test email could not be sent' : 'Sending test email…'} description={testState === 'error' ? 'Check the server mail configuration and recent delivery failures, then try again.' : 'The test is sent only to your signed-in admin email address.'} onClose={() => { if (testState !== 'sending') setTestState('idle') }} size="sm"><div className="flex justify-end"><button disabled={testState === 'sending'} onClick={() => setTestState('idle')} className="btn-primary disabled:opacity-60">Done</button></div></Modal></>
 }
 
 function DemoDataPanel({ onToast }: { onToast: (message: string) => void }) {

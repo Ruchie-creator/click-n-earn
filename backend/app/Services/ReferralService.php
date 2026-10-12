@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class ReferralService
 {
-    public function __construct(private readonly EventNotificationService $notifications)
-    {
-    }
+    public function __construct(private readonly EventNotificationService $notifications) {}
 
     public function registerReferral(User $referredUser, ?string $code): ?Referral
     {
@@ -83,10 +81,10 @@ class ReferralService
             app(LedgerService::class)->issueReferralReward($referral);
             if ($referral->referrer) {
                 $this->notifications->notifyOnce($referral->referrer, 'referral.qualified.'.$referral->id, new EventNotification(
-                'Referral reward qualified',
-                $referredUser->name.' completed their first approved task. A referral reward has been added to your earnings.',
-                'success',
-                ['referral_id' => $referral->id],
+                    'Referral reward qualified',
+                    $referredUser->name.' completed their first approved task. A referral reward has been added to your earnings.',
+                    'success',
+                    ['referral_id' => $referral->id, 'reward_amount' => $referral->reward_amount, 'currency' => config('payout.currency', 'USD')],
                 ), $referral->getAttribute('demo_batch_id'));
             }
 

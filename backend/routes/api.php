@@ -100,6 +100,9 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
         Route::get('notifications', [AdminNotificationController::class, 'index']);
         Route::get('settings', [AdminSettingController::class, 'index']);
         Route::patch('settings/{key}', [AdminSettingController::class, 'update']);
+        Route::get('email/status', [AdminSettingController::class, 'emailStatus']);
+        Route::post('email/preview', [AdminSettingController::class, 'preview']);
+        Route::post('email/test', [AdminSettingController::class, 'sendTestEmail']);
         Route::get('demo-data', [DemoDataController::class, 'status']);
         Route::post('demo-data/seed', [DemoDataController::class, 'seed']);
         Route::post('demo-data/refresh', [DemoDataController::class, 'refresh']);

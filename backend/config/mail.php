@@ -39,7 +39,7 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            'scheme' => env('MAIL_SCHEME', env('MAIL_ENCRYPTION')),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
@@ -111,8 +111,13 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+        'address' => env('MAIL_FROM_ADDRESS'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
+
+    /* The frontend serves the approved, unmodified wordmark. Set this to an
+     * HTTPS URL in production so remote mail clients can load it. */
+    'brand_logo_url' => env('MAIL_BRAND_LOGO_URL', rtrim((string) env('FRONTEND_URL', ''), '/').'/brand/logo-wordmark.png'),
+    'support_address' => env('SUPPORT_EMAIL'),
 
 ];

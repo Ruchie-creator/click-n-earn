@@ -5,15 +5,15 @@ namespace App\Services;
 use App\Enums\LedgerStatus;
 use App\Enums\PayoutStatus;
 use App\Enums\ReservationStatus;
+use App\Enums\UserRole;
+use App\Jobs\ProcessPayoutJob;
 use App\Models\Payout;
-use App\Models\PayoutMethod;
 use App\Models\TaskReservation;
 use App\Models\User;
 use App\Notifications\EventNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use App\Enums\UserRole;
-use App\Jobs\ProcessPayoutJob;
 
 class PayoutService
 {
@@ -24,8 +24,7 @@ class PayoutService
         private readonly AuditLogService $audit,
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function createApprovedForReservation(TaskReservation $reservation): Payout
     {
@@ -82,7 +81,7 @@ class PayoutService
             try {
                 $result = $this->provider->submit($model, $method);
             } catch (\Throwable $exception) {
-                \Illuminate\Support\Facades\Log::warning('Payout provider submission failed.', [
+                Log::warning('Payout provider submission failed.', [
                     'payout_id' => $model->id,
                     'exception' => $exception::class,
                 ]);
@@ -124,7 +123,7 @@ class PayoutService
             try {
                 $result = $this->provider->retrieve($model);
             } catch (\Throwable $exception) {
-                \Illuminate\Support\Facades\Log::warning('Payout provider status sync failed.', [
+                Log::warning('Payout provider status sync failed.', [
                     'payout_id' => $model->id,
                     'exception' => $exception::class,
                 ]);
@@ -260,7 +259,7 @@ class PayoutService
                 'Your payout is processing',
                 sprintf('Your %s %s payout has been sent for processing.', $payout->amount, $payout->currency),
                 'processing',
-                ['payout_id' => $payout->id],
+                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Pending confirmation', 'masked_account' => $payout->payoutMethod?->maskedAccount()],
             ), $payout->getAttribute('demo_batch_id'));
         }
 
@@ -312,10 +311,10 @@ class PayoutService
         }
         if ($payout->user) {
             $this->notifications->notifyOnce($payout->user, 'payout.paid.'.$payout->id, new EventNotification(
-            'Payout paid',
-            sprintf('Your %s %s payout has been marked paid.', $payout->amount, $payout->currency),
-            'success',
-            ['payout_id' => $payout->id, 'reference' => $reference],
+                'Payout paid',
+                sprintf('Your %s %s payout has been marked paid.', $payout->amount, $payout->currency),
+                'success',
+                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: $reference, 'masked_account' => $payout->payoutMethod?->maskedAccount(), 'completed_at' => $payout->paid_at?->format('M j, Y g:i A')],
             ), $payout->getAttribute('demo_batch_id'));
         }
 
@@ -342,10 +341,10 @@ class PayoutService
         $failureEventKey = 'payout.failed.'.$payout->id.'.'.($payout->failed_at?->getTimestamp() ?? now()->getTimestamp());
         if ($payout->user) {
             $this->notifications->notifyOnce($payout->user, $failureEventKey, new EventNotification(
-            'Payout needs attention',
-            $reason,
-            'error',
-            ['payout_id' => $payout->id],
+                'Payout needs attention',
+                $reason,
+                'error',
+                ['payout_id' => $payout->id],
             ), $payout->getAttribute('demo_batch_id'));
         }
         User::query()->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])->get()->each(
@@ -353,7 +352,7 @@ class PayoutService
                 'Payout failed',
                 sprintf('Payout #%d needs attention: %s', $payout->id, $reason),
                 'error',
-                ['payout_id' => $payout->id],
+                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Unavailable'],
             ), $payout->getAttribute('demo_batch_id')),
         );
 
@@ -376,10 +375,10 @@ class PayoutService
         }
         if ($payout->user) {
             $this->notifications->notifyOnce($payout->user, 'payout.reversed.'.$payout->id, new EventNotification(
-            'Payout reversed',
-            $reason,
-            'error',
-            ['payout_id' => $payout->id],
+                'Payout reversed',
+                $reason,
+                'error',
+                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Unavailable', 'member' => $payout->user?->name, 'admin_notification' => true],
             ), $payout->getAttribute('demo_batch_id'));
         }
 
