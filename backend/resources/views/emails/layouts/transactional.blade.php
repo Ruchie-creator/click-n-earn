@@ -19,7 +19,7 @@
                         @include('emails.partials.status-icon', ['color' => $color, 'symbol' => $symbol])
                         @include('emails.partials.greeting', ['name' => $name])
                         <h1 style="margin:0 0 14px;font-size:26px;line-height:34px;font-weight:700;color:#1F3558;">{{ $title }}</h1>
-                        <p style="margin:0 0 24px;font-size:16px;line-height:25px;color:#667085;">{{ $message }}</p>
+                        <p style="margin:0 0 24px;font-size:16px;line-height:25px;color:#667085;">{{ $emailMessage }}</p>
                         @if($details !== []) @include('emails.partials.detail-box', ['details' => $details]) @endif
                         @if($financial !== []) @include('emails.partials.financial-summary', ['financial' => $financial]) @endif
                         @if($ctaUrl && $ctaLabel) @include('emails.partials.cta-button', ['url' => $ctaUrl, 'label' => $ctaLabel, 'color' => $color]) @endif

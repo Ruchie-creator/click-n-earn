@@ -3,7 +3,7 @@ Click & Earn
 Hello {{ $name }},
 
 {{ $title }}
-{{ $message }}
+{{ $emailMessage }}
 @foreach($details as $label => $value)
 {{ $label }}: {{ $value }}
 @endforeach

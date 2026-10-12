@@ -58,7 +58,7 @@ class EventNotification extends Notification
         return [
             'name' => (string) ($notifiable->name ?: 'there'),
             'title' => $this->title,
-            'message' => $this->body,
+            'emailMessage' => $this->body,
             'color' => $status[0],
             'symbol' => $status[1],
             'details' => $details,
