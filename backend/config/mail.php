@@ -1,9 +1,9 @@
 <?php
 
 $smtpScheme = match (strtolower((string) env('MAIL_SCHEME', env('MAIL_ENCRYPTION', '')))) {
-        'ssl' => 'smtps',
-        'tls', 'starttls' => 'smtp',
-        default => env('MAIL_SCHEME', env('MAIL_ENCRYPTION')),
+    'ssl' => 'smtps',
+    'tls', 'starttls' => 'smtp',
+    default => env('MAIL_SCHEME', env('MAIL_ENCRYPTION')),
 };
 
 return [
