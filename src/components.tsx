@@ -1,4 +1,5 @@
 import { ChangeEvent, ReactNode, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
@@ -93,22 +94,28 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
-export function Logo({ onClick, compact = false, light = false, inverted = false }: { onClick?: () => void; compact?: boolean; light?: boolean; inverted?: boolean }) {
-  const imageClass = `h-full w-full object-cover ${inverted ? 'brightness-0 invert' : ''}`
+type BrandLogoSize = 'default' | 'sidebar' | 'auth'
+
+export function BrandLogo({ onClick, compact = false, light = false, inverted = false, size = 'default' }: { onClick?: () => void; compact?: boolean; light?: boolean; inverted?: boolean; size?: BrandLogoSize }) {
+  const imageClass = 'h-full w-full object-contain'
+  const wordmarkSize = size === 'auth' ? 'h-[74px] w-[250px]' : size === 'sidebar' ? 'h-[62px] w-[214px]' : 'h-[50px] w-[190px]'
+  const darkSurface = light || inverted
   return (
     <button type="button" onClick={onClick} className={`group flex shrink-0 items-center text-left ${onClick ? 'focus-visible-only' : ''}`} aria-label="Click & Earn home">
       {compact ? (
-        <span className="block h-10 w-10 overflow-hidden rounded-xl bg-navy shadow-sm">
-          <img src="/brand/icon.png" alt="" className={imageClass} />
+        <span className="block h-11 w-11 overflow-hidden rounded-xl bg-navy shadow-sm">
+          <img src="/brand/icon-mark.png" alt="" className={imageClass} width="751" height="800" />
         </span>
       ) : (
-        <span className={`block h-12 w-[184px] overflow-hidden rounded-lg ${light && !inverted ? 'bg-white shadow-sm' : ''}`}>
-          <img src="/brand/logo.png" alt="" className={imageClass} />
+        <span className={`block overflow-hidden ${wordmarkSize} ${darkSurface ? 'rounded-2xl bg-white/95 px-3 py-2 shadow-[0_10px_28px_rgba(7,18,38,0.18)] ring-1 ring-white/20' : ''}`}>
+          <img src="/brand/logo-wordmark.png" alt="" className={imageClass} width="1593" height="421" />
         </span>
       )}
     </button>
   )
 }
+
+export const Logo = BrandLogo
 
 export function Avatar({ initials, size = 'md', tone = 'navy', src, alt = '' }: { initials: string; size?: 'sm' | 'md' | 'lg'; tone?: 'navy' | 'indigo' | 'blue'; src?: string | null; alt?: string }) {
   const [imageFailed, setImageFailed] = useState(false)
@@ -300,7 +307,7 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onOpenAd
   return <>
     <div onClick={onClose} className={`fixed inset-0 z-40 bg-navy/35 backdrop-blur-[2px] transition-opacity duration-200 md:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} />
     <aside className={`sidebar-scroll dark-scroll fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col overflow-y-auto bg-navy text-white transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-      <div className="flex h-[76px] items-center justify-between border-b border-white/10 px-5"><Logo light /><button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white md:hidden" aria-label="Close navigation"><X size={18} /></button></div>
+      <div className="flex h-[96px] shrink-0 items-center justify-between border-b border-white/10 px-4"><Logo light size="sidebar" /><button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-lg text-white/50 transition-[background-color,color,transform] hover:bg-white/10 hover:text-white active:scale-[0.96] md:hidden" aria-label="Close navigation"><X size={18} /></button></div>
       <div className="flex flex-1 flex-col px-3 py-5">
         <nav className="space-y-6">{groups.map((group) => <div key={group.label}><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">{group.label}</p><div className="mt-2 space-y-1">{group.items.map(([itemPage, label]) => { const Icon = navIcon(itemPage); const active = page === itemPage; const count = itemPage === 'notifications' ? unreadCount : itemPage === 'admin-verification' ? reviewCount : 0; return <button key={itemPage} onClick={() => { onNavigate(itemPage as AppPage); onClose() }} className={`sidebar-link flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition-[background-color,color] duration-200 ${active ? 'bg-white text-navy shadow-sm' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.8} /><span className="flex-1">{label}</span>{count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-soft-blue text-navy' : 'bg-white/10 text-white/65'}`}>{count}</span>}</button> })}</div></div>)}</nav>
         <div className="mt-auto pt-6"><div className="rounded-2xl border border-white/10 bg-white/5 p-3.5"><div className="flex items-start justify-between"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-[#B9D7FF]"><HelpCircle size={16} /></span><button className="text-white/35 hover:text-white"><MoreHorizontal size={17} /></button></div><p className="mt-3 text-xs font-semibold text-white">Need a hand?</p><p className="mt-1 text-[11px] leading-4 text-white/50">Our support team is here to help with submissions.</p><button className="mt-3 text-[11px] font-semibold text-[#B9D7FF] hover:text-white">Visit help center <ArrowRight className="ml-1 inline" size={12} /></button></div>{canAccessAdmin && !admin && <button onClick={onOpenAdmin} className="mt-3 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ShieldCheck size={15} />Open admin workspace</button>}<button onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><LogOut size={15} />Sign out</button></div>
@@ -397,13 +404,18 @@ export function CopyButton({ value, onCopied }: { value: string; onCopied?: () =
   return <button disabled={!value} onClick={async () => { try { if (!navigator.clipboard) throw new Error('Clipboard access is unavailable.'); await navigator.clipboard.writeText(value); onCopied?.() } catch { /* Clipboard denial should not be reported as a successful copy. */ } }} className="btn-secondary min-h-10 shrink-0 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-50"><Copy size={14} />Copy</button>
 }
 
-export function Modal({ open, title, description, onClose, children, size = 'md' }: { open: boolean; title: string; description?: string; onClose: () => void; children: ReactNode; size?: 'sm' | 'md' | 'lg' }) {
+export function Modal({ open, title, description, onClose, children, size = 'md', headerAside, bodyClassName = '' }: { open: boolean; title: string; description?: string; onClose: () => void; children: ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl'; headerAside?: ReactNode; bodyClassName?: string }) {
   const contentRef = useRef<HTMLDivElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   useEffect(() => {
     if (!open) return
+    const previousOverflow = document.body.style.overflow
+    const previousPaddingRight = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    document.body.style.overflow = 'hidden'
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const focusFrame = window.requestAnimationFrame(() => {
       const first = contentRef.current?.querySelector<HTMLElement>('input, button, textarea, select, [tabindex="0"]')
@@ -424,12 +436,24 @@ export function Modal({ open, title, description, onClose, children, size = 'md'
     return () => {
       window.cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+      document.body.style.paddingRight = previousPaddingRight
       previousFocus.current?.focus()
     }
   }, [open])
   if (!open) return null
-  const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl'
-  return <div className="fixed inset-0 z-[70] flex items-end justify-center bg-navy/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div ref={contentRef} className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-soft sm:rounded-2xl sm:p-6 ${width}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={description ? 'modal-description' : undefined} tabIndex={-1}><div className="flex items-start justify-between gap-4"><div><h2 id="modal-title" className="text-lg font-semibold tracking-[-0.02em] text-ink">{title}</h2>{description && <p id="modal-description" className="mt-1 text-xs leading-5 text-muted">{description}</p>}</div><button onClick={onClose} className="btn-ghost -mr-2 -mt-2 min-h-9 px-2 text-muted" aria-label="Close modal"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>
+  const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : size === 'xl' ? 'max-w-[1180px]' : 'max-w-xl'
+  const isWorkspace = size === 'xl'
+  const dialog = <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#10192B]/60 p-0 backdrop-blur-[4px] sm:items-center sm:p-4 lg:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <div ref={contentRef} className={`flex w-full flex-col bg-white shadow-[0_28px_90px_rgba(15,29,51,0.3),0_4px_18px_rgba(15,29,51,0.12)] outline-none ${width} ${isWorkspace ? 'h-[100dvh] max-h-[100dvh] overflow-hidden sm:h-[92dvh] sm:max-h-[860px] sm:rounded-[20px]' : 'max-h-[92dvh] overflow-hidden rounded-t-2xl sm:rounded-2xl'}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={description ? 'modal-description' : undefined} tabIndex={-1}>
+      <div className={`flex shrink-0 items-start justify-between gap-4 border-b border-line ${isWorkspace ? 'px-5 py-4 sm:px-6 sm:py-5' : 'px-5 py-4 sm:px-6'}`}>
+        <div className="min-w-0"><h2 id="modal-title" className={`${isWorkspace ? 'text-xl' : 'text-lg'} font-semibold tracking-[-0.03em] text-ink [text-wrap:balance]`}>{title}</h2>{description && <p id="modal-description" className="mt-1 truncate text-xs leading-5 text-muted">{description}</p>}</div>
+        <div className="flex shrink-0 items-center gap-2">{headerAside}<button onClick={onClose} className="btn-ghost min-h-10 w-10 px-0 text-muted" aria-label="Close modal"><X size={19} /></button></div>
+      </div>
+      <div className={isWorkspace ? `min-h-0 flex-1 ${bodyClassName}` : `overflow-y-auto p-5 sm:p-6 ${bodyClassName}`}>{children}</div>
+    </div>
+  </div>
+  return createPortal(dialog, document.body)
 }
 
 export function TableEmpty({ message }: { message: string }) {

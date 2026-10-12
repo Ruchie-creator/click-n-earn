@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -39,7 +40,9 @@ import {
   Link2,
   LockKeyhole,
   Mail,
+  Maximize2,
   Megaphone,
+  Minus,
   MoreHorizontal,
   MoreVertical,
   Pencil,
@@ -964,46 +967,77 @@ function AdminVerificationPage({ onToast, onRefresh, requestedSubmissionId, onRe
     <PageHeader eyebrow="Proof operations" title="Verification queue" description="Review submitted proof, compare it against the server-recorded task economics, and make a clear decision." />
     <div className="grid gap-4 sm:grid-cols-3"><StatCard label="Needs review" value={adminStats.pendingVerification} helper="Current platform total" icon={FileClock} tone="orange" /><StatCard label="High confidence" value={String(verificationQueue.filter((item) => item.confidence === 'High').length)} helper="In the loaded queue" icon={ShieldCheck} tone="green" /><StatCard label="Flagged submissions" value={String(verificationQueue.filter((item) => item.warnings.length > 0).length)} helper="In the loaded queue" icon={ShieldAlert} tone="blue" /></div>
     <section className="card overflow-hidden"><div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="eyebrow">Incoming proof</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Submissions to review</h2></div></div>{verificationQueue.length ? <><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[900px] text-left"><thead className="bg-canvas text-[11px] uppercase tracking-[0.1em] text-subtle"><tr><th className="px-6 py-3 font-semibold">Submission</th><th className="px-4 py-3 font-semibold">Member</th><th className="px-4 py-3 font-semibold">Task</th><th className="px-4 py-3 font-semibold">Purchase</th><th className="px-4 py-3 font-semibold">Submitted</th><th className="px-4 py-3 font-semibold">Confidence</th><th className="px-6 py-3 text-right font-semibold">Review</th></tr></thead><tbody className="divide-y divide-line">{verificationQueue.map((item) => <tr key={item.id} className="transition-colors hover:bg-canvas"><td className="px-6 py-4 text-xs font-semibold text-navy">{item.id}</td><td className="px-4 py-4"><div className="flex items-center gap-2.5"><Avatar initials={item.member.split(' ').map((part) => part[0]).join('')} size="sm" tone="blue" /><span className="text-sm font-medium text-ink">{item.member}</span></div></td><td className="px-4 py-4 text-xs text-muted">{item.task}</td><td className="number px-4 py-4 text-xs font-semibold text-ink">{formatCurrency(item.amount)}</td><td className="px-4 py-4 text-xs text-muted">{item.submitted}</td><td className="px-4 py-4"><StatusBadge tone={item.confidence === 'High' ? 'success' : 'warning'} dot>{item.confidence}</StatusBadge></td><td className="px-6 py-4 text-right"><button onClick={() => void openSubmission(item)} disabled={processing} className="btn-primary min-h-9 px-3 text-xs disabled:opacity-60">Review <ArrowUpRight size={13} /></button></td></tr>)}</tbody></table></div><div className="divide-y divide-line md:hidden">{verificationQueue.map((item) => <button key={item.id} onClick={() => void openSubmission(item)} disabled={processing} className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-canvas disabled:opacity-60"><Avatar initials={item.member.split(' ').map((part) => part[0]).join('')} size="sm" tone="blue" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-semibold text-ink">{item.member}</p><StatusBadge tone={item.confidence === 'High' ? 'success' : 'warning'}>{item.confidence}</StatusBadge></div><p className="mt-1 truncate text-[11px] text-muted">{item.task} · {item.submitted}</p></div><ChevronRight size={16} className="text-subtle" /></button>)}</div></> : <TableEmpty message="No submissions are waiting for review." />}</section>
-    <Modal open={Boolean(selected)} title={selected ? 'Review ' + selected.id : ''} description={selected ? selected.member + ' · ' + selected.task : undefined} onClose={() => setSelectedIdFromAction(null)} size="lg">{selected && <ReviewSubmission key={selected.id} item={selected} busy={busy || processing} previewUrl={previewUrl} previewType={previewType} onDownload={() => void downloadProof(selected)} onDecision={handleDecision} />}</Modal>
+    <Modal open={Boolean(selected)} title="Review Task Submission" description={selected ? `${selected.task} · ${selected.member} · ${selected.id}` : undefined} headerAside={selected ? <StatusBadge tone={getTone(selected.status || 'Under review')} dot>{selected.status?.replace(/_/g, ' ') || 'Under review'}</StatusBadge> : null} onClose={() => setSelectedIdFromAction(null)} size="xl" bodyClassName="overflow-hidden">{selected && <ReviewSubmission key={selected.id} item={selected} busy={busy || processing} previewUrl={previewUrl} previewType={previewType} onDownload={() => void downloadProof(selected)} onDecision={handleDecision} />}</Modal>
   </div>
 }
 function ReviewSubmission({ item, busy, previewUrl, previewType, onDownload, onDecision }: { item: VerificationQueueItem; busy: boolean; previewUrl: string | null; previewType: string; onDownload: () => void; onDecision: (decision: 'Approved' | 'Request changes' | 'Rejected', reason: string) => Promise<void> }) {
   const [note, setNote] = useState('')
+  const [zoom, setZoom] = useState(1)
+  const [pendingDecision, setPendingDecision] = useState<'Approved' | 'Request changes' | 'Rejected' | null>(null)
+  const [validationMessage, setValidationMessage] = useState('')
+  const requestDecision = (decision: 'Approved' | 'Request changes' | 'Rejected') => {
+    if (decision !== 'Approved' && !note.trim()) {
+      setValidationMessage('Add a reviewer note before requesting changes or rejecting this proof.')
+      return
+    }
+    setValidationMessage('')
+    setPendingDecision(decision)
+  }
+  const confirmDecision = async () => {
+    if (!pendingDecision) return
+    const decision = pendingDecision
+    setPendingDecision(null)
+    await onDecision(decision, note)
+  }
+  const confidenceTone = item.confidence === 'High' ? 'success' : item.confidence === 'Review' ? 'error' : 'warning'
   return (
-    <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-      <div className="rounded-2xl bg-navy p-4 text-white">
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
-          {previewUrl && previewType.startsWith('image/') ? <img src={previewUrl} alt={`Proof file ${item.proof}`} className="max-h-[460px] w-full bg-[#101C31] object-contain" />
-            : previewUrl && previewType === 'application/pdf' ? <iframe title={`PDF proof preview: ${item.proof}`} src={previewUrl} className="h-[420px] w-full bg-white" />
-              : <div className="flex min-h-[260px] flex-col items-center justify-center px-5 text-center"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 text-[#B9D7FF]"><ImageIcon size={24} /></span><p className="mt-4 text-sm font-semibold">{item.proof}</p><p className="mt-1 text-xs text-white/45">Private proof file</p><p className="mt-3 text-[11px] leading-4 text-white/55">Use the secure download to inspect this file.</p></div>}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={onDownload} className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white transition-colors hover:bg-white/15"><Download size={13} /> Download proof</button>
-          {previewUrl && <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-[#B9D7FF] transition-colors hover:bg-white/10">Open larger preview <ArrowUpRight size={13} /></a>}
-        </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] lg:overflow-hidden">
+        <section className="flex min-h-[420px] flex-col bg-[#111E34] p-4 text-white sm:p-5 lg:min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">Private proof</p><p className="mt-1 truncate text-xs font-semibold text-white/85">{item.proof}</p></div><div className="flex items-center gap-1">{previewType.startsWith('image/') && <><button type="button" onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))} className="grid h-10 w-10 place-items-center rounded-lg text-white/65 transition-[background-color,color,transform] hover:bg-white/10 hover:text-white active:scale-[0.96]" aria-label="Zoom out"><Minus size={16} /></button><span className="number min-w-12 text-center text-[11px] text-white/55">{Math.round(zoom * 100)}%</span><button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.25))} className="grid h-10 w-10 place-items-center rounded-lg text-white/65 transition-[background-color,color,transform] hover:bg-white/10 hover:text-white active:scale-[0.96]" aria-label="Zoom in"><Plus size={16} /></button></>}</div></div>
+          <div className="thin-scroll flex min-h-[300px] flex-1 items-center justify-center overflow-auto rounded-xl bg-[#091426] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+            {previewUrl && previewType.startsWith('image/') ? <img src={previewUrl} alt={`Proof file ${item.proof}`} className="max-h-full max-w-full object-contain transition-transform duration-200" style={{ transform: `scale(${zoom})` }} />
+              : previewUrl && previewType === 'application/pdf' ? <iframe title={`PDF proof preview: ${item.proof}`} src={`${previewUrl}#view=FitH`} className="h-full min-h-[430px] w-full bg-white" />
+                : <div className="flex min-h-[300px] flex-col items-center justify-center px-5 text-center"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 text-[#B9D7FF]"><ImageIcon size={24} /></span><p className="mt-4 text-sm font-semibold">Preview unavailable</p><p className="mt-2 max-w-xs text-xs leading-5 text-white/55">The secure file could not be displayed here. Download it to continue the review.</p></div>}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={onDownload} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white transition-[background-color,transform] hover:bg-white/15 active:scale-[0.96]"><Download size={14} /> Download proof</button>{previewUrl && <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-[#B9D7FF] transition-[background-color,transform] hover:bg-white/10 active:scale-[0.96]"><Maximize2 size={14} /> Open full size</a>}</div>
+        </section>
+        <section className="thin-scroll overflow-y-auto bg-white p-5 sm:p-6">
+          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-canvas p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"><p className="text-[11px] text-muted">Declared purchase</p><p className="number mt-1 text-xl font-semibold tracking-[-0.03em] text-ink">{formatCurrency(item.amount)}</p></div><div className="rounded-xl bg-soft-blue p-4 shadow-[inset_0_0_0_1px_rgba(79,111,174,0.16)]"><p className="text-[11px] text-navy">Total expected payout</p><p className="number mt-1 text-xl font-semibold tracking-[-0.03em] text-navy">{formatCurrency(item.expectedPayout)}</p></div></div>
+          <div className="mt-5"><p className="eyebrow">Payout breakdown</p><div className="mt-2 divide-y divide-line rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]"><InfoRow label="Expected reimbursement" value={formatCurrency(item.reimbursement)} /><InfoRow label="Incentive" value={`+${formatCurrency(item.incentive)}`} valueClass="text-success" /><InfoRow label="Detected amount" value={item.detectedAmount === null || item.detectedAmount === undefined ? '—' : formatCurrency(item.detectedAmount)} /><InfoRow label="Amount matching" value={item.amountMatches === true ? 'Match' : item.amountMatches === false ? 'Mismatch' : 'Not checked'} valueClass={item.amountMatches === true ? 'text-success' : item.amountMatches === false ? 'text-error' : 'text-muted'} /></div></div>
+          <div className="mt-5"><p className="eyebrow">Verification details</p><div className="mt-2 divide-y divide-line rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]"><InfoRow label="Purchase date & time" value={`${item.purchaseDate || '—'}${item.purchaseTime ? ` · ${item.purchaseTime}` : ''}`} /><InfoRow label="Transaction reference" value={item.transactionReference || '—'} /><div className="flex items-center justify-between gap-4 px-4 py-3"><span className="text-xs text-muted">Automation confidence</span><StatusBadge tone={confidenceTone} dot>{item.confidence}</StatusBadge></div></div></div>
+          {item.warnings.length > 0 && <div className="mt-5 rounded-xl bg-[#FFFBEB] p-4 shadow-[inset_0_0_0_1px_rgba(217,119,6,0.22)]"><div className="flex items-center gap-2 text-xs font-semibold text-warning"><ShieldAlert size={15} /> Verification warnings</div><div className="mt-2 space-y-1 text-xs leading-5 text-[#8A5609]">{item.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div></div>}
+          {item.userNote && <div className="mt-5"><p className="eyebrow">Member note</p><p className="mt-2 rounded-xl bg-canvas p-4 text-xs leading-5 text-muted shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">{item.userNote}</p></div>}
+          <label className="mt-5 block text-xs font-semibold text-ink">Reviewer note <span className="font-normal text-muted">{pendingDecision && pendingDecision !== 'Approved' ? '(required)' : '(optional for approval)'}</span><textarea className="form-field mt-2 h-24 resize-y py-3" value={note} onChange={(event) => { setNote(event.target.value); setValidationMessage('') }} placeholder="Explain the decision to the member..." /></label>
+          {validationMessage && <p className="mt-2 text-xs font-medium text-error" role="alert">{validationMessage}</p>}
+        </section>
       </div>
-      <div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-line bg-canvas p-3.5"><p className="text-[11px] text-muted">Detected amount</p><p className="number mt-1 text-lg font-semibold text-ink">{item.detectedAmount === null || item.detectedAmount === undefined ? '—' : formatCurrency(item.detectedAmount)}</p><p className="mt-1 text-[10px] text-muted">Declared {formatCurrency(item.amount)}</p></div>
-          <div className="rounded-xl border border-line bg-canvas p-3.5"><p className="text-[11px] text-muted">Expected payout</p><p className="number mt-1 text-lg font-semibold text-navy">{formatCurrency(item.expectedPayout)}</p><p className="mt-1 text-[10px] text-muted">Reimbursement + incentive</p></div>
-          <div className="rounded-xl border border-line bg-canvas p-3.5"><p className="text-[11px] text-muted">Amount check</p><p className={`mt-1 text-lg font-semibold ${item.amountMatches === true ? 'text-success' : item.amountMatches === false ? 'text-error' : 'text-muted'}`}>{item.amountMatches === true ? 'Match' : item.amountMatches === false ? 'Mismatch' : 'Not checked'}</p><p className="mt-1 text-[10px] text-muted">Reimbursement {formatCurrency(item.reimbursement)}</p></div>
-        </div>
-        <div className="mt-4 divide-y divide-line rounded-xl border border-line">
-          <div className="flex items-center justify-between px-4 py-3"><span className="text-xs text-muted">Purchase date & time</span><span className="text-right text-xs font-semibold text-ink">{item.purchaseDate || '—'}{item.purchaseTime ? ` · ${item.purchaseTime}` : ''}</span></div>
-          <div className="flex items-center justify-between px-4 py-3"><span className="text-xs text-muted">Reference number</span><span className="text-xs font-semibold text-ink">{item.transactionReference || '—'}</span></div>
-          <div className="flex items-center justify-between px-4 py-3"><span className="text-xs text-muted">Reimbursement / incentive</span><span className="text-xs font-semibold text-ink">{formatCurrency(item.reimbursement)} / {formatCurrency(item.incentive)}</span></div>
-          <div className="flex items-center justify-between px-4 py-3"><span className="text-xs text-muted">Automation confidence</span><StatusBadge tone={item.confidence === 'High' ? 'success' : 'warning'} dot>{item.confidence}</StatusBadge></div>
-        </div>
-        {(item.warnings.length > 0 || item.userNote) && <div className="mt-4 rounded-xl border border-[#F4D7A6] bg-[#FFFBEB] p-3.5 text-xs leading-5 text-[#9A5B05]">{item.warnings.map((warning) => <p key={warning}>{warning}</p>)}{item.userNote && <p className={item.warnings.length ? 'mt-2 border-t border-[#F4D7A6] pt-2' : ''}>Member note: {item.userNote}</p>}</div>}
-        <label className="mt-4 block text-xs font-semibold text-ink">Reviewer note <textarea className="form-field mt-2 h-20 resize-none py-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add an optional note for the member..." /></label>
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <button disabled={busy} onClick={() => void onDecision('Approved', note)} className="btn-primary bg-success hover:bg-[#12863C] disabled:cursor-wait disabled:opacity-60"><Check size={15} /> Approve</button>
-          <button disabled={busy} onClick={() => void onDecision('Request changes', note)} className="btn-secondary border-[#F4D7A6] text-warning hover:bg-[#FFFBEB] disabled:cursor-wait disabled:opacity-60"><RefreshCw size={15} /> Request changes</button>
-          <button disabled={busy} onClick={() => void onDecision('Rejected', note)} className="btn-secondary border-[#F4B7B7] text-error hover:bg-[#FEF2F2] disabled:cursor-wait disabled:opacity-60"><X size={15} /> Reject</button>
-        </div>
-      </div>
+      <footer className="shrink-0 border-t border-line bg-white px-4 py-3 sm:px-6"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="hidden text-xs text-muted sm:block">Review the proof and server-recorded values before deciding.</p><div className="flex flex-col-reverse gap-2 sm:flex-row"><button disabled={busy} onClick={() => requestDecision('Request changes')} className="btn-secondary border-[#F4D7A6] text-warning hover:bg-[#FFFBEB]"><RefreshCw size={15} /> Request changes</button><button disabled={busy} onClick={() => requestDecision('Rejected')} className="btn-secondary border-[#F4B7B7] text-error hover:bg-[#FEF2F2]"><X size={15} /> Reject</button><button disabled={busy} onClick={() => requestDecision('Approved')} className="btn-primary bg-success hover:bg-[#12863C]"><Check size={15} /> Approve</button></div></div></footer>
+      {pendingDecision && <DecisionConfirmationDialog decision={pendingDecision} busy={busy} onCancel={() => setPendingDecision(null)} onConfirm={() => void confirmDecision()} />}
     </div>
   )
+}
+
+function DecisionConfirmationDialog({ decision, busy, onCancel, onConfirm }: { decision: 'Approved' | 'Request changes' | 'Rejected'; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    dialog.showModal()
+    return () => { if (dialog.open) dialog.close() }
+  }, [])
+  const destructive = decision === 'Rejected'
+  const approval = decision === 'Approved'
+  return createPortal(
+    <dialog ref={dialogRef} onCancel={(event) => { event.preventDefault(); if (!busy) onCancel() }} className="m-auto w-[calc(100%-32px)] max-w-md rounded-[20px] bg-white p-0 text-left shadow-[0_28px_90px_rgba(15,29,51,0.38)] backdrop:bg-[#10192B]/55 backdrop:backdrop-blur-[3px]" aria-labelledby="decision-confirmation-title" aria-describedby="decision-confirmation-description">
+      <div className="p-5 sm:p-6"><span className={`grid h-11 w-11 place-items-center rounded-xl ${destructive ? 'bg-[#FEF2F2] text-error' : approval ? 'bg-[#ECFDF3] text-success' : 'bg-[#FFF7ED] text-warning'}`}>{destructive ? <X size={20} /> : approval ? <Check size={20} /> : <RefreshCw size={20} />}</span><h3 id="decision-confirmation-title" className="mt-4 text-lg font-semibold tracking-[-0.03em] text-ink">Confirm {decision.toLowerCase()}?</h3><p id="decision-confirmation-description" className="mt-2 text-sm leading-6 text-muted">This updates the submission workflow and notifies the member. The action only completes after the server confirms it.</p><div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={onCancel} className="btn-secondary">Cancel</button><button type="button" disabled={busy} onClick={onConfirm} className={destructive ? 'btn-primary bg-error hover:bg-[#B42318]' : approval ? 'btn-primary bg-success hover:bg-[#12863C]' : 'btn-primary'}>{busy ? 'Saving…' : `Confirm ${decision.toLowerCase()}`}</button></div></div>
+    </dialog>,
+    document.body,
+  )
+}
+
+function InfoRow({ label, value, valueClass = 'text-ink' }: { label: string; value: string; valueClass?: string }) {
+  return <div className="flex items-start justify-between gap-4 px-4 py-3"><span className="text-xs text-muted">{label}</span><span className={`number max-w-[58%] break-words text-right text-xs font-semibold ${valueClass}`}>{value}</span></div>
 }
 
 function AdminPayoutsPage({ onToast, onRefresh }: { onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
@@ -1402,7 +1436,7 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
 
   return (
     <div className="auth-page grid min-h-[100dvh] bg-white lg:h-[100dvh] lg:min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
-      <div className="flex min-h-16 items-center bg-navy px-5 text-white lg:min-h-0 lg:flex-col lg:justify-between lg:p-8 xl:p-10"><Logo onClick={() => onNavigate('landing')} inverted /><div className="hidden max-w-md lg:block"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#B9D7FF]"><ShieldCheck size={24} /></span><h1 className="mt-6 text-4xl font-semibold leading-tight tracking-[-0.05em]">A more trustworthy way to earn from digital products.</h1><p className="mt-5 text-sm leading-6 text-white/60">Click & Earn makes the path from purchase to payout simple, visible, and proof-first.</p><div className="mt-8 space-y-3">{['Clear reward terms', 'Secure proof review', 'Payout tracking'].map((item) => <div key={item} className="flex items-center gap-2 text-sm text-white/80"><CheckCircle2 size={16} className="text-[#8BE0AD]" />{item}</div>)}</div></div><p className="hidden text-xs text-white/40 lg:block">© 2026 Click & Earn</p></div>
+      <div className="flex min-h-20 items-center bg-navy px-5 text-white lg:min-h-0 lg:flex-col lg:items-start lg:justify-between lg:p-7 xl:p-9"><Logo onClick={() => onNavigate('landing')} inverted size="auth" /><div className="hidden max-w-md lg:block"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#B9D7FF]"><ShieldCheck size={24} /></span><h1 className="mt-5 text-[34px] font-semibold leading-tight tracking-[-0.05em] xl:text-4xl">A more trustworthy way to earn from digital products.</h1><p className="mt-4 text-sm leading-6 text-white/60">Click & Earn makes the path from purchase to payout simple, visible, and proof-first.</p><div className="mt-6 space-y-2.5">{['Clear reward terms', 'Secure proof review', 'Payout tracking'].map((item) => <div key={item} className="flex items-center gap-2 text-sm text-white/80"><CheckCircle2 size={16} className="text-[#8BE0AD]" />{item}</div>)}</div></div><p className="hidden text-xs text-white/40 lg:block">© 2026 Click & Earn</p></div>
       <div className="flex min-h-[calc(100dvh-64px)] flex-col px-5 py-5 sm:px-8 lg:min-h-0 lg:px-12 lg:py-5 xl:px-20"><div className="flex justify-end"><button onClick={() => onNavigate('landing')} className="btn-ghost">Back to site</button></div><div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-7 lg:py-3"><p className="eyebrow">{isRegister ? 'Join Click & Earn' : isForgot ? 'Account recovery' : 'Welcome back'}</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-ink sm:text-3xl">{isRegister ? 'Create your earning account' : isForgot ? 'Reset your password' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm leading-6 text-muted">{isRegister ? 'Start with a free account and see what’s available.' : isForgot ? 'Enter your email and we’ll send a secure reset link.' : 'Pick up where you left off.'}</p>
         {serverError && <div role="alert" className="mt-5 rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] px-4 py-3 text-xs font-medium leading-5 text-error">{serverError}</div>}
         <form onSubmit={submit} className="mt-6 space-y-3">

@@ -1,0 +1,11 @@
+40:            abort_unless($locked->user_id === $request->user()->id, 404);
+42:            if ($locked->expires_at?->isPast()) {
+45:            if (! in_array($locked->status, [ReservationStatus::RESERVED, ReservationStatus::CHANGES_REQUESTED], true)) {
+49:            $version = ((int) $locked->proofSubmissions()->max('version')) + 1;
+52:            if (ProofSubmission::query()->where('file_sha256', $sha256)->where('task_reservation_id', '!=', $locked->id)->exists()) {
+55:            if (ProofSubmission::query()->where('transaction_reference', $data['transaction_reference'])->where('task_reservation_id', '!=', $locked->id)->exists()) {
+59:                'proofs/'.$locked->user_id.'/'.$locked->id,
+63:            $previous = $locked->latestProofSubmission()->first();
+65:                'task_reservation_id' => $locked->id,
+66:                'user_id' => $locked->user_id,
+84:            $locked->forceFill(['submitted_at' => now()])->save();
