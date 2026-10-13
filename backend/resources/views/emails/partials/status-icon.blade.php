@@ -1,1 +1,0 @@
-<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px;"><tr><td align="center" width="42" height="42" style="width:42px;height:42px;border-radius:21px;background:{{ $color }};color:#FFFFFF;font-size:21px;font-weight:700;line-height:42px;">{{ $symbol }}</td></tr></table>

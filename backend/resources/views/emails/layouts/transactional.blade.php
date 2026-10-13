@@ -16,7 +16,6 @@
                 </td></tr>
                 <tr><td class="email-card" style="background:#FFFFFF;border:1px solid #D9E2EC;border-radius:16px;overflow:hidden;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td class="email-padding" style="padding:40px 44px;">
-                        @include('emails.partials.status-icon', ['color' => $color, 'symbol' => $symbol])
                         @include('emails.partials.greeting', ['name' => $name])
                         <h1 style="margin:0 0 14px;font-size:26px;line-height:34px;font-weight:700;color:#1F3558;">{{ $title }}</h1>
                         <p style="margin:0 0 24px;font-size:16px;line-height:25px;color:#667085;">{{ $emailMessage }}</p>
