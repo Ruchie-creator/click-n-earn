@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\PayoutMethod;
+use App\Services\AirwallexEnvironment;
+use App\Services\PayoutProviderInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PayoutMethodController extends ApiController
 {
@@ -14,23 +17,41 @@ class PayoutMethodController extends ApiController
         return $this->ok($request->user()->payoutMethods()->where('status', 'active')->latest()->get()->map(fn (PayoutMethod $method): array => $this->methodPayload($method)));
     }
 
+    public function schema(Request $request, PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
+    {
+        $criteria = $request->validate([
+            'country' => ['required', 'string', 'size:2'],
+            'currency' => ['required', 'string', 'size:3'],
+            'entity_type' => ['required', 'in:PERSONAL,COMPANY'],
+            'transfer_method' => ['required', 'in:LOCAL,SWIFT'],
+            'local_clearing_system' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        return $this->ok($provider->beneficiarySchema($criteria, $environments->active()));
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'provider' => ['nullable', 'string', 'in:airwallex'],
             'account_holder_name' => ['required', 'string', 'max:160'],
-            'account_type' => ['required', 'string', 'max:40'],
+            'account_type' => ['nullable', 'string', 'max:40'],
+            'entity_type' => ['required', 'string', 'in:PERSONAL,COMPANY'],
+            'transfer_method' => ['required', 'string', 'in:LOCAL,SWIFT'],
             'country' => ['required', 'string', 'size:2'],
             'currency' => ['required', 'string', 'size:3'],
             'routing_details' => ['nullable', 'array'],
             'account_details' => ['required', 'array'],
-            'account_details.account_number' => ['required', 'string', 'min:4', 'max:64'],
+            'beneficiary_address' => ['nullable', 'array'],
             'is_default' => ['sometimes', 'boolean'],
         ]);
         $data['provider'] = $data['provider'] ?? 'airwallex';
         $data['country'] = strtoupper($data['country']);
         $data['currency'] = strtoupper($data['currency']);
-        $accountNumber = (string) data_get($data, 'account_details.account_number');
+        $accountNumber = (string) (data_get($data, 'account_details.account_number') ?: data_get($data, 'account_details.iban') ?: data_get($data, 'account_details.account_identifier'));
+        if (strlen($accountNumber) < 4) {
+            throw ValidationException::withMessages(['account_details' => 'Provide the account identifier required by the selected bank route.']);
+        }
         $data['account_last4'] = substr($accountNumber, -4);
 
         $method = DB::transaction(function () use ($request, $data): PayoutMethod {
@@ -65,12 +86,14 @@ class PayoutMethodController extends ApiController
         abort_unless($payoutMethod->user_id === $request->user()->id, 404);
         $data = $request->validate([
             'account_holder_name' => ['sometimes', 'required', 'string', 'max:160'],
-            'account_type' => ['sometimes', 'required', 'string', 'max:40'],
+            'account_type' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'entity_type' => ['sometimes', 'required', 'string', 'in:PERSONAL,COMPANY'],
+            'transfer_method' => ['sometimes', 'required', 'string', 'in:LOCAL,SWIFT'],
             'country' => ['sometimes', 'required', 'string', 'size:2'],
             'currency' => ['sometimes', 'required', 'string', 'size:3'],
             'routing_details' => ['sometimes', 'nullable', 'array'],
             'account_details' => ['sometimes', 'required', 'array'],
-            'account_details.account_number' => ['sometimes', 'required', 'string', 'min:4', 'max:64'],
+            'beneficiary_address' => ['sometimes', 'nullable', 'array'],
             'is_default' => ['sometimes', 'boolean'],
         ]);
         if (isset($data['country'])) {
@@ -79,13 +102,22 @@ class PayoutMethodController extends ApiController
         if (isset($data['currency'])) {
             $data['currency'] = strtoupper($data['currency']);
         }
-        if (isset($data['account_details']['account_number'])) {
-            $data['account_last4'] = substr((string) $data['account_details']['account_number'], -4);
+        if (isset($data['account_details'])) {
+            $identifier = (string) (data_get($data, 'account_details.account_number') ?: data_get($data, 'account_details.iban') ?: data_get($data, 'account_details.account_identifier'));
+            if (strlen($identifier) < 4) {
+                throw ValidationException::withMessages(['account_details' => 'Provide the account identifier required by the selected bank route.']);
+            }
+            $data['account_last4'] = substr($identifier, -4);
         }
 
         DB::transaction(function () use ($request, $payoutMethod, $data): void {
             if (($data['is_default'] ?? false) === true) {
                 $request->user()->payoutMethods()->where('id', '!=', $payoutMethod->id)->update(['is_default' => false]);
+            }
+            $sensitiveFields = ['account_holder_name', 'entity_type', 'transfer_method', 'country', 'currency', 'routing_details', 'account_details', 'beneficiary_address'];
+            if (array_intersect(array_keys($data), $sensitiveFields) !== []) {
+                $data['provider_beneficiary_id'] = null;
+                $data['provider_beneficiaries'] = [];
             }
             $payoutMethod->update($data);
         });
@@ -100,6 +132,8 @@ class PayoutMethodController extends ApiController
             'provider' => $method->provider,
             'account_holder_name' => $method->account_holder_name,
             'account_type' => $method->account_type,
+            'entity_type' => $method->entity_type,
+            'transfer_method' => $method->transfer_method,
             'country' => $method->country,
             'currency' => $method->currency,
             'masked_account' => $method->maskedAccount(),

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\AccountStatus;
+use App\Enums\LedgerStatus;
+use App\Enums\PayoutStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
@@ -77,7 +79,7 @@ class DemoDataService
         return ! app()->environment('production')
             && config('demo.enabled') === true
             && config('demo.client_preview') === true
-            && config('payout.driver') === 'fake';
+            && app(AirwallexEnvironment::class)->active() === 'sandbox';
     }
 
     /** @return array{enabled: bool, client_preview: bool, installed: bool, batch_label: string, counts: array<string, int>} */
@@ -192,8 +194,8 @@ class DemoDataService
         if (! config('demo.enabled') || ! config('demo.client_preview')) {
             throw new RuntimeException('Set DEMO_DATA_ENABLED=true and CLIENT_PREVIEW=true before using demo data operations.');
         }
-        if (config('payout.driver') !== 'fake') {
-            throw new RuntimeException('Demo data operations require PAYOUT_DRIVER=fake; no payout provider will be called.');
+        if (app(AirwallexEnvironment::class)->active() !== 'sandbox') {
+            throw new RuntimeException('Demo data operations require Airwallex Sandbox. Demo data never creates a provider beneficiary or transfer.');
         }
     }
 
@@ -342,7 +344,9 @@ class DemoDataService
 
         $method = PayoutMethod::create([
             'user_id' => $user->id,
-            'provider' => 'fake',
+            'provider' => 'airwallex',
+            'entity_type' => 'PERSONAL',
+            'transfer_method' => 'LOCAL',
             'account_holder_name' => $user->name,
             'account_type' => 'demo_wallet',
             'country' => 'US',
@@ -502,12 +506,24 @@ class DemoDataService
         if (! $payout) {
             throw new RuntimeException('An approved demo reservation is missing its payout record.');
         }
-        $originalOutcome = config('payout.fake_outcome');
-        try {
-            config(['payout.fake_outcome' => $target === 'paid' ? 'paid' : 'processing']);
-            $this->payouts->process($payout);
-        } finally {
-            config(['payout.fake_outcome' => $originalOutcome]);
+        $payout->forceFill([
+            'provider' => 'airwallex',
+            'provider_environment' => 'sandbox',
+            'provider_request_id' => 'demo-'.$target.'-'.$payout->id,
+            'provider_reference' => 'DEMO-SANDBOX-'.$payout->id,
+            'status' => $target === 'paid' ? PayoutStatus::PAID : PayoutStatus::PROCESSING,
+            'processing_at' => now()->subDay(),
+            'paid_at' => $target === 'paid' ? now()->subHours(6) : null,
+        ])->save();
+        if ($reservation->status === ReservationStatus::APPROVED) {
+            $this->transitions->transition($reservation, ReservationStatus::PROCESSING->value, (int) $admin->id, 'Synthetic sandbox payout state for client preview.');
+            $this->ledger->updateReservationStatus($reservation, LedgerStatus::PROCESSING);
+        }
+        if ($target === 'paid' && $reservation->fresh()->status === ReservationStatus::PROCESSING) {
+            $this->transitions->transition($reservation, ReservationStatus::PAID->value, (int) $admin->id, 'Synthetic sandbox payout confirmed for client preview.');
+            $this->ledger->updateReservationStatus($reservation, LedgerStatus::PAID);
+            $this->capacity->release($reservation, complete: true);
+            $reservation->forceFill(['completed_at' => now()->subHours(6)])->save();
         }
     }
 

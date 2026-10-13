@@ -18,6 +18,7 @@ use App\Services\PayoutService;
 use App\Services\VerificationService;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -25,13 +26,20 @@ class FinancialLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_approval_and_fake_paid_processing_are_idempotent_and_link_the_ledger(): void
+    public function test_approval_is_ready_for_release_and_airwallex_paid_processing_is_idempotent(): void
     {
         Queue::fake();
         config([
-            'payout.driver' => 'fake',
-            'payout.fake_outcome' => 'paid',
             'payout.currency' => 'USD',
+            'payout.airwallex.sandbox.base_url' => 'https://api.sandbox.airwallex.com/api/v1',
+            'payout.airwallex.sandbox.client_id' => 'sandbox-client',
+            'payout.airwallex.sandbox.api_key' => 'sandbox-key',
+        ]);
+        Http::fake([
+            'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiaries/create' => Http::response(['id' => 'ben_1']),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/validate' => Http::response([], 200),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/create' => Http::response(['id' => 'tr_1', 'status' => 'PAID']),
         ]);
 
         $member = User::factory()->create(['account_status' => AccountStatus::ACTIVE]);
@@ -88,11 +96,12 @@ class FinancialLifecycleTest extends TestCase
 
         PayoutMethod::create([
             'user_id' => $member->id,
-            'provider' => 'fake',
+            'provider' => 'airwallex',
             'account_holder_name' => $member->name,
             'account_type' => 'bank',
             'country' => 'US',
             'currency' => 'USD',
+            'account_details' => ['account_number' => '1234'],
             'account_last4' => '1234',
             'status' => 'active',
             'is_default' => true,
@@ -162,8 +171,7 @@ class FinancialLifecycleTest extends TestCase
         Queue::fake();
         $secret = 'controlled-test-webhook-secret';
         config([
-            'payout.driver' => 'airwallex',
-            'payout.airwallex.webhook_secret' => $secret,
+            'payout.airwallex.sandbox.webhook_secret' => $secret,
         ]);
 
         $member = User::factory()->create(['account_status' => AccountStatus::ACTIVE]);

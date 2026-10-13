@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('task_reservation_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('referral_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('payout_method_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('provider')->default('fake');
+            $table->string('provider')->default('airwallex');
             $table->decimal('amount', 12, 2);
             $table->string('currency', 3)->default('USD');
             $table->string('status')->default('approved')->index();

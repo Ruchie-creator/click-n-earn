@@ -1060,43 +1060,27 @@ function InfoRow({ label, value, valueClass = 'text-ink' }: { label: string; val
 function AdminPayoutsPage({ onToast, onRefresh }: { onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
   const { runOperation, processing, notify } = useFeedback()
   const [filter, setFilter] = useState('All')
-  const [pendingPaid, setPendingPaid] = useState<string | null>(null)
-  const [manualReference, setManualReference] = useState('')
   const rows = adminPayouts
   const filtered = filter === 'All' ? rows : rows.filter((row) => row.status === filter)
   const requestMarkPaid = (id: string) => {
-    const row = rows.find((item) => item.id === id)
-    if (!row?.backendId) {
-      onToast('This payout is not connected to a backend record.')
-      return
-    }
-    setManualReference('')
-    setPendingPaid(id)
+    void updateStatus(id, 'sync')
   }
-  const updateStatus = async (id: string, action: 'process' | 'paid' | 'retry', confirmedReference?: string) => {
+  const updateStatus = async (id: string, action: 'process' | 'retry' | 'sync') => {
     const row = rows.find((item) => item.id === id)
     const backendId = row?.backendId
     if (!backendId) {
       onToast('This payout is not connected to a backend record.')
       return
     }
-    if (action === 'paid' && !confirmedReference?.trim()) return
-    const label = action === 'retry' ? 'Retrying payout' : action === 'process' ? 'Processing payout' : 'Recording confirmed payout'
-    await runOperation({ title: label, description: action === 'paid' ? 'Saving the confirmed payout reference and refreshing the ledger.' : 'Updating payout status with the provider and refreshing the ledger.', successMessage: action === 'retry' ? `${id} retry queued.` : action === 'process' ? `${id} marked processing.` : `${id} marked paid.` }, async () => {
+    const label = action === 'retry' ? 'Preparing payout retry' : action === 'process' ? 'Releasing payout' : 'Reconciling payout'
+    await runOperation({ title: label, description: action === 'process' ? 'Queueing this approved payout for Airwallex processing.' : 'Refreshing the authoritative provider status without creating another transfer.', successMessage: action === 'retry' ? `${id} is ready for release.` : action === 'process' ? `${id} queued for processing.` : `${id} reconciled.` }, async () => {
       if (action === 'retry') {
         await api.retryPayout(backendId)
         try { await onRefresh() } catch { notify('Retry queued successfully, but the payout ledger could not refresh. Reload to see the latest status.', 'warning') }
         return
       }
-      const response = action === 'process'
-        ? await api.processPayout(backendId)
-        : await api.markPayoutPaid(backendId, confirmedReference!.trim(), 'Manually reconciled by an authorized administrator.')
-      const actualStatus = response.data.status.charAt(0).toUpperCase() + response.data.status.slice(1)
-      if (actualStatus.toLowerCase() !== (action === 'process' ? 'processing' : 'paid')) throw new Error('The payout status could not be confirmed. Refresh the ledger and try again.')
-      if (action === 'paid') {
-        setPendingPaid(null)
-        setManualReference('')
-      }
+      if (action === 'process') await api.processPayout(backendId)
+      else await api.syncPayout(backendId)
       try { await onRefresh() } catch { notify('Payout status updated, but the ledger could not refresh. Reload to see the latest status.', 'warning') }
     })
   }
@@ -1106,21 +1090,14 @@ function AdminPayoutsPage({ onToast, onRefresh }: { onToast: (message: string) =
     <section className="card overflow-hidden"><div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="eyebrow">Payout ledger</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Approved rewards</h2></div><div className="thin-scroll flex gap-1 overflow-x-auto">{['All', 'Approved', 'Processing', 'Paid', 'Failed'].map((item) => <button key={item} onClick={() => setFilter(item)} className={'min-h-9 shrink-0 rounded-lg px-3 text-xs font-semibold ' + (filter === item ? 'bg-soft-blue text-navy' : 'text-muted hover:bg-canvas')}>{item}</button>)}</div></div>
     {filtered.length ? <><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[980px] text-left"><thead className="bg-canvas text-[11px] uppercase tracking-[0.1em] text-subtle"><tr><th className="px-6 py-3 font-semibold">Payout</th><th className="px-4 py-3 font-semibold">Member / task</th><th className="px-4 py-3 font-semibold">Reimbursement</th><th className="px-4 py-3 font-semibold">Incentive</th><th className="px-4 py-3 font-semibold">Total</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-6 py-3 text-right font-semibold">Action</th></tr></thead><tbody className="divide-y divide-line">{filtered.map((row) => <tr key={row.id} className="transition-colors hover:bg-canvas"><td className="px-6 py-4 text-xs font-semibold text-navy">{row.id}<p className="mt-1 font-normal text-subtle">{row.date}</p></td><td className="px-4 py-4"><p className="text-sm font-semibold text-ink">{row.member}</p><p className="mt-1 text-[11px] text-muted">{row.task}</p></td><td className="number px-4 py-4 text-xs text-ink">{formatCurrency(row.reimbursement)}</td><td className="number px-4 py-4 text-xs text-success">+{formatCurrency(row.incentive)}</td><td className="number px-4 py-4 text-sm font-semibold text-navy">{formatCurrency(row.total)}</td><td className="px-4 py-4"><StatusBadge tone={getTone(row.status)} dot>{row.status}</StatusBadge></td><td className="px-6 py-4 text-right">{row.status === 'Approved' ? <button disabled={processing} onClick={() => void updateStatus(row.id, 'process')} className="btn-primary min-h-9 px-3 text-xs disabled:opacity-60">Process payout</button> : row.status === 'Processing' ? <button disabled={processing} onClick={() => requestMarkPaid(row.id)} className="btn-secondary min-h-9 px-3 text-xs disabled:opacity-60">Mark paid</button> : row.status === 'Failed' || row.status === 'Payout Failed' ? <button disabled={processing} onClick={() => void updateStatus(row.id, 'retry')} className="btn-secondary min-h-9 px-3 text-xs disabled:opacity-60">Retry</button> : <button onClick={() => onToast(row.reference === '—' ? 'No provider reference is recorded.' : `${row.id} · ${row.reference}`)} className="btn-ghost min-h-9 px-2.5 text-xs">View reference</button>}</td></tr>)}</tbody></table></div>
     <div className="divide-y divide-line md:hidden">{filtered.map((row) => <div key={row.id} className="space-y-3 px-5 py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-navy">{row.id}</p><p className="mt-1 text-sm font-semibold text-ink">{row.member}</p><p className="mt-1 text-[11px] text-muted">{row.task} · {row.date}</p></div><StatusBadge tone={getTone(row.status)}>{row.status}</StatusBadge></div><div className="flex items-center justify-between border-t border-line pt-3"><p className="number text-sm font-semibold text-navy">{formatCurrency(row.total)} <span className="text-[11px] font-normal text-muted">total</span></p>{row.status === 'Approved' ? <button disabled={processing} onClick={() => void updateStatus(row.id, 'process')} className="btn-primary min-h-9 px-3 text-xs disabled:opacity-60">Process</button> : row.status === 'Processing' ? <button disabled={processing} onClick={() => requestMarkPaid(row.id)} className="btn-secondary min-h-9 px-3 text-xs disabled:opacity-60">Mark paid</button> : row.status === 'Failed' || row.status === 'Payout Failed' ? <button disabled={processing} onClick={() => void updateStatus(row.id, 'retry')} className="btn-secondary min-h-9 px-3 text-xs disabled:opacity-60">Retry</button> : <button onClick={() => onToast(row.reference === '—' ? 'No provider reference is recorded.' : `${row.id} · ${row.reference}`)} className="btn-ghost min-h-9 px-2 text-xs">Reference</button>}</div></div>)}</div></> : <TableEmpty message={rows.length ? 'No payouts match this status.' : 'No payouts yet.'} />}</section>
-    <Modal open={Boolean(pendingPaid)} title="Confirm payout" description="Only record a payout as paid after the transfer has been confirmed with your provider." onClose={() => { if (!processing) setPendingPaid(null) }} size="sm">
-      <div className="space-y-4">
-        <div className="rounded-xl bg-canvas p-3 text-xs text-muted">Payout <span className="font-semibold text-navy">{pendingPaid}</span></div>
-        <label className="block text-xs font-semibold text-ink">Confirmed payout reference<input autoComplete="off" className="form-field mt-2" value={manualReference} onChange={(event) => setManualReference(event.target.value)} required /></label>
-        <p className="text-[11px] leading-5 text-muted">This records the confirmed transfer in the payout ledger.</p>
-        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end"><button type="button" disabled={processing} onClick={() => setPendingPaid(null)} className="btn-secondary disabled:opacity-60">Cancel</button><button type="button" disabled={processing || !manualReference.trim() || !pendingPaid} onClick={() => { if (pendingPaid) void updateStatus(pendingPaid, 'paid', manualReference) }} className="btn-primary disabled:cursor-wait disabled:opacity-60">Confirm paid <Check size={15} /></button></div>
-      </div>
-    </Modal>  </div>
+  </div>
 }
 function AdminGenericPage({ page, onToast }: { page: AppPage; onToast: (message: string) => void }) {
   if (page === 'admin-users') return <AdminUsersPage />
   if (page === 'admin-referrals') return <AdminReferralsPage />
   if (page === 'admin-transactions') return <AdminTransactionsPage />
   if (page === 'admin-notifications') return <AdminNotificationsPage />
-  return <><AdminSettingsPage onToast={onToast} /><EmailSettingsCard onToast={onToast} />{import.meta.env.VITE_CLIENT_PREVIEW === 'true' && <DemoDataPanel onToast={onToast} />}</>
+  return <><AdminSettingsPage onToast={onToast} /><AirwallexSettingsCard onToast={onToast} /><EmailSettingsCard onToast={onToast} />{import.meta.env.VITE_CLIENT_PREVIEW === 'true' && <DemoDataPanel onToast={onToast} />}</>
 }
 
 function AdminUsersPage() {
@@ -1203,6 +1180,31 @@ function AdminSettingsPage({ onToast }: { onToast: (message: string) => void }) 
     }
   }
   return <div className="space-y-7"><PageHeader eyebrow="Workspace controls" title="Settings" description="Manage the operational defaults that shape task funding, verification, and payout workflows." actions={<><button disabled={!settingsLoaded} onClick={() => void loadSettings()} className="btn-secondary disabled:opacity-50">Reload settings</button><button disabled={saving || !settingsLoaded} onClick={() => void saveSettings()} className="btn-primary disabled:cursor-wait disabled:opacity-60"><Check size={16} /> {saving ? 'Saving...' : 'Save settings'}</button></>} />{loadError && <div role="alert" className="rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] px-4 py-3 text-xs leading-5 text-error">{loadError} Settings controls remain unavailable until the API can be reached.</div>}<div className="grid gap-5 xl:grid-cols-2"><section className="card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy"><ShieldCheck size={19} /></span><div><p className="eyebrow">Verification rules</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Proof review defaults</h2></div></div><div className="mt-5 space-y-4"><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Require transaction reference</span><input disabled={!settingsLoaded} type="checkbox" checked={requireReference} onChange={(event) => setRequireReference(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Auto-detect purchase amount</span><input disabled={!settingsLoaded} type="checkbox" checked={autoDetect} onChange={(event) => setAutoDetect(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Flag mismatched currency</span><input disabled={!settingsLoaded} type="checkbox" checked={flagCurrency} onChange={(event) => setFlagCurrency(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span className="text-xs font-semibold text-ink">Notify member on request changes</span><input disabled={!settingsLoaded} type="checkbox" checked={notifyChanges} onChange={(event) => setNotifyChanges(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label></div></section><section className="card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#FFF7ED] text-warning"><Landmark size={19} /></span><div><p className="eyebrow">Payout settings</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Settlement defaults</h2></div></div><div className="mt-5 space-y-4"><label className="block text-xs font-semibold text-ink">Default payout window<input disabled={!settingsLoaded} className="form-field mt-2" value={payoutWindow} onChange={(event) => setPayoutWindow(event.target.value)} /></label><label className="block text-xs font-semibold text-ink">Minimum payout threshold<input disabled={!settingsLoaded} className="form-field mt-2" type="number" min="0" step="0.01" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></label><label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas p-3.5"><span><span className="block text-xs font-semibold text-ink">Pause new payouts</span><span className="mt-1 block text-[11px] font-normal text-muted">Use during scheduled maintenance</span></span><input disabled={!settingsLoaded} type="checkbox" checked={pausePayouts} onChange={(event) => setPausePayouts(event.target.checked)} className="h-4 w-4 accent-[#1F3558]" /></label></div></section><section className="card p-5 sm:p-6 xl:col-span-2"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#ECFDF3] text-success"><Globe2 size={19} /></span><div><p className="eyebrow">Platform identity</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Workspace details</h2></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Workspace name<input disabled={!settingsLoaded} className="form-field mt-2" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} /></label><label className="text-xs font-semibold text-ink">Support email<input disabled={!settingsLoaded} type="email" className="form-field mt-2" value={supportEmail} onChange={(event) => setSupportEmail(event.target.value)} /></label></div></section></div></div>
+}
+
+function AirwallexSettingsCard({ onToast }: { onToast: (message: string) => void }) {
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof api.adminAirwallexStatus>>['data'] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [confirmLive, setConfirmLive] = useState(false)
+  const [confirmation, setConfirmation] = useState('')
+  const load = async () => {
+    try { setStatus((await api.adminAirwallexStatus()).data) } catch (error) { onToast(error instanceof Error ? error.message : 'Airwallex settings could not be loaded.') }
+  }
+  useEffect(() => { void load() }, [])
+  const testConnection = async (environment: 'sandbox' | 'live') => {
+    setBusy(true)
+    try { const result = await api.adminTestAirwallexConnection(environment); onToast(`${environment === 'live' ? 'Live' : 'Sandbox'}: ${result.data.status.replace(/_/g, ' ')}.`); await load() } catch (error) { onToast(error instanceof Error ? error.message : 'Connection test failed.') } finally { setBusy(false) }
+  }
+  const activate = async (environment: 'sandbox' | 'live') => {
+    setBusy(true)
+    try { await api.adminSetAirwallexEnvironment(environment, environment === 'live' ? confirmation : undefined); setConfirmLive(false); setConfirmation(''); await load(); onToast(`Airwallex ${environment} mode is active.`) } catch (error) { onToast(error instanceof Error ? error.message : 'Environment could not be changed.') } finally { setBusy(false) }
+  }
+  const card = (environment: 'sandbox' | 'live') => {
+    const item = status?.[environment]
+    const active = status?.active_environment === environment
+    return <div className={`rounded-xl border p-4 ${active ? environment === 'sandbox' ? 'border-[#93C5FD] bg-[#EFF6FF]' : 'border-[#F4B7B7] bg-[#FEF2F2]' : 'border-line bg-canvas'}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-ink">{environment === 'sandbox' ? 'Sandbox' : 'Live'}</p><p className="mt-1 text-[11px] text-muted break-all">{item?.base_url || 'Unavailable'}</p></div>{active && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] ${environment === 'sandbox' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-error'}`}>{environment.toUpperCase()} MODE</span>}</div><div className="mt-4 grid gap-2 text-[11px] text-muted"><p>Credentials: <strong className="text-ink">{item?.credentials_configured ? 'Configured' : 'Not configured'}</strong></p><p>Webhook: <strong className="text-ink">{item?.webhook_configured ? 'Configured' : 'Not configured'}</strong></p><p>Connection: <strong className="text-ink">{item?.connection?.replace(/_/g, ' ') || 'Checking'}</strong></p></div><div className="mt-4 flex flex-wrap gap-2"><button disabled={busy} onClick={() => void testConnection(environment)} className="btn-secondary min-h-10 text-xs disabled:opacity-60">Test connection</button>{!active && <button disabled={busy || (environment === 'live' && !status?.readiness.ready)} onClick={() => environment === 'live' ? setConfirmLive(true) : void activate('sandbox')} className="btn-primary min-h-10 text-xs disabled:opacity-60">Use {environment}</button>}</div></div>
+  }
+  return <><section className="card mx-auto max-w-[1240px] p-5 sm:p-6"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="eyebrow">Payout infrastructure</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Airwallex environments</h2><p className="mt-1 text-xs leading-5 text-muted">Credentials and webhook secrets remain on the server. Releasing a payout is always a separate admin action.</p></div>{status?.active_environment === 'sandbox' && <span className="rounded-full bg-blue-100 px-3 py-1.5 text-xs font-bold tracking-[0.12em] text-blue-700">SANDBOX MODE</span>}</div>{status?.active_environment === 'sandbox' && <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-xs text-blue-800">Airwallex Sandbox — no real money will be transferred.</div>}<div className="mt-5 grid gap-4 lg:grid-cols-2">{card('sandbox')}{card('live')}</div>{status && !status.readiness.ready && <div className="mt-4 rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] p-3 text-xs text-error"><strong>Live readiness blocked.</strong><ul className="mt-2 list-disc space-y-1 pl-4">{status.readiness.failed_checks.map((check) => <li key={check}>{check}</li>)}</ul></div>}</section><Modal open={confirmLive} title="Confirm Live Airwallex mode" description="Live Airwallex payouts can transfer real money. Type LIVE only after reviewing every readiness check." onClose={() => { if (!busy) setConfirmLive(false) }} size="sm"><div className="space-y-4"><label className="block text-xs font-semibold text-ink">Type LIVE<input autoComplete="off" className="form-field mt-2" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><div className="flex justify-end gap-2"><button disabled={busy} onClick={() => setConfirmLive(false)} className="btn-secondary">Cancel</button><button disabled={busy || confirmation !== 'LIVE'} onClick={() => void activate('live')} className="btn-primary disabled:opacity-60">Confirm Live Mode</button></div></div></Modal></>
 }
 
 function EmailSettingsCard({ onToast }: { onToast: (message: string) => void }) {

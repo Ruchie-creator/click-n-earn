@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\ApiController;
+use App\Jobs\ProcessPayoutJob;
 use App\Jobs\SyncPayoutJob;
 use App\Models\Payout;
+use App\Services\AirwallexEnvironment;
 use App\Services\AuditLogService;
 use App\Services\PayoutService;
 use Illuminate\Http\JsonResponse;
@@ -26,12 +28,19 @@ class PayoutController extends ApiController
         ]);
     }
 
-    public function process(Request $request, Payout $payout, AuditLogService $audit): JsonResponse
+    public function process(Request $request, Payout $payout, AuditLogService $audit, AirwallexEnvironment $environments): JsonResponse
     {
-        ProcessPayoutJob::dispatchSync($payout->id);
-        $audit->record('payout.processed', $payout, $request, after: $payout->fresh()->toArray(), actorId: $request->user()->id);
+        abort_unless($payout->status->value === 'approved', 422, 'Only approved payouts can be released.');
+        if ($payout->provider_environment === 'live') {
+            $data = $request->validate(['confirmation' => ['required', 'in:LIVE']]);
+            unset($data);
+        }
+        abort_if($payout->getAttribute('demo_batch_id') && $payout->provider_environment === 'live', 422, 'Demo payouts cannot be released in Live Airwallex mode.');
+        abort_unless($payout->provider_environment === $environments->active(), 422, 'This payout belongs to a different Airwallex environment and cannot be released from the active queue.');
+        ProcessPayoutJob::dispatch($payout->id)->afterCommit();
+        $audit->record('payout.release_requested', $payout, $request, after: ['provider' => 'airwallex', 'provider_environment' => $payout->provider_environment], actorId: $request->user()->id);
 
-        return $this->ok($this->payoutPayload($payout->fresh()));
+        return $this->message('Payout queued for Airwallex processing.');
     }
 
     public function retry(Request $request, Payout $payout, PayoutService $service): JsonResponse
@@ -48,22 +57,6 @@ class PayoutController extends ApiController
         return $this->ok($this->payoutPayload($payout->fresh()));
     }
 
-    public function manualPaid(Request $request, Payout $payout, PayoutService $service): JsonResponse
-    {
-        $data = $request->validate([
-            'reference' => ['required', 'string', 'max:160'],
-            'note' => ['nullable', 'string', 'max:2000'],
-        ]);
-        $result = $service->manualMarkPaid($payout, $data['reference'], $data['note'] ?? null, $request->user()->id);
-
-        return $this->ok($this->payoutPayload($result));
-    }
-
-    public function markPaid(Request $request, Payout $payout, PayoutService $service): JsonResponse
-    {
-        return $this->manualPaid($request, $payout, $service);
-    }
-
     private function adminPayload(Payout $payout): array
     {
         return array_merge($this->payoutPayload($payout), [
@@ -71,6 +64,8 @@ class PayoutController extends ApiController
             'email' => $payout->user?->email,
             'task' => $payout->reservation?->task?->title,
             'masked_account' => $payout->payoutMethod?->maskedAccount(),
+            'provider_environment' => $payout->provider_environment,
+            'provider_request_id' => $payout->provider_request_id,
         ]);
     }
 }

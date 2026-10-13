@@ -36,7 +36,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
         }
     }
 
-    public function test_production_configuration_rejects_the_fake_payout_driver(): void
+    public function test_production_configuration_requires_live_airwallex_configuration(): void
     {
         $app = app();
         $previousEnvironment = $app['env'];
@@ -44,12 +44,11 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'app.debug' => config('app.debug'),
             'app.key' => config('app.key'),
             'app.url' => config('app.url'),
-            'payout.driver' => config('payout.driver'),
             'payout.airwallex.environment' => config('payout.airwallex.environment'),
-            'payout.airwallex.client_id' => config('payout.airwallex.client_id'),
-            'payout.airwallex.api_key' => config('payout.airwallex.api_key'),
-            'payout.airwallex.webhook_secret' => config('payout.airwallex.webhook_secret'),
-            'payout.airwallex.production_base_url' => config('payout.airwallex.production_base_url'),
+            'payout.airwallex.live.client_id' => config('payout.airwallex.live.client_id'),
+            'payout.airwallex.live.api_key' => config('payout.airwallex.live.api_key'),
+            'payout.airwallex.live.webhook_secret' => config('payout.airwallex.live.webhook_secret'),
+            'payout.airwallex.live.base_url' => config('payout.airwallex.live.base_url'),
             'mail.default' => config('mail.default'),
             'filesystems.proof_disk' => config('filesystems.proof_disk'),
             'cors.allowed_origins' => config('cors.allowed_origins'),
@@ -59,12 +58,11 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'app.debug' => false,
             'app.key' => 'configured-test-key',
             'app.url' => 'https://app.example.com',
-            'payout.driver' => 'fake',
-            'payout.airwallex.environment' => 'production',
-            'payout.airwallex.client_id' => 'configured-test-value',
-            'payout.airwallex.api_key' => 'configured-test-value',
-            'payout.airwallex.webhook_secret' => 'configured-test-value',
-            'payout.airwallex.production_base_url' => 'https://api.airwallex.com',
+            'payout.airwallex.environment' => 'sandbox',
+            'payout.airwallex.live.client_id' => 'configured-test-value',
+            'payout.airwallex.live.api_key' => 'configured-test-value',
+            'payout.airwallex.live.webhook_secret' => 'configured-test-value',
+            'payout.airwallex.live.base_url' => 'https://api.airwallex.com/api/v1',
             'mail.default' => 'smtp',
             'filesystems.proof_disk' => 'proofs',
             'cors.allowed_origins' => ['https://app.example.com'],
@@ -74,9 +72,9 @@ class ReleaseConfigurationSafetyTest extends TestCase
             $guard = new ReflectionMethod(AppServiceProvider::class, 'assertProductionConfiguration');
             $guard->setAccessible(true);
             $guard->invoke(new AppServiceProvider($app));
-            $this->fail('Production configuration must reject the fake payout provider.');
+            $this->fail('Production configuration must reject sandbox as the configured live payout mode.');
         } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('PAYOUT_DRIVER must be airwallex', $exception->getMessage());
+            $this->assertStringContainsString('AIRWALLEX_ENVIRONMENT must be live', $exception->getMessage());
         } finally {
             config($previousConfig);
             $app->instance('env', $previousEnvironment);
@@ -86,7 +84,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
     public function test_non_production_environment_rejects_the_airwallex_production_endpoint(): void
     {
         $previousEnvironment = config('payout.airwallex.environment');
-        config(['payout.airwallex.environment' => 'production']);
+        config(['payout.airwallex.environment' => 'live']);
 
         try {
             $guard = new ReflectionMethod(AppServiceProvider::class, 'assertAirwallexEnvironment');

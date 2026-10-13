@@ -14,14 +14,18 @@ class PayoutMethod extends Model
     protected $fillable = [
         'user_id',
         'provider',
+        'entity_type',
         'account_holder_name',
         'account_type',
         'country',
         'currency',
+        'transfer_method',
         'routing_details',
         'account_details',
+        'beneficiary_address',
         'account_last4',
         'provider_beneficiary_id',
+        'provider_beneficiaries',
         'status',
         'is_default',
     ];
@@ -30,6 +34,7 @@ class PayoutMethod extends Model
         'routing_details',
         'account_details',
         'provider_beneficiary_id',
+        'provider_beneficiaries',
     ];
 
     protected function casts(): array
@@ -37,6 +42,8 @@ class PayoutMethod extends Model
         return [
             'routing_details' => 'encrypted:array',
             'account_details' => 'encrypted:array',
+            'beneficiary_address' => 'encrypted:array',
+            'provider_beneficiaries' => 'encrypted:array',
             'is_default' => 'boolean',
         ];
     }
@@ -54,5 +61,20 @@ class PayoutMethod extends Model
     public function maskedAccount(): string
     {
         return '****'.$this->account_last4;
+    }
+
+    public function beneficiaryIdFor(string $environment): ?string
+    {
+        return data_get($this->provider_beneficiaries ?: [], $environment);
+    }
+
+    public function setBeneficiaryIdFor(string $environment, string $beneficiaryId): void
+    {
+        $beneficiaries = $this->provider_beneficiaries ?: [];
+        $beneficiaries[$environment] = $beneficiaryId;
+        $this->forceFill([
+            'provider_beneficiaries' => $beneficiaries,
+            'provider_beneficiary_id' => $beneficiaryId,
+        ])->save();
     }
 }

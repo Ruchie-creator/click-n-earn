@@ -19,9 +19,7 @@ class ProcessAirwallexWebhookJob implements ShouldQueue
 
     public int $tries = 8;
 
-    public function __construct(public readonly int $webhookEventId)
-    {
-    }
+    public function __construct(public readonly int $webhookEventId) {}
 
     public function backoff(): array
     {
@@ -49,7 +47,8 @@ class ProcessAirwallexWebhookJob implements ShouldQueue
                     ?: data_get($event->payload, 'data.request_id')
                     ?: data_get($event->payload, 'request_id');
 
-                $query = Payout::query()->where('provider', 'airwallex');
+                $environment = str_replace('airwallex:', '', $event->provider);
+                $query = Payout::query()->where('provider', 'airwallex')->where('provider_environment', $environment);
                 if (filled($reference)) {
                     $query->where(function ($builder) use ($reference): void {
                         $builder->where('provider_reference', $reference)
@@ -70,6 +69,7 @@ class ProcessAirwallexWebhookJob implements ShouldQueue
                 if (! $payout && filled($requestId)) {
                     $payout = Payout::query()
                         ->where('provider', 'airwallex')
+                        ->where('provider_environment', $environment)
                         ->where('idempotency_key', $requestId)
                         ->lockForUpdate()
                         ->first();
@@ -95,6 +95,7 @@ class ProcessAirwallexWebhookJob implements ShouldQueue
                     in_array($providerStatus, ['paid', 'completed', 'succeeded'], true) => 'paid',
                     str_contains($eventName, 'failed'), str_contains($eventName, 'cancelled'), str_contains($eventName, 'canceled'),
                     in_array($providerStatus, ['failed', 'cancelled', 'canceled', 'reversed'], true) => 'failed',
+                    str_contains($eventName, 'sent'), $providerStatus === 'sent' => 'sent',
                     default => 'processing',
                 };
 

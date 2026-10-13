@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\LedgerService;
 use App\Services\PayoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -23,9 +24,17 @@ class PayoutRetrySafetyTest extends TestCase
     {
         Queue::fake();
         config([
-            'payout.driver' => 'fake',
-            'payout.fake_outcome' => 'failed',
             'payout.currency' => 'USD',
+            'payout.airwallex.sandbox.base_url' => 'https://api.sandbox.airwallex.com/api/v1',
+            'payout.airwallex.sandbox.client_id' => 'sandbox-client',
+            'payout.airwallex.sandbox.api_key' => 'sandbox-key',
+        ]);
+        Http::fake([
+            'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiaries/create' => Http::response(['id' => 'ben_1']),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/validate' => Http::sequence()->push([], 200)->push([], 200),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/create' => Http::sequence()->push(['id' => 'tr_failed', 'status' => 'FAILED'])->push(['id' => 'tr_processing', 'status' => 'PROCESSING']),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/tr_processing' => Http::response(['id' => 'tr_processing', 'status' => 'PAID']),
         ]);
 
         $member = User::factory()->create(['account_status' => AccountStatus::ACTIVE]);
@@ -66,11 +75,12 @@ class PayoutRetrySafetyTest extends TestCase
         $ledger->updateReservationStatus($reservation, LedgerStatus::PENDING);
         PayoutMethod::create([
             'user_id' => $member->id,
-            'provider' => 'fake',
+            'provider' => 'airwallex',
             'account_holder_name' => $member->name,
             'account_type' => 'bank',
             'country' => 'US',
             'currency' => 'USD',
+            'account_details' => ['account_number' => '1234'],
             'account_last4' => '1234',
             'status' => 'active',
             'is_default' => true,
@@ -89,13 +99,11 @@ class PayoutRetrySafetyTest extends TestCase
         $this->assertSame('approved', $reservation->fresh()->status->value);
         $this->assertDatabaseHas('ledger_entries', ['task_reservation_id' => $reservation->id, 'status' => LedgerStatus::PENDING->value]);
 
-        config(['payout.fake_outcome' => 'processing']);
         $service->process($payout);
         $this->assertSame('processing', $payout->fresh()->status->value);
         $this->assertSame('processing', $reservation->fresh()->status->value);
         $this->assertDatabaseHas('ledger_entries', ['task_reservation_id' => $reservation->id, 'status' => LedgerStatus::PROCESSING->value]);
 
-        config(['payout.fake_outcome' => 'paid']);
         $service->sync($payout);
         $service->sync($payout);
         $this->assertSame('paid', $payout->fresh()->status->value);

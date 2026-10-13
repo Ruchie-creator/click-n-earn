@@ -31,6 +31,7 @@ Route::prefix('auth')->middleware('throttle:auth')->group(function (): void {
 });
 
 Route::post('webhooks/airwallex', [WebhookController::class, 'airwallex'])->middleware('throttle:api');
+Route::post('webhooks/airwallex/{environment}', [WebhookController::class, 'airwallex'])->whereIn('environment', ['sandbox', 'live'])->middleware('throttle:api');
 Route::get('email/verify/{id}/{hash}', [AuthController::class, 'confirmEmail'])
     ->middleware(['signed', 'throttle:6,1'])
     ->name('verification.verify');
@@ -64,6 +65,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
         Route::get('earnings', [EarningsController::class, 'index']);
         Route::get('referrals', [ReferralController::class, 'index']);
         Route::get('payout-methods', [PayoutMethodController::class, 'index']);
+        Route::get('payout-methods/schema', [PayoutMethodController::class, 'schema']);
         Route::post('payout-methods', [PayoutMethodController::class, 'store']);
         Route::put('payout-methods/{payoutMethod}', [PayoutMethodController::class, 'update']);
         Route::delete('payout-methods/{payoutMethod}', [PayoutMethodController::class, 'destroy']);
@@ -92,8 +94,6 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::post('payouts/{payout}/process', [AdminPayoutController::class, 'process']);
             Route::post('payouts/{payout}/retry', [AdminPayoutController::class, 'retry']);
             Route::post('payouts/{payout}/sync', [AdminPayoutController::class, 'sync']);
-            Route::post('payouts/{payout}/manual-paid', [AdminPayoutController::class, 'manualPaid']);
-            Route::post('payouts/{payout}/mark-paid', [AdminPayoutController::class, 'markPaid']);
             Route::get('users', [AdminUserController::class, 'index']);
             Route::get('users/{user}', [AdminUserController::class, 'show']);
             Route::patch('users/{user}', [AdminUserController::class, 'update']);
@@ -108,6 +108,9 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::get('email/status', [AdminSettingController::class, 'emailStatus']);
             Route::post('email/preview', [AdminSettingController::class, 'preview']);
             Route::post('email/test', [AdminSettingController::class, 'sendTestEmail']);
+            Route::get('airwallex/status', [AdminSettingController::class, 'airwallexStatus']);
+            Route::post('airwallex/test-connection', [AdminSettingController::class, 'testAirwallexConnection']);
+            Route::post('airwallex/environment', [AdminSettingController::class, 'activateAirwallexEnvironment']);
             Route::get('demo-data', [DemoDataController::class, 'status']);
             Route::post('demo-data/seed', [DemoDataController::class, 'seed']);
             Route::post('demo-data/refresh', [DemoDataController::class, 'refresh']);

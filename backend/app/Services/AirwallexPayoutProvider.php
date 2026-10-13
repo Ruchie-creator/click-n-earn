@@ -2,146 +2,182 @@
 
 namespace App\Services;
 
+use App\Exceptions\AirwallexReconciliationRequired;
 use App\Models\Payout;
 use App\Models\PayoutMethod;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class AirwallexPayoutProvider implements PayoutProviderInterface
 {
-    private function baseUrl(): string
-    {
-        return rtrim(
-            config('payout.airwallex.environment') === 'production'
-                ? config('payout.airwallex.production_base_url')
-                : config('payout.airwallex.sandbox_base_url'),
-            '/',
-        );
-    }
+    public function __construct(private readonly AirwallexEnvironment $environments) {}
 
-    private function http(): PendingRequest
+    public function connectionStatus(string $environment): string
     {
-        return Http::acceptJson()
-            ->asJson()
-            ->timeout((int) config('payout.timeout', 15))
-            ->withToken($this->accessToken());
-    }
+        try {
+            $this->accessToken($environment);
 
-    private function accessToken(): string
-    {
-        $clientId = config('payout.airwallex.client_id');
-        $apiKey = config('payout.airwallex.api_key');
-
-        if (blank($clientId) || blank($apiKey)) {
-            throw new RuntimeException('Airwallex credentials are not configured.');
+            return 'connected';
+        } catch (RequestException $exception) {
+            return $exception->response?->status() === 403 ? 'insufficient_permissions' : 'authentication_failed';
+        } catch (Throwable) {
+            return 'authentication_failed';
         }
+    }
 
-        $cacheKey = 'airwallex:access-token:'.hash('sha256', $this->baseUrl().'|'.$clientId.'|'.$apiKey);
+    public function beneficiarySchema(array $criteria, string $environment): array
+    {
+        return $this->http($environment)->post($this->endpoint($environment, 'beneficiary_api_schemas/generate'), array_filter([
+            'type' => 'BANK_ACCOUNT',
+            'entity_type' => $criteria['entity_type'] ?? 'PERSONAL',
+            'bank_country_code' => strtoupper((string) ($criteria['country'] ?? '')),
+            'account_currency' => strtoupper((string) ($criteria['currency'] ?? '')),
+            'transfer_method' => $criteria['transfer_method'] ?? 'LOCAL',
+            'local_clearing_system' => $criteria['local_clearing_system'] ?? null,
+        ], fn (mixed $value): bool => $value !== null))->throw()->json();
+    }
 
-        return Cache::remember($cacheKey, now()->addMinutes(25), function () use ($clientId, $apiKey): string {
-            $response = Http::acceptJson()
-                ->asJson()
-                ->timeout((int) config('payout.timeout', 15))
-                ->withHeaders([
-                    'x-client-id' => $clientId,
-                    'x-api-key' => $apiKey,
-                ])
-                ->post($this->baseUrl().'/api/v1/authentication/login');
-
-            $response->throw();
-            $token = data_get($response->json(), 'token') ?: data_get($response->json(), 'data.token');
-
-            if (blank($token)) {
-                throw new RuntimeException('Airwallex authentication did not return an access token.');
-            }
-
-            return $token;
-        });
+    public function validate(Payout $payout, PayoutMethod $method): void
+    {
+        $this->http($payout->provider_environment)->post(
+            $this->endpoint($payout->provider_environment, 'transfers/validate'),
+            $this->transferPayload($payout, $method, $method->beneficiaryIdFor($payout->provider_environment)),
+        )->throw();
     }
 
     public function submit(Payout $payout, PayoutMethod $method): PayoutResult
     {
-        $beneficiaryId = $method->provider_beneficiary_id;
+        $environment = $payout->provider_environment;
+        $beneficiaryId = $method->beneficiaryIdFor($environment);
 
-        if (blank($beneficiaryId)) {
-            $nameParts = preg_split('/\s+/', trim($method->account_holder_name)) ?: [];
-            $firstName = (string) ($nameParts[0] ?? $method->account_holder_name);
-            $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : $firstName;
-            $beneficiaryResponse = $this->http()->post($this->baseUrl().'/api/v1/beneficiaries/create', [
-                'beneficiary' => [
-                    'entity_type' => 'PERSONAL',
-                    'first_name' => $firstName,
-                    'last_name' => $lastName,
-                    'bank_details' => array_merge(
-                        [
-                            'account_currency' => strtoupper($method->currency),
-                            'account_name' => $method->account_holder_name,
-                            'bank_country_code' => strtoupper($method->country),
-                        ],
-                        $method->routing_details ?: [],
-                        $method->account_details ?: [],
-                    ),
-                ],
-                'transfer_methods' => ['LOCAL'],
-                'transfer_reason' => 'other_services',
-                'request_id' => 'click-earn-beneficiary-'.$method->id,
-            ]);
-            $beneficiaryResponse->throw();
-            $beneficiaryId = data_get($beneficiaryResponse->json(), 'id')
-                ?: data_get($beneficiaryResponse->json(), 'beneficiary.id')
-                ?: data_get($beneficiaryResponse->json(), 'data.id');
-
+        try {
             if (blank($beneficiaryId)) {
-                throw new RuntimeException('Airwallex beneficiary response did not contain an id.');
+                $response = $this->http($environment)->post($this->endpoint($environment, 'beneficiaries/create'), [
+                    'beneficiary' => $this->beneficiaryPayload($method),
+                    'transfer_methods' => [$method->transfer_method ?: 'LOCAL'],
+                    'transfer_reason' => 'other_services',
+                    'request_id' => 'click-earn-beneficiary-'.$environment.'-'.$method->id,
+                ]);
+                $response->throw();
+                $beneficiaryId = data_get($response->json(), 'id') ?: data_get($response->json(), 'beneficiary.id') ?: data_get($response->json(), 'data.id');
+                if (blank($beneficiaryId)) {
+                    throw new RuntimeException('Airwallex beneficiary response did not contain an id.');
+                }
+                $method->setBeneficiaryIdFor($environment, (string) $beneficiaryId);
             }
 
-            $method->forceFill(['provider_beneficiary_id' => $beneficiaryId])->save();
+            $payload = $this->transferPayload($payout, $method, $beneficiaryId);
+            $this->http($environment)->post($this->endpoint($environment, 'transfers/validate'), $payload)->throw();
+            $response = $this->http($environment)->post($this->endpoint($environment, 'transfers/create'), $payload);
+            $response->throw();
+
+            return $this->resultFromPayload($response->json(), 'Airwallex transfer submitted.');
+        } catch (ConnectionException|RequestException $exception) {
+            if ($exception instanceof RequestException && $exception->response?->status() < 500) {
+                throw $exception;
+            }
+
+            throw new AirwallexReconciliationRequired('Airwallex did not provide a definitive transfer result.', previous: $exception);
         }
-
-        $response = $this->http()->post($this->baseUrl().'/api/v1/transfers/create', [
-            'beneficiary_id' => $beneficiaryId,
-            'transfer_amount' => (float) $payout->amount,
-            'transfer_currency' => $payout->currency,
-            'transfer_method' => 'LOCAL',
-            'reason' => 'other_services',
-            'reference' => 'CLICK-EARN-'.$payout->id,
-            'request_id' => $payout->idempotency_key,
-        ]);
-        $response->throw();
-        $body = $response->json();
-        $reference = data_get($body, 'id')
-            ?: data_get($body, 'transfer_id')
-            ?: data_get($body, 'data.id');
-        $status = $this->mapStatus(data_get($body, 'status') ?: data_get($body, 'data.status'));
-
-        return new PayoutResult($status, $reference, 'Airwallex transfer submitted.', $body);
     }
 
     public function retrieve(Payout $payout): PayoutResult
     {
         if (blank($payout->provider_reference)) {
-            return new PayoutResult('failed', null, 'No Airwallex transfer reference is available.');
+            return $this->findByRequestId($payout) ?? throw new AirwallexReconciliationRequired('No Airwallex transfer reference is available.');
         }
 
-        $response = $this->http()->get($this->baseUrl().'/api/v1/transfers/'.$payout->provider_reference);
+        $response = $this->http($payout->provider_environment)->get($this->endpoint($payout->provider_environment, 'transfers/'.$payout->provider_reference));
+        $response->throw();
+
+        return $this->resultFromPayload($response->json(), 'Airwallex transfer status retrieved.');
+    }
+
+    public function findByRequestId(Payout $payout): ?PayoutResult
+    {
+        if (blank($payout->provider_request_id)) {
+            return null;
+        }
+        $response = $this->http($payout->provider_environment)->get($this->endpoint($payout->provider_environment, 'transfers'), ['request_id' => $payout->provider_request_id]);
         $response->throw();
         $body = $response->json();
-        $rawStatus = data_get($body, 'status') ?: data_get($body, 'data.status');
+        $transfer = data_get($body, 'items.0') ?: data_get($body, 'data.items.0') ?: data_get($body, 'data.0');
 
-        return new PayoutResult(
-            $this->mapStatus($rawStatus),
-            $payout->provider_reference,
-            'Airwallex transfer status retrieved.',
-            $body,
-        );
+        return is_array($transfer) ? $this->resultFromPayload($transfer, 'Airwallex transfer found by request id.') : null;
+    }
+
+    private function beneficiaryPayload(PayoutMethod $method): array
+    {
+        $nameParts = preg_split('/\s+/', trim($method->account_holder_name)) ?: [];
+        $firstName = (string) ($nameParts[0] ?? $method->account_holder_name);
+        $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : $firstName;
+
+        return array_filter([
+            'entity_type' => $method->entity_type ?: 'PERSONAL',
+            'first_name' => $method->entity_type === 'COMPANY' ? null : $firstName,
+            'last_name' => $method->entity_type === 'COMPANY' ? null : $lastName,
+            'company_name' => $method->entity_type === 'COMPANY' ? $method->account_holder_name : null,
+            'bank_details' => array_merge(['account_currency' => strtoupper($method->currency), 'account_name' => $method->account_holder_name, 'bank_country_code' => strtoupper($method->country)], $method->routing_details ?: [], $method->account_details ?: []),
+            'address' => $method->beneficiary_address ?: null,
+        ], fn (mixed $value): bool => $value !== null);
+    }
+
+    private function transferPayload(Payout $payout, PayoutMethod $method, ?string $beneficiaryId): array
+    {
+        return ['beneficiary_id' => $beneficiaryId, 'transfer_amount' => (float) $payout->amount, 'transfer_currency' => $payout->currency, 'transfer_method' => $method->transfer_method ?: 'LOCAL', 'reason' => 'other_services', 'reference' => 'CLICK-EARN-'.$payout->id, 'request_id' => $payout->provider_request_id];
+    }
+
+    private function resultFromPayload(array $body, string $message): PayoutResult
+    {
+        $reference = data_get($body, 'id') ?: data_get($body, 'transfer_id') ?: data_get($body, 'data.id');
+
+        return new PayoutResult($this->mapStatus(data_get($body, 'status') ?: data_get($body, 'data.status')), $reference, $message, $body);
+    }
+
+    private function http(string $environment): PendingRequest
+    {
+        return Http::acceptJson()->asJson()->timeout((int) config('payout.timeout', 15))->withToken($this->accessToken($environment));
+    }
+
+    private function accessToken(string $environment): string
+    {
+        $configuration = $this->environments->configuration($environment);
+        $clientId = $configuration['client_id'] ?? null;
+        $apiKey = $configuration['api_key'] ?? null;
+        if (blank($clientId) || blank($apiKey)) {
+            throw new RuntimeException('Airwallex credentials are not configured.');
+        }
+        $cacheKey = 'airwallex:access-token:'.$environment.':'.hash('sha256', $clientId.'|'.$apiKey);
+
+        return Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($cacheKey, $clientId, $apiKey, $environment): string {
+            return Cache::remember($cacheKey, now()->addMinutes(25), function () use ($clientId, $apiKey, $environment): string {
+                $response = Http::acceptJson()->asJson()->timeout((int) config('payout.timeout', 15))->withHeaders(['x-client-id' => $clientId, 'x-api-key' => $apiKey])->post($this->endpoint($environment, 'authentication/login'));
+                $response->throw();
+                $token = data_get($response->json(), 'token');
+                if (blank($token)) {
+                    throw new RuntimeException('Airwallex authentication did not return an access token.');
+                }
+
+                return $token;
+            });
+        });
+    }
+
+    private function endpoint(string $environment, string $path): string
+    {
+        return rtrim((string) ($this->environments->configuration($environment)['base_url'] ?? ''), '/').'/'.ltrim($path, '/');
     }
 
     private function mapStatus(?string $status): string
     {
         return match (strtolower((string) $status)) {
             'paid', 'completed', 'succeeded' => 'paid',
+            'sent' => 'sent',
             'failed', 'cancelled', 'canceled', 'reversed' => 'failed',
             default => 'processing',
         };

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\LedgerStatus;
 use App\Enums\ReservationStatus;
-use App\Jobs\ProcessPayoutJob;
 use App\Models\ProofSubmission;
 use App\Models\TaskReservation;
 use App\Notifications\EventNotification;
@@ -57,9 +56,6 @@ class VerificationService
                 if (! $payout) {
                     throw new \LogicException('An approved reservation has no corresponding payout.');
                 }
-                if (! $reservation->getAttribute('demo_batch_id')) {
-                    ProcessPayoutJob::dispatch($payout->id)->afterCommit();
-                }
 
                 return ['reservation' => $reservation->fresh(['task']), 'payout' => $payout->fresh()];
             }
@@ -100,9 +96,6 @@ class VerificationService
                 'success',
                 ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'member' => $reservation->user->name, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'currency' => $payout->currency, 'admin_notification' => true],
             ), $reservation->getAttribute('demo_batch_id'));
-            if (! $reservation->getAttribute('demo_batch_id')) {
-                ProcessPayoutJob::dispatch($payout->id)->afterCommit();
-            }
 
             return ['reservation' => $reservation->fresh(['task']), 'payout' => $payout->fresh()];
         });

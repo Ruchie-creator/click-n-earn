@@ -4,18 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Jobs\ProcessAirwallexWebhookJob;
 use App\Models\WebhookEvent;
+use App\Services\AirwallexEnvironment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use JsonException;
 
 class WebhookController extends ApiController
 {
-    public function airwallex(Request $request): JsonResponse
+    public function airwallex(Request $request, AirwallexEnvironment $environments, ?string $environment = null): JsonResponse
     {
+        $environment ??= $environments->active();
+        abort_unless(in_array($environment, ['sandbox', 'live'], true), 404);
         $raw = $request->getContent();
         $timestamp = (string) $request->header('x-timestamp');
         $signature = (string) $request->header('x-signature');
-        $secret = (string) config('payout.airwallex.webhook_secret');
+        $secret = (string) ($environments->configuration($environment)['webhook_secret'] ?? '');
 
         abort_if(blank($secret) || blank($timestamp) || blank($signature), 401, 'Invalid webhook signature.');
         $timestampSeconds = strlen($timestamp) > 10
@@ -40,7 +43,7 @@ class WebhookController extends ApiController
         $eventName = (string) ($request->header('x-event-name') ?: data_get($payload, 'name') ?: data_get($payload, 'event_type', 'unknown'));
 
         $event = WebhookEvent::firstOrCreate(
-            ['provider' => 'airwallex', 'event_id' => $eventId],
+            ['provider' => 'airwallex:'.$environment, 'event_id' => $eventId],
             [
                 'event_name' => $eventName,
                 'payload' => $payload,

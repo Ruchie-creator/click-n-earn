@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Services\AirwallexPayoutProvider;
-use App\Services\FakePayoutProvider;
 use App\Services\PayoutProviderInterface;
 use App\Services\ReceiptVerificationProviderInterface;
 use App\Services\StructuredReceiptVerificationProvider;
@@ -21,10 +20,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(PayoutProviderInterface::class, function ($app): PayoutProviderInterface {
-            return match (config('payout.driver')) {
-                'airwallex' => $app->make(AirwallexPayoutProvider::class),
-                default => $app->make(FakePayoutProvider::class),
-            };
+            return $app->make(AirwallexPayoutProvider::class);
         });
         $this->app->bind(ReceiptVerificationProviderInterface::class, StructuredReceiptVerificationProvider::class);
     }
@@ -87,14 +83,11 @@ class AppServiceProvider extends ServiceProvider
             $errors[] = 'APP_URL must use the public HTTPS application hostname';
         }
 
-        if (config('payout.driver') !== 'airwallex') {
-            $errors[] = 'PAYOUT_DRIVER must be airwallex';
-        }
-        if (config('payout.airwallex.environment') !== 'production') {
-            $errors[] = 'AIRWALLEX_ENVIRONMENT must be production';
+        if (config('payout.airwallex.environment') !== 'live') {
+            $errors[] = 'AIRWALLEX_ENVIRONMENT must be live';
         }
         foreach (['client_id', 'api_key', 'webhook_secret'] as $credential) {
-            if (blank(config('payout.airwallex.'.$credential))) {
+            if (blank(config('payout.airwallex.live.'.$credential))) {
                 $errors[] = 'Airwallex production credentials and webhook secret are required';
                 break;
             }
@@ -109,9 +102,9 @@ class AppServiceProvider extends ServiceProvider
             $errors[] = 'Proof storage must use a configured private disk';
         }
 
-        $airwallexBaseUrl = (string) config('payout.airwallex.production_base_url');
-        if ($airwallexBaseUrl !== 'https://api.airwallex.com') {
-            $errors[] = 'AIRWALLEX_PRODUCTION_BASE_URL must be https://api.airwallex.com';
+        $airwallexBaseUrl = (string) config('payout.airwallex.live.base_url');
+        if ($airwallexBaseUrl !== 'https://api.airwallex.com/api/v1') {
+            $errors[] = 'AIRWALLEX_LIVE_BASE_URL must be https://api.airwallex.com/api/v1';
         }
 
         $origins = (array) config('cors.allowed_origins', []);
@@ -133,7 +126,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function assertAirwallexEnvironment(): void
     {
-        if (! $this->app->environment('production') && config('payout.airwallex.environment') === 'production') {
+        if (! $this->app->environment('production') && config('payout.airwallex.environment') === 'live') {
             throw new RuntimeException('Refusing to use the Airwallex production endpoint outside APP_ENV=production.');
         }
     }

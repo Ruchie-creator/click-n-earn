@@ -138,6 +138,15 @@ export const api = {
   adminEmailStatus() {
     return apiFetch<ApiEnvelope<{ configured: boolean; sender_email: string; sender_name: string; queue_connection: string; recent_failures: Array<{ id: number; event_key: string; email_attempts: number; email_last_error: string; updated_at: string }>; events: string[] }>>('/admin/email/status')
   },
+  adminAirwallexStatus() {
+    return apiFetch<ApiEnvelope<{ active_environment: 'sandbox' | 'live'; sandbox: AirwallexEnvironmentStatus; live: AirwallexEnvironmentStatus; readiness: { ready: boolean; checks: Record<string, boolean>; failed_checks: string[] } }>>('/admin/airwallex/status')
+  },
+  adminTestAirwallexConnection(environment: 'sandbox' | 'live') {
+    return apiFetch<ApiEnvelope<{ status: string }>>('/admin/airwallex/test-connection', { method: 'POST', body: JSON.stringify({ environment }) })
+  },
+  adminSetAirwallexEnvironment(environment: 'sandbox' | 'live', confirmation?: string) {
+    return apiFetch<ApiEnvelope<{ active_environment: 'sandbox' | 'live' }>>('/admin/airwallex/environment', { method: 'POST', body: JSON.stringify({ environment, confirmation }) })
+  },
   adminEmailPreview(event: 'welcome' | 'reserved' | 'proof_submitted' | 'proof_approved' | 'changes_requested' | 'payout_processing' | 'payout_paid' | 'payout_failed') {
     return apiFetch<ApiEnvelope<{ html: string }>>('/admin/email/preview', { method: 'POST', body: JSON.stringify({ event }) })
   },
@@ -180,8 +189,8 @@ export const api = {
   rejectSubmission(id: string | number, reason: string) {
     return apiFetch('/admin/submissions/' + id + '/reject', { method: 'POST', body: JSON.stringify({ reason }) })
   },
-  processPayout(id: string | number) {
-    return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/process', { method: 'POST' })
+  processPayout(id: string | number, confirmation?: string) {
+    return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/process', { method: 'POST', body: JSON.stringify({ confirmation }) })
   },
   retryPayout(id: string | number) {
     return apiFetch('/admin/payouts/' + id + '/retry', { method: 'POST' })
@@ -189,10 +198,9 @@ export const api = {
   syncPayout(id: string | number) {
     return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/sync', { method: 'POST' })
   },
-  markPayoutPaid(id: string | number, reference: string, note?: string) {
-    return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/manual-paid', { method: 'POST', body: JSON.stringify({ reference, note }) })
-  },
 }
+
+export type AirwallexEnvironmentStatus = { configured: boolean; credentials_configured: boolean; webhook_configured: boolean; connection: string; base_url: string }
 
 export type ApiAdminSubmission = {
   id: number

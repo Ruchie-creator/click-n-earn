@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\ReservationStatus;
+use App\Http\Controllers\Controller;
 use App\Models\Payout;
 use App\Models\Task;
 use App\Models\TaskReservation;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 
-abstract class ApiController extends \App\Http\Controllers\Controller
+abstract class ApiController extends Controller
 {
     protected function ok(mixed $data = [], int $status = 200): JsonResponse
     {
@@ -121,8 +121,9 @@ abstract class ApiController extends \App\Http\Controllers\Controller
             'currency' => $payout->currency,
             'status' => $this->enumValue($payout->status),
             'provider' => $payout->provider,
+            'provider_environment' => $payout->provider_environment,
             'provider_reference' => $payout->provider_reference,
-            'manual_reference' => $payout->manual_reference,
+            'provider_request_id' => $payout->provider_request_id,
             'requested_at' => $payout->requested_at?->toISOString(),
             'processing_at' => $payout->processing_at?->toISOString(),
             'paid_at' => $payout->paid_at?->toISOString(),

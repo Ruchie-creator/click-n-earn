@@ -38,8 +38,7 @@ class DemoDataSystemTest extends TestCase
             'demo.accounts.member.password' => 'MemberPreview!2026-A',
             'demo.accounts.member_two.password' => 'MemberPreview!2026-B',
             'demo.accounts.admin.password' => 'AdminPreview!2026-C',
-            'payout.driver' => 'fake',
-            'payout.fake_outcome' => 'processing',
+            'payout.airwallex.environment' => 'sandbox',
             'filesystems.proof_disk' => 'proofs',
         ]);
         Storage::fake('proofs');
@@ -84,7 +83,7 @@ class DemoDataSystemTest extends TestCase
         $this->assertSame(0, Artisan::call('demo:status'));
     }
 
-    public function test_seed_creates_real_workflow_states_fake_payouts_and_private_preview_proofs(): void
+    public function test_seed_creates_real_workflow_states_sandbox_labelled_payouts_and_private_preview_proofs(): void
     {
         Artisan::call('demo:seed');
         $batchId = DemoBatch::query()->where('slug', 'client-preview')->value('id');
@@ -110,7 +109,7 @@ class DemoDataSystemTest extends TestCase
             'demo.member2@clickearn.example',
             'demo.admin@clickearn.example',
         ])->count());
-        $this->assertTrue(Payout::query()->where('demo_batch_id', $batchId)->whereNotNull('provider_reference')->where('provider_reference', 'like', 'FAKE-%')->exists());
+        $this->assertTrue(Payout::query()->where('demo_batch_id', $batchId)->whereNotNull('provider_reference')->where('provider_reference', 'like', 'DEMO-SANDBOX-%')->exists());
     }
 
     public function test_demo_accounts_authenticate_and_member_and_admin_use_normal_api_routes(): void
@@ -260,7 +259,7 @@ class DemoDataSystemTest extends TestCase
         }
     }
 
-    public function test_demo_mutations_allow_the_local_database_but_refuse_production_targets_and_real_payouts(): void
+    public function test_demo_mutations_allow_the_local_database_but_refuse_production_targets_and_live_airwallex(): void
     {
         $testDatabase = config('database.connections.pgsql.database');
         $testDatabaseUrl = config('database.connections.pgsql.url');
@@ -270,19 +269,19 @@ class DemoDataSystemTest extends TestCase
             'database.default' => 'pgsql',
             'database.connections.pgsql.database' => 'click_and_earn',
             'database.connections.pgsql.url' => null,
-            'payout.driver' => 'airwallex',
+            'payout.airwallex.environment' => 'live',
         ]);
         try {
             app(DemoDataService::class)->seed();
-            $this->fail('Expected the local database to reach the fake payout guard without connecting to it.');
+            $this->fail('Expected the local database to reach the live Airwallex guard without connecting to it.');
         } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('PAYOUT_DRIVER=fake', $exception->getMessage());
+            $this->assertStringContainsString('require Airwallex Sandbox', $exception->getMessage());
         } finally {
             $this->app->instance('env', $previousEnvironment);
             config([
                 'database.connections.pgsql.database' => $testDatabase,
                 'database.connections.pgsql.url' => $testDatabaseUrl,
-                'payout.driver' => 'fake',
+                'payout.airwallex.environment' => 'sandbox',
             ]);
         }
 
@@ -302,15 +301,15 @@ class DemoDataSystemTest extends TestCase
             ]);
         }
 
-        config(['payout.driver' => 'airwallex']);
+        config(['payout.airwallex.environment' => 'live']);
         try {
             app(DemoDataService::class)->seed();
-            $this->fail('Expected non-fake payout configuration to refuse demo operations.');
+            $this->fail('Expected live Airwallex configuration to refuse demo operations.');
         } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('PAYOUT_DRIVER=fake', $exception->getMessage());
+            $this->assertStringContainsString('require Airwallex Sandbox', $exception->getMessage());
         }
 
-        config(['payout.driver' => 'fake']);
+        config(['payout.airwallex.environment' => 'sandbox']);
         $previousEnvironment = $this->app->environment();
         $this->app->instance('env', 'production');
         try {

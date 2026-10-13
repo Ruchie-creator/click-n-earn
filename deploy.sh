@@ -133,19 +133,16 @@ require_nonempty_env DB_PASSWORD
 if [[ "$ENVIRONMENT" == "staging" ]]; then
     require_env_value CLIENT_PREVIEW true
     require_env_value DEMO_DATA_ENABLED true
-    require_env_value PAYOUT_DRIVER fake
-    require_env_value FAKE_PAYOUT_OUTCOME processing
     require_env_value AIRWALLEX_ENVIRONMENT sandbox
 else
     require_env_value CLIENT_PREVIEW false
     require_env_value DEMO_DATA_ENABLED false
-    require_env_value PAYOUT_DRIVER airwallex
-    require_env_value AIRWALLEX_ENVIRONMENT production
-    require_env_value AIRWALLEX_PRODUCTION_BASE_URL https://api.airwallex.com
+    require_env_value AIRWALLEX_ENVIRONMENT live
+    require_env_value AIRWALLEX_LIVE_BASE_URL https://api.airwallex.com/api/v1
     require_nonempty_env APP_KEY
-    require_nonempty_env AIRWALLEX_CLIENT_ID
-    require_nonempty_env AIRWALLEX_API_KEY
-    require_nonempty_env AIRWALLEX_WEBHOOK_SECRET
+    require_nonempty_env AIRWALLEX_LIVE_CLIENT_ID
+    require_nonempty_env AIRWALLEX_LIVE_API_KEY
+    require_nonempty_env AIRWALLEX_LIVE_WEBHOOK_SECRET
     require_nonempty_env MAIL_MAILER
     require_nonempty_env PROOF_STORAGE_DISK
 
@@ -239,6 +236,8 @@ if [[ "$ENVIRONMENT" == "staging" ]]; then
 fi
 
 as_app_user php "$ARTISAN" queue:restart
+# Signal a schedule:work service, if one is used, to reload the new code too.
+as_app_user php "$ARTISAN" schedule:interrupt || true
 php-fpm8.5 -t
 nginx -t
 systemctl reload php8.5-fpm

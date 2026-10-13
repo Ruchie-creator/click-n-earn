@@ -1,13 +1,15 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schedule;
 use App\Jobs\ExpireReservationsJob;
 use App\Jobs\ProcessAirwallexWebhookJob;
 use App\Jobs\SendNotificationEmailJob;
+use App\Jobs\SyncPayoutJob;
 use App\Models\NotificationOutbox;
+use App\Models\Payout;
 use App\Models\WebhookEvent;
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -39,3 +41,12 @@ Schedule::call(function (): void {
         ->pluck('id')
         ->each(fn (int $id) => ProcessAirwallexWebhookJob::dispatch($id)->afterCommit());
 })->name('airwallex-webhook-retry-dispatch')->everyMinute()->withoutOverlapping();
+Schedule::call(function (): void {
+    Payout::query()
+        ->where('provider', 'airwallex')
+        ->whereIn('status', ['processing', 'sent', 'reconciliation_required'])
+        ->orderBy('id')
+        ->limit(100)
+        ->pluck('id')
+        ->each(fn (int $id) => SyncPayoutJob::dispatch($id)->afterCommit());
+})->name('airwallex-payout-reconciliation')->everyFiveMinutes()->withoutOverlapping();

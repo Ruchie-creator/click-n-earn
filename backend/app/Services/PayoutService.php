@@ -6,7 +6,7 @@ use App\Enums\LedgerStatus;
 use App\Enums\PayoutStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\UserRole;
-use App\Jobs\ProcessPayoutJob;
+use App\Exceptions\AirwallexReconciliationRequired;
 use App\Models\Payout;
 use App\Models\TaskReservation;
 use App\Models\User;
@@ -24,6 +24,7 @@ class PayoutService
         private readonly AuditLogService $audit,
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
+        private readonly AirwallexEnvironment $environments,
     ) {}
 
     public function createApprovedForReservation(TaskReservation $reservation): Payout
@@ -39,11 +40,13 @@ class PayoutService
                     'user_id' => $reservation->user_id,
                     'task_reservation_id' => $reservation->id,
                     'payout_method_id' => $method?->id,
-                    'provider' => config('payout.driver', 'fake'),
+                    'provider' => 'airwallex',
+                    'provider_environment' => $this->environments->active(),
                     'amount' => $reservation->expected_payout,
                     'currency' => config('payout.currency', 'USD'),
                     'status' => PayoutStatus::APPROVED,
                     'requested_at' => now(),
+                    'provider_request_id' => 'click-earn-'.$this->environments->active().'-reservation-'.$reservation->id,
                 ],
             );
             if ($batchId = $reservation->getAttribute('demo_batch_id')) {
@@ -69,6 +72,9 @@ class PayoutService
             if ($model->status !== PayoutStatus::APPROVED) {
                 return $model;
             }
+            if ($model->getAttribute('demo_batch_id') && $model->provider_environment === 'live') {
+                throw ValidationException::withMessages(['status' => 'Demo payouts cannot be released in Live Airwallex mode.']);
+            }
 
             $method = $model->payoutMethod?->status === 'active'
                 ? $model->payoutMethod
@@ -80,6 +86,10 @@ class PayoutService
 
             try {
                 $result = $this->provider->submit($model, $method);
+            } catch (AirwallexReconciliationRequired $exception) {
+                Log::warning('Payout provider result is ambiguous.', ['payout_id' => $model->id, 'exception' => $exception::class]);
+
+                return $this->markReconciliationRequiredLocked($model, 'Airwallex did not confirm whether this transfer was created. Reconcile before retrying.');
             } catch (\Throwable $exception) {
                 Log::warning('Payout provider submission failed.', [
                     'payout_id' => $model->id,
@@ -116,12 +126,14 @@ class PayoutService
             $model = Payout::query()->lockForUpdate()->with(['reservation', 'user'])->findOrFail(
                 $payout instanceof Payout ? $payout->id : $payout,
             );
-            if (! in_array($model->status, [PayoutStatus::PROCESSING, PayoutStatus::APPROVED], true)) {
+            if (! in_array($model->status, [PayoutStatus::PROCESSING, PayoutStatus::SENT, PayoutStatus::APPROVED, PayoutStatus::RECONCILIATION_REQUIRED], true)) {
                 return $model;
             }
 
             try {
                 $result = $this->provider->retrieve($model);
+            } catch (AirwallexReconciliationRequired $exception) {
+                return $this->markReconciliationRequiredLocked($model, 'The provider response is still ambiguous. Reconcile with Airwallex before retrying.');
             } catch (\Throwable $exception) {
                 Log::warning('Payout provider status sync failed.', [
                     'payout_id' => $model->id,
@@ -142,6 +154,7 @@ class PayoutService
             return match (true) {
                 $result->isPaid() => $this->markPaidLocked($model, $result->reference, 'Provider webhook/status sync confirmed payment.'),
                 $result->isFailed() => $this->markFailedLocked($model, $result->message ?: 'Provider reported a failed payout.'),
+                $result->status === 'sent' => $this->markSentLocked($model, 'Provider confirmed the payout has been sent.'),
                 default => $this->markProcessingLocked($model, 'Provider status remains processing.'),
             };
         });
@@ -161,6 +174,7 @@ class PayoutService
                 'failed', 'cancelled' => $model->status === PayoutStatus::PAID
                     ? $this->markReversedLocked($model, 'Airwallex reported a post-payment failure.')
                     : $this->markFailedLocked($model, 'Airwallex webhook reported a failed or cancelled payout.'),
+                'sent' => $this->markSentLocked($model, 'Airwallex webhook confirmed the transfer was sent.'),
                 default => $this->markProcessingLocked($model, 'Airwallex webhook reported processing.'),
             };
         });
@@ -198,11 +212,10 @@ class PayoutService
         return DB::transaction(function () use ($payout, $actorId): Payout {
             $model = Payout::query()->lockForUpdate()->with(['reservation', 'user', 'payoutMethod'])->findOrFail($payout->id);
             if ($model->status === PayoutStatus::APPROVED) {
-                if (! $model->getAttribute('demo_batch_id')) {
-                    ProcessPayoutJob::dispatch($model->id)->afterCommit();
-                }
-
                 return $model;
+            }
+            if ($model->status === PayoutStatus::RECONCILIATION_REQUIRED) {
+                throw ValidationException::withMessages(['status' => 'Reconcile with Airwallex before retrying this payout.']);
             }
             if ($model->status !== PayoutStatus::FAILED) {
                 throw ValidationException::withMessages(['status' => 'Only failed payouts can be retried.']);
@@ -227,9 +240,6 @@ class PayoutService
             }
 
             $this->audit->record('payout.retry_requested', $model, actorId: $actorId, before: $before, after: $model->toArray());
-            if (! $model->getAttribute('demo_batch_id')) {
-                ProcessPayoutJob::dispatch($model->id)->afterCommit();
-            }
 
             return $model->fresh(['reservation', 'user', 'payoutMethod']);
         });
@@ -262,6 +272,41 @@ class PayoutService
                 ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Pending confirmation', 'masked_account' => $payout->payoutMethod?->maskedAccount()],
             ), $payout->getAttribute('demo_batch_id'));
         }
+
+        return $payout->fresh(['reservation', 'user', 'payoutMethod']);
+    }
+
+    private function markSentLocked(Payout $payout, string $message): Payout
+    {
+        $changed = $payout->status !== PayoutStatus::SENT;
+        $payout->forceFill([
+            'status' => PayoutStatus::SENT,
+            'processing_at' => $payout->processing_at ?: now(),
+            'failure_reason' => null,
+        ])->save();
+        if ($payout->reservation && $payout->reservation->status === ReservationStatus::APPROVED) {
+            $this->transitions->transition($payout->reservation, ReservationStatus::PROCESSING->value, reason: $message);
+            $this->ledger->updateReservationStatus($payout->reservation, LedgerStatus::PROCESSING);
+        }
+        if ($changed && $payout->user) {
+            $this->notifications->notifyOnce($payout->user, 'payout.sent.'.$payout->id, new EventNotification(
+                'Your payout has been sent',
+                'Your bank transfer has been sent and is awaiting final confirmation.',
+                'processing',
+                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Pending confirmation', 'masked_account' => $payout->payoutMethod?->maskedAccount()],
+            ), $payout->getAttribute('demo_batch_id'));
+        }
+
+        return $payout->fresh(['reservation', 'user', 'payoutMethod']);
+    }
+
+    private function markReconciliationRequiredLocked(Payout $payout, string $reason): Payout
+    {
+        $payout->forceFill([
+            'status' => PayoutStatus::RECONCILIATION_REQUIRED,
+            'failure_reason' => $reason,
+            'metadata' => array_merge($payout->metadata ?: [], ['reconciliation_required_at' => now()->toISOString()]),
+        ])->save();
 
         return $payout->fresh(['reservation', 'user', 'payoutMethod']);
     }
