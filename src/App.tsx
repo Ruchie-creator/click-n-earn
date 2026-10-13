@@ -1344,7 +1344,7 @@ function DemoDataPanel({ onToast }: { onToast: (message: string) => void }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-soft-blue text-navy"><Database size={19} /></span>
-          <div><p className="eyebrow">Client preview only</p><h2 id="demo-data-heading" className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Demo Data</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-muted">Synthetic activity comes from the real API. It does not represent real customers or purchases; payout events use the fake provider and demo email is suppressed.</p></div>
+          <div><p className="eyebrow">Client preview only</p><h2 id="demo-data-heading" className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Demo Data</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-muted">Synthetic activity comes from the real API. It does not represent real customers or purchases; demo payout states are simulated locally and do not contact Airwallex or send email.</p></div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <StatusBadge tone={status?.installed ? 'success' : 'neutral'} dot>{loading ? 'Checking…' : status?.installed ? 'Installed' : 'Not seeded'}</StatusBadge>

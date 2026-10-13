@@ -124,6 +124,11 @@ export type AdminNotificationRow = { id: number; title: string; body: string; re
 const money = (value: unknown) => '$' + Number(value || 0).toFixed(2)
 const dateLabel = (value?: string | null) => value ? new Date(value).toLocaleString() : '—'
 const readableStatus = (value?: string | null) => value ? value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : '—'
+const payoutProviderLabel = (provider?: string | null) => provider === 'airwallex'
+  ? 'Airwallex'
+  : provider === 'fake'
+    ? 'Sandbox demo'
+    : readableStatus(provider)
 const confidenceLabel = (value?: number | null) => value === null || value === undefined
   ? 'Not checked'
   : value >= 0.85 ? 'High' : value >= 0.6 ? 'Medium' : 'Review'
@@ -489,7 +494,7 @@ export function hydrateFinanceData(payload: {
     payouts = payload.payouts.items.map((item) => ({
       id: 'PO-'.concat(String(item.id).padStart(4, '0')),
       date: dateLabel(item.paid_at || item.requested_at),
-      method: readableStatus(item.provider),
+      method: payoutProviderLabel(item.provider),
       amount: item.amount,
       status: readableStatus(item.status),
       reference: item.provider_reference || '—',
