@@ -28,6 +28,9 @@ export const api = {
   forgotPassword(email: string) {
     return apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
   },
+  resetPassword(payload: { token: string; email: string; password: string; password_confirmation: string }) {
+    return apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) })
+  },
   logout() {
     return apiFetch('/logout', { method: 'POST' }).finally(() => setToken(null))
   },

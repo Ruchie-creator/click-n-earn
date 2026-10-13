@@ -61,6 +61,7 @@ export type AppPage =
   | 'login'
   | 'register'
   | 'forgot'
+  | 'reset-password'
   | 'dashboard'
   | 'tasks'
   | 'my-tasks'

@@ -150,6 +150,7 @@ export default function App() {
 function AppShell() {
   const { notify: setToast, runOperation, runLoading } = useFeedback()
   const [page, setPage] = useState<AppPage>(() => {
+    if (window.location.pathname === '/reset-password') return 'reset-password'
     const savedPage = window.history.state?.clickEarnPage
     return typeof savedPage === 'string' ? savedPage as AppPage : 'dashboard'
   })
@@ -201,6 +202,10 @@ function AppShell() {
   }
 
   useEffect(() => {
+    if (window.location.pathname === '/reset-password') {
+      setAuthChecking(false)
+      return
+    }
     if (!getToken()) return
     api.me()
       .then((response) => {
@@ -361,7 +366,7 @@ function AppShell() {
   if (authChecking) return <div className="grid min-h-screen place-items-center bg-canvas text-sm font-medium text-muted">Checking your session…</div>
   if (page === 'landing') return <LandingPage onNavigate={navigate} />
   if (page === 'how') return <HowPage onNavigate={navigate} />
-  if (page === 'login' || page === 'register' || page === 'forgot') return <AuthPage mode={page} onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
+  if (page === 'login' || page === 'register' || page === 'forgot' || page === 'reset-password') return <AuthPage mode={page === 'reset-password' ? 'reset' : page} onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
   if (showAppShell && !authenticated) return <AuthPage mode="login" onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
   if (!showAppShell) return null
 
@@ -1372,9 +1377,13 @@ function PasswordField({ label, name, autoComplete, value, onChange, required, m
   return <label className="block text-xs font-semibold text-ink">{label}<div className="relative mt-2"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input name={name} autoComplete={autoComplete} type={visible ? 'text' : 'password'} value={value} onChange={onChange ? (event) => onChange(event.target.value) : undefined} className="form-field pl-9 pr-11" minLength={minLength} required={required} aria-invalid={Boolean(error)} aria-describedby={error ? `${name || label.replace(/\s+/g, '-')}-error` : undefined} /> <button type="button" onClick={() => setVisible((current) => !current)} className="focus-ring absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:bg-canvas hover:text-navy" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible}><span className="sr-only">{visible ? 'Hide' : 'Show'} password</span>{visible ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>{error && <span id={`${name || label.replace(/\s+/g, '-')}-error`} className="mt-1 block text-[11px] font-normal text-error">{error}</span>}</label>
 }
 
-function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login' | 'register' | 'forgot'; onNavigate: (page: AppPage) => void; onToast: (message: string) => void; onAuthenticated: (user: ApiUser) => void }) {
+function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login' | 'register' | 'forgot' | 'reset'; onNavigate: (page: AppPage) => void; onToast: (message: string) => void; onAuthenticated: (user: ApiUser) => void }) {
   const isRegister = mode === 'register'
   const isForgot = mode === 'forgot'
+  const isReset = mode === 'reset'
+  const resetParams = new URLSearchParams(window.location.search)
+  const resetToken = resetParams.get('token') || ''
+  const resetEmail = resetParams.get('email') || ''
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -1395,7 +1404,7 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
     const password = String(values.get('password') || '')
     const passwordConfirmation = String(values.get('password_confirmation') || '')
 
-    if (isRegister && password !== passwordConfirmation) {
+    if ((isRegister || isReset) && password !== passwordConfirmation) {
       setFieldErrors({ password_confirmation: 'Passwords do not match.' })
       setServerError('Please correct the highlighted fields.')
       return
@@ -1410,6 +1419,18 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
         return
       }
 
+      if (isReset) {
+        if (!resetToken || !resetEmail) {
+          setServerError('This password reset link is incomplete. Request a new reset link and try again.')
+          return
+        }
+        await api.resetPassword({ token: resetToken, email: resetEmail, password, password_confirmation: passwordConfirmation })
+        window.history.replaceState({ clickEarnPage: 'login' }, '', '/')
+        onToast('Your password has been reset. You can now sign in.')
+        onNavigate('login')
+        return
+      }
+
       if (isRegister) {
         const referralCode = new URLSearchParams(window.location.search).get('ref') || undefined
         await api.register(`${firstName} ${lastName}`.trim(), email, password, passwordConfirmation, referralCode)
@@ -1420,7 +1441,7 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
       onAuthenticated(response.data)
       onToast(isRegister ? 'Welcome to Click & Earn.' : 'Welcome back.')
     } catch (error) {
-      if (!isForgot) setToken(null)
+      if (!isForgot && !isReset) setToken(null)
       const apiError = error as ApiError
       const details = apiError.details || {}
       const mappedErrors = Object.fromEntries(Object.entries(details).map(([key, messages]) => [key, messages[0]]))
@@ -1432,21 +1453,22 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
   }
 
   const errorFor = (...keys: string[]) => keys.map((key) => fieldErrors[key]).find(Boolean)
-  const submitLabel = submitting ? (isRegister ? 'Creating account…' : isForgot ? 'Sending…' : 'Signing in…') : (isRegister ? 'Create account' : isForgot ? 'Send reset link' : 'Sign in')
+  const submitLabel = submitting ? (isRegister ? 'Creating account…' : isForgot ? 'Sending…' : isReset ? 'Resetting…' : 'Signing in…') : (isRegister ? 'Create account' : isForgot ? 'Send reset link' : isReset ? 'Reset password' : 'Sign in')
 
   return (
     <div className="auth-page grid min-h-[100dvh] bg-white lg:h-[100dvh] lg:min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
       <div className="flex min-h-20 items-center bg-navy px-5 text-white lg:min-h-0 lg:flex-col lg:items-start lg:justify-between lg:p-7 xl:p-9"><Logo onClick={() => onNavigate('landing')} inverted size="auth" /><div className="hidden max-w-md lg:block"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#B9D7FF]"><ShieldCheck size={24} /></span><h1 className="mt-5 text-[34px] font-semibold leading-tight tracking-[-0.05em] xl:text-4xl">A more trustworthy way to earn from digital products.</h1><p className="mt-4 text-sm leading-6 text-white/60">Click & Earn makes the path from purchase to payout simple, visible, and proof-first.</p><div className="mt-6 space-y-2.5">{['Clear reward terms', 'Secure proof review', 'Payout tracking'].map((item) => <div key={item} className="flex items-center gap-2 text-sm text-white/80"><CheckCircle2 size={16} className="text-[#8BE0AD]" />{item}</div>)}</div></div><p className="hidden text-xs text-white/40 lg:block">© 2026 Click & Earn</p></div>
-      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-5 py-5 sm:px-8 lg:min-h-0 lg:px-12 lg:py-5 xl:px-20"><div className="flex justify-end"><button onClick={() => onNavigate('landing')} className="btn-ghost">Back to site</button></div><div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-7 lg:py-3"><p className="eyebrow">{isRegister ? 'Join Click & Earn' : isForgot ? 'Account recovery' : 'Welcome back'}</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-ink sm:text-3xl">{isRegister ? 'Create your earning account' : isForgot ? 'Reset your password' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm leading-6 text-muted">{isRegister ? 'Start with a free account and see what’s available.' : isForgot ? 'Enter your email and we’ll send a secure reset link.' : 'Pick up where you left off.'}</p>
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-5 py-5 sm:px-8 lg:min-h-0 lg:px-12 lg:py-5 xl:px-20"><div className="flex justify-end"><button onClick={() => onNavigate('landing')} className="btn-ghost">Back to site</button></div><div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-7 lg:py-3"><p className="eyebrow">{isRegister ? 'Join Click & Earn' : isForgot || isReset ? 'Account recovery' : 'Welcome back'}</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-ink sm:text-3xl">{isRegister ? 'Create your earning account' : isForgot ? 'Reset your password' : isReset ? 'Choose a new password' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm leading-6 text-muted">{isRegister ? 'Start with a free account and see what’s available.' : isForgot ? 'Enter your email and we’ll send a secure reset link.' : isReset ? 'Create a new password for your Click & Earn account.' : 'Pick up where you left off.'}</p>
         {serverError && <div role="alert" className="mt-5 rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] px-4 py-3 text-xs font-medium leading-5 text-error">{serverError}</div>}
         <form onSubmit={submit} className="mt-6 space-y-3">
           {isRegister && <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">First name<input name="first_name" autoComplete="given-name" className="form-field mt-2" required aria-invalid={Boolean(errorFor('first_name', 'name'))} />{errorFor('first_name', 'name') && <span className="mt-1 block text-[11px] font-normal text-error">{errorFor('first_name', 'name')}</span>}</label><label className="text-xs font-semibold text-ink">Last name<input name="last_name" autoComplete="family-name" className="form-field mt-2" required aria-invalid={Boolean(errorFor('last_name', 'name'))} />{errorFor('last_name', 'name') && <span className="mt-1 block text-[11px] font-normal text-error">{errorFor('last_name', 'name')}</span>}</label></div>}
-          <label className="block text-xs font-semibold text-ink">Email address<div className="relative mt-2"><Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input name="email" autoComplete="email" type="email" className="form-field pl-9" required aria-invalid={Boolean(fieldErrors.email)} /></div>{fieldErrors.email && <span className="mt-1 block text-[11px] font-normal text-error">{fieldErrors.email}</span>}</label>
-          {!isForgot && <><PasswordField key={isRegister ? 'register-password' : 'login-password'} label="Password" name="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength={8} required error={fieldErrors.password} />{isRegister && <PasswordField key="register-confirm-password" label="Confirm password" name="password_confirmation" autoComplete="new-password" minLength={8} required error={fieldErrors.password_confirmation} />}</>}
+          {isReset && <input type="hidden" name="token" value={resetToken} />}
+          <label className="block text-xs font-semibold text-ink">Email address<div className="relative mt-2"><Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input name="email" autoComplete="email" type="email" defaultValue={isReset ? resetEmail : undefined} readOnly={isReset} className="form-field pl-9 read-only:bg-canvas read-only:text-muted" required aria-invalid={Boolean(fieldErrors.email)} /></div>{fieldErrors.email && <span className="mt-1 block text-[11px] font-normal text-error">{fieldErrors.email}</span>}</label>
+          {!isForgot && <><PasswordField key={isRegister ? 'register-password' : isReset ? 'reset-password' : 'login-password'} label={isReset ? 'New password' : 'Password'} name="password" autoComplete={isRegister || isReset ? 'new-password' : 'current-password'} minLength={8} required error={fieldErrors.password} />{(isRegister || isReset) && <PasswordField key={isReset ? 'reset-confirm-password' : 'register-confirm-password'} label="Confirm password" name="password_confirmation" autoComplete="new-password" minLength={8} required error={fieldErrors.password_confirmation} />}</>}
           {mode === 'login' && <div className="flex justify-end"><button type="button" onClick={() => onNavigate('forgot')} className="text-xs font-semibold text-navy hover:text-accent">Forgot password?</button></div>}
           <button type="submit" disabled={submitting} className="btn-primary min-h-11 w-full disabled:cursor-wait disabled:opacity-60">{submitLabel} <ArrowRight size={16} /></button>
         </form>
-        <div className="mt-7 border-t border-line pt-6 text-center text-xs text-muted">{isRegister ? <>Already have an account? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Sign in</button></> : isForgot ? <>Remembered your password? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Back to sign in</button></> : <>New to Click & Earn? <button onClick={() => onNavigate('register')} className="font-semibold text-navy hover:text-accent">Create an account</button></>}</div></div><p className="text-center text-[11px] text-subtle">By continuing, you agree to Click & Earn’s terms and privacy policy.</p></div>
+        <div className="mt-7 border-t border-line pt-6 text-center text-xs text-muted">{isRegister ? <>Already have an account? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Sign in</button></> : isForgot || isReset ? <>Remembered your password? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Back to sign in</button></> : <>New to Click & Earn? <button onClick={() => onNavigate('register')} className="font-semibold text-navy hover:text-accent">Create an account</button></>}</div></div><p className="text-center text-[11px] text-subtle">By continuing, you agree to Click & Earn’s terms and privacy policy.</p></div>
     </div>
   )
 }
