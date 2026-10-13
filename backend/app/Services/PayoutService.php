@@ -81,7 +81,9 @@ class PayoutService
                 : ($model->user->payoutMethods()->where('status', 'active')->where('is_default', true)->first()
                     ?: $model->user->payoutMethods()->where('status', 'active')->latest()->first());
             if (! $method) {
-                return $this->markFailedLocked($model, 'Add an active payout method before processing this payout.');
+                Log::info('Payout release deferred because no active payout method is available.', ['payout_id' => $model->id]);
+
+                return $model;
             }
 
             try {

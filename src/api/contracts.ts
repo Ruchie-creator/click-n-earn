@@ -152,6 +152,8 @@ export type ApiPayoutMethod = {
   provider: string
   account_holder_name: string
   account_type: string
+  entity_type: 'PERSONAL' | 'COMPANY'
+  transfer_method: 'LOCAL' | 'SWIFT'
   country: string
   currency: string
   masked_account: string
