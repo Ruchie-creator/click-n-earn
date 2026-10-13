@@ -1,12 +1,15 @@
 <?php
 
+use App\Console\Commands\DemoClearCommand;
+use App\Console\Commands\DemoSeedCommand;
+use App\Console\Commands\DemoStatusCommand;
+use App\Http\Middleware\ActiveAccountMiddleware;
+use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use App\Console\Commands\DemoClearCommand;
-use App\Console\Commands\DemoSeedCommand;
-use App\Console\Commands\DemoStatusCommand;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,8 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
-            'active' => \App\Http\Middleware\ActiveAccountMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'active' => ActiveAccountMiddleware::class,
+            'verified_email' => EnsureEmailIsVerified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

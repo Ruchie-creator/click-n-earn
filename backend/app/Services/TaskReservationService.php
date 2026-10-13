@@ -82,6 +82,12 @@ class TaskReservationService
                 'warning',
                 ['reservation_id' => $reservation->id, 'task_id' => $taskModel->id, 'task' => $taskModel->title, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'expires_at' => $reservation->expires_at?->format('M j, Y g:i A'), 'currency' => config('payout.currency', 'USD')],
             ), $demoBatchId);
+            $this->notifications->notifyAdmins('reservation.created.'.$reservation->id, new EventNotification(
+                'New reward reserved',
+                sprintf('%s reserved %s and can now submit proof before the reservation deadline.', $user->name, $taskModel->title),
+                'warning',
+                ['reservation_id' => $reservation->id, 'task_id' => $taskModel->id, 'task' => $taskModel->title, 'member' => $user->name, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'expires_at' => $reservation->expires_at?->format('M j, Y g:i A'), 'currency' => config('payout.currency', 'USD'), 'admin_notification' => true],
+            ), $demoBatchId);
 
             return $reservation->load('task');
         });

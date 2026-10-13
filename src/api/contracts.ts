@@ -31,6 +31,7 @@ export type ApiUser = {
   country?: string | null
   role: 'member' | 'admin' | 'super_admin'
   account_status: string
+  email_verified_at?: string | null
   referral_code?: string | null
   avatar_url?: string | null
 }

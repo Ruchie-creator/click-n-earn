@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Jobs\SendNotificationEmailJob;
 use App\Models\NotificationOutbox;
 use App\Models\User;
@@ -11,6 +12,20 @@ use Illuminate\Support\Str;
 
 class EventNotificationService
 {
+    public function notifyAdmins(string $eventKey, EventNotification $notification, ?string $demoBatchId = null): void
+    {
+        User::query()
+            ->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])
+            ->each(function (User $admin) use ($eventKey, $notification, $demoBatchId): void {
+                $this->notifyOnce(
+                    $admin,
+                    $eventKey.'.admin.'.$admin->id,
+                    $notification,
+                    $demoBatchId,
+                );
+            });
+    }
+
     public function notifyOnce(User $recipient, string $eventKey, EventNotification $notification, ?string $demoBatchId = null): void
     {
         $eventKey = trim($eventKey);

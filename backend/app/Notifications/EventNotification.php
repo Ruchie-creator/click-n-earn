@@ -134,14 +134,18 @@ class EventNotification extends Notification
     /** @return array{string, string} */
     private function cta(string $eventKey, string $type): array
     {
+        $adminNotification = (bool) data_get($this->data, 'admin_notification');
+
         return match (true) {
             str_starts_with($eventKey, 'welcome') => ['Browse Available Tasks', '/?page=tasks'],
+            str_starts_with($eventKey, 'reservation.created') && $adminNotification => ['Review Reservations', '/?page=admin-dashboard'],
             str_starts_with($eventKey, 'reservation.created') => ['View Task', '/?page=task-detail&task='.data_get($this->data, 'task_id')],
             str_starts_with($eventKey, 'reservation.expiring') => ['Complete Task', '/?page=my-tasks'],
             str_starts_with($eventKey, 'reservation.') => ['Browse Available Tasks', '/?page=tasks'],
+            str_starts_with($eventKey, 'proof.') && $adminNotification => ['Review Submission', '/?page=admin-verification&submission='.data_get($this->data, 'proof_submission_id')],
             str_starts_with($eventKey, 'proof.changes_requested') => ['Update Proof', '/?page=proof&reservation='.data_get($this->data, 'reservation_id')],
             str_starts_with($eventKey, 'proof.approved') => ['View Earnings', '/?page=earnings'],
-            str_starts_with($eventKey, 'proof.submitted') => data_get($this->data, 'admin_notification') ? ['Review Submission', '/?page=admin-verification&submission='.data_get($this->data, 'proof_submission_id')] : ['View My Task', '/?page=my-tasks'],
+            str_starts_with($eventKey, 'proof.submitted') => ['View My Task', '/?page=my-tasks'],
             str_starts_with($eventKey, 'proof.') => ['View Task', '/?page=my-tasks'],
             str_starts_with($eventKey, 'payout.paid') => ['View Payout History', '/?page=payouts'],
             str_starts_with($eventKey, 'payout.failed') && data_get($this->data, 'admin_notification') => ['Review Payout', '/?page=admin-payouts'],

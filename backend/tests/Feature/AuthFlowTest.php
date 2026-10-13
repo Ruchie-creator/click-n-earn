@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
+use App\Jobs\SendNotificationEmailJob;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AuthFlowTest extends TestCase
@@ -83,15 +86,29 @@ class AuthFlowTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
-    public function test_email_cannot_be_marked_verified_without_a_verification_flow(): void
+    public function test_unverified_members_are_blocked_until_their_signed_email_verification_link_is_used(): void
     {
+        Queue::fake();
         $user = User::factory()->unverified()->create([
             'account_status' => AccountStatus::ACTIVE,
         ]);
 
-        $this->actingAs($user, 'sanctum')->postJson('/api/email/verify')->assertStatus(501);
+        $this->actingAs($user, 'sanctum')->getJson('/api/me')->assertOk();
+        $this->actingAs($user, 'sanctum')->getJson('/api/dashboard')->assertForbidden();
+        $this->actingAs($user, 'sanctum')->postJson('/api/email/verify')->assertAccepted();
+        Queue::assertPushed(SendNotificationEmailJob::class);
 
         $this->assertNull($user->fresh()->email_verified_at);
+
+        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+            'id' => $user->id,
+            'hash' => sha1($user->email),
+        ]);
+        $this->get($url)->assertRedirectContains('email_verified=1');
+
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->actingAs($user->fresh(), 'sanctum')->getJson('/api/dashboard')->assertOk();
+        $this->assertDatabaseHas('notification_outbox', ['user_id' => $user->id, 'event_key' => 'welcome.'.$user->id]);
     }
 
     public function test_members_cannot_access_admin_routes(): void

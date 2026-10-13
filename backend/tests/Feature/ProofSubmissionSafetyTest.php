@@ -12,8 +12,8 @@ use App\Services\LedgerService;
 use App\Services\StatusTransitionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -146,6 +146,14 @@ class ProofSubmissionSafetyTest extends TestCase
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/admin/submissions/'.$previous->id.'/request-changes', ['reason' => 'Please upload a clearer receipt.'])
             ->assertOk();
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $user->id,
+            'event_key' => 'proof.changes_requested.'.$previous->id,
+        ]);
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $admin->id,
+            'event_key' => 'proof.changes_requested.'.$previous->id.'.admin.'.$admin->id,
+        ]);
 
         $resubmission = $this->actingAs($user, 'sanctum')
             ->withHeaders([
@@ -169,6 +177,14 @@ class ProofSubmissionSafetyTest extends TestCase
         $this->assertSame('proof_submitted', $reservation->fresh()->status->value);
         $this->assertDatabaseCount('proof_submissions', 2);
         $this->assertDatabaseCount('ledger_entries', 2);
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $user->id,
+            'event_key' => 'proof.submitted.member.'.$current->id,
+        ]);
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $admin->id,
+            'event_key' => 'proof.submitted.'.$current->id.'.admin.'.$admin->id,
+        ]);
         $this->assertDatabaseHas('proof_submissions', ['id' => $current->id, 'version' => 2, 'is_current' => true]);
     }
 

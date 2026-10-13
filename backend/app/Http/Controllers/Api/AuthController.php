@@ -15,8 +15,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuthController extends ApiController
@@ -47,11 +49,7 @@ class AuthController extends ApiController
             return $user;
         });
 
-        $notifications->notifyOnce($user, 'welcome.'.$user->id, new EventNotification(
-            'Welcome to Click & Earn',
-            'Discover available tasks, complete them with confidence, and track your earnings in one place.',
-            'success',
-        ));
+        $this->sendVerificationEmail($user, $notifications, false);
 
         return $this->authResponse($user, 201);
     }
@@ -190,9 +188,51 @@ class AuthController extends ApiController
         return $this->message('Password reset successfully.');
     }
 
-    public function verifyEmail(): JsonResponse
+    public function verifyEmail(Request $request, EventNotificationService $notifications): JsonResponse
     {
-        abort(501, 'Email verification is not configured.');
+        if ($request->user()->hasVerifiedEmail()) {
+            return $this->message('Your email address is already verified.');
+        }
+
+        $this->sendVerificationEmail($request->user(), $notifications, true);
+
+        return $this->message('A new verification email has been sent.', 202);
+    }
+
+    public function confirmEmail(int $id, string $hash, EventNotificationService $notifications): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+        abort_unless(hash_equals((string) $hash, sha1($user->getEmailForVerification())), 403);
+
+        if ($user->markEmailAsVerified()) {
+            $notifications->notifyOnce($user, 'welcome.'.$user->id, new EventNotification(
+                'Welcome to Click & Earn',
+                'Your email address has been verified. You can now browse available tasks and track your earnings in one place.',
+                'success',
+                ['event_key' => 'welcome.'.$user->id],
+            ));
+        }
+
+        return redirect(rtrim((string) config('app.frontend_url'), '/').'/?email_verified=1');
+    }
+
+    private function sendVerificationEmail(User $user, EventNotificationService $notifications, bool $isResend): void
+    {
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes((int) config('auth.verification.expire', 60)),
+            ['id' => $user->id, 'hash' => sha1($user->getEmailForVerification())],
+        );
+        $eventKey = $isResend
+            ? 'email.verification.resend.'.$user->id.'.'.(string) Str::uuid()
+            : 'email.verification.'.$user->id;
+
+        $notifications->notifyOnce($user, $eventKey, new EventNotification(
+            'Verify your email address',
+            'Verify your email address to activate your Click & Earn account. You will not be able to use platform features until verification is complete.',
+            'warning',
+            ['event_key' => 'email.verification', 'cta_label' => 'Verify Email Address', 'cta_url' => $url],
+        ));
     }
 
     private function authResponse(User $user, int $status, string $device = 'click-and-earn-web'): JsonResponse

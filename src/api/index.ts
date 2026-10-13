@@ -31,6 +31,9 @@ export const api = {
   resetPassword(payload: { token: string; email: string; password: string; password_confirmation: string }) {
     return apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) })
   },
+  resendEmailVerification() {
+    return apiFetch('/email/verify', { method: 'POST' })
+  },
   logout() {
     return apiFetch('/logout', { method: 'POST' }).finally(() => setToken(null))
   },

@@ -84,7 +84,7 @@ class FinancialLifecycleTest extends TestCase
             'status' => 'under_review',
             'submitted_at' => now()->subMinutes(20),
         ]);
-        app(\App\Services\LedgerService::class)->reserveTaskReward($reservation);
+        app(LedgerService::class)->reserveTaskReward($reservation);
 
         PayoutMethod::create([
             'user_id' => $member->id,
@@ -142,7 +142,7 @@ class FinancialLifecycleTest extends TestCase
             'payout_id' => $payout->id,
             'status' => LedgerStatus::PAID->value,
         ]);
-        $this->assertDatabaseCount('notification_outbox', 2);
+        $this->assertDatabaseCount('notification_outbox', 3);
         $this->assertDatabaseHas('notification_outbox', [
             'user_id' => $member->id,
             'event_key' => 'proof.approved.'.$proof->id,
@@ -150,6 +150,10 @@ class FinancialLifecycleTest extends TestCase
         $this->assertDatabaseHas('notification_outbox', [
             'user_id' => $member->id,
             'event_key' => 'payout.paid.'.$payout->id,
+        ]);
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $admin->id,
+            'event_key' => 'proof.approved.'.$proof->id.'.admin.'.$admin->id,
         ]);
     }
 
@@ -238,9 +242,9 @@ class FinancialLifecycleTest extends TestCase
         $event = WebhookEvent::query()->where('provider', 'airwallex')->where('event_id', 'awx-controlled-event-1001')->firstOrFail();
 
         $job = new ProcessAirwallexWebhookJob($event->id);
-        $job->handle(app(\App\Services\PayoutService::class));
+        $job->handle(app(PayoutService::class));
         $this->call('POST', '/api/webhooks/airwallex', [], [], [], $server, $content)->assertOk();
-        $job->handle(app(\App\Services\PayoutService::class));
+        $job->handle(app(PayoutService::class));
 
         $this->assertSame('processed', $event->fresh()->status);
         $this->assertSame('paid', $payout->fresh()->status->value);
@@ -326,10 +330,14 @@ class FinancialLifecycleTest extends TestCase
             'status' => LedgerStatus::RESERVED->value,
         ]);
         $this->assertDatabaseCount('payouts', 0);
-        $this->assertDatabaseCount('notification_outbox', 1);
+        $this->assertDatabaseCount('notification_outbox', 2);
         $this->assertDatabaseHas('notification_outbox', [
             'user_id' => $member->id,
             'event_key' => 'proof.rejected.'.$proof->id,
+        ]);
+        $this->assertDatabaseHas('notification_outbox', [
+            'user_id' => $admin->id,
+            'event_key' => 'proof.rejected.'.$proof->id.'.admin.'.$admin->id,
         ]);
     }
 }

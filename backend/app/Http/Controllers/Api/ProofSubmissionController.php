@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\ReservationStatus;
-use App\Enums\UserRole;
 use App\Jobs\RunReceiptVerificationJob;
 use App\Models\ProofSubmission;
 use App\Models\TaskReservation;
-use App\Models\User;
 use App\Notifications\EventNotification;
 use App\Services\AuditLogService;
 use App\Services\EventNotificationService;
@@ -243,14 +241,12 @@ class ProofSubmissionController extends ApiController
                 'processing',
                 ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle],
             ), $proof->getAttribute('demo_batch_id'));
-            User::query()->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])->get()->each(
-                fn (User $admin) => $notifications->notifyOnce($admin, 'proof.submitted.admin.'.$proof->id, new EventNotification(
-                    'New proof submitted',
-                    sprintf('%s submitted proof for %s.', $request->user()->name, $taskTitle),
-                    'info',
-                    ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle, 'member' => $request->user()->name, 'submitted_at' => $proof->created_at?->format('M j, Y g:i A'), 'admin_notification' => true],
-                ), $proof->getAttribute('demo_batch_id')),
-            );
+            $notifications->notifyAdmins('proof.submitted.'.$proof->id, new EventNotification(
+                $proof->version > 1 ? 'Updated proof submitted' : 'New proof submitted',
+                sprintf('%s submitted%s proof for %s and it is ready for review.', $request->user()->name, $proof->version > 1 ? ' updated' : '', $taskTitle),
+                'processing',
+                ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle, 'member' => $request->user()->name, 'submitted_at' => $proof->created_at?->format('M j, Y g:i A'), 'admin_notification' => true],
+            ), $proof->getAttribute('demo_batch_id'));
             if ($proof->getAttribute('demo_batch_id')) {
                 $receiptVerification->verify($proof);
             } else {

@@ -235,14 +235,14 @@ function AppShell() {
   }, [])
 
   useEffect(() => {
-    if (!authenticated || !currentUser) return
+    if (!authenticated || !currentUser || !currentUser.email_verified_at) return
     const loadWorkspace = async () => {
       const requests: Promise<void>[] = [refreshMemberData()]
       if (canAccessAdmin) requests.push(refreshAdminData())
       await Promise.all(requests)
     }
     void runLoading(canAccessAdmin ? 'Preparing the admin workspace' : 'Loading available tasks', 'Fetching the latest account, task, and notification data.', loadWorkspace)
-  }, [authenticated, canAccessAdmin, currentUser?.id, runLoading])
+  }, [authenticated, canAccessAdmin, currentUser?.email_verified_at, currentUser?.id, runLoading])
 
   const handleAuthenticated = (user: ApiUser) => {
     clearAllData()
@@ -271,6 +271,15 @@ function AppShell() {
     setPage('login')
     window.history.replaceState({ clickEarnPage: 'login' }, '', window.location.href)
     setToast('You have been signed out.')
+  }
+
+  const resendEmailVerification = async () => {
+    try {
+      await api.resendEmailVerification()
+      setToast('A new verification email has been sent.')
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'We could not send a verification email. Please try again.', 'error')
+    }
   }
 
   const navigate = (nextPage: AppPage, options: { force?: boolean; replace?: boolean; taskId?: string; reservationId?: number } = {}) => {
@@ -330,6 +339,8 @@ function AppShell() {
     }, async () => {
       const response = await api.reserveTask(selectedTask.id)
       setSelectedReservationId(response.data.id)
+      setProofFile(null)
+      setProofFiles([])
       try {
         await refreshMemberData()
         navigate('proof', { reservationId: response.data.id })
@@ -367,6 +378,7 @@ function AppShell() {
   if (page === 'landing') return <LandingPage onNavigate={navigate} />
   if (page === 'how') return <HowPage onNavigate={navigate} />
   if (page === 'login' || page === 'register' || page === 'forgot' || page === 'reset-password') return <AuthPage mode={page === 'reset-password' ? 'reset' : page} onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
+  if (authenticated && currentUser && !currentUser.email_verified_at) return <VerifyEmailPage email={currentUser.email} onResend={resendEmailVerification} onLogout={() => void handleLogout()} />
   if (showAppShell && !authenticated) return <AuthPage mode="login" onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
   if (!showAppShell) return null
 
@@ -396,7 +408,7 @@ function AppShell() {
           }} />
         <main className="mx-auto max-w-[1600px] px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           <div key={`${page}-${page === 'task-detail' ? selectedTaskId : ''}`} className="page-transition">
-            {admin ? <AdminRoutes page={page} user={currentUser} onUserUpdated={setCurrentUser} onNavigate={navigate} onToast={setToast} onRefresh={refreshAdminData} requestedSubmissionId={requestedSubmissionId} onRequestedSubmissionHandled={() => setRequestedSubmissionId(null)} /> : <MemberRoutes page={page} userName={currentUser?.name || ''} currentUser={currentUser} onUserUpdated={setCurrentUser} selectedTask={selectedTask} selectedReservation={selectedReservation} onNavigate={navigate} onSelectTask={(task) => navigate('task-detail', { taskId: task.id, force: true })} onChooseReservation={(id) => navigate('proof', { reservationId: id, force: true })} proofFiles={proofFiles} setProofFiles={setProofFiles} selectedProofFile={proofFile} onProofFile={setProofFile} onReserve={reserveSelectedTask} onSubmitProof={submitProof} onToast={setToast} onRefresh={refreshMemberData} />}
+            {admin ? <AdminRoutes page={page} user={currentUser} onUserUpdated={setCurrentUser} onNavigate={navigate} onToast={setToast} onRefresh={refreshAdminData} requestedSubmissionId={requestedSubmissionId} onRequestedSubmissionHandled={() => setRequestedSubmissionId(null)} /> : <MemberRoutes page={page} userName={currentUser?.name || ''} currentUser={currentUser} onUserUpdated={setCurrentUser} selectedTask={selectedTask} selectedReservation={selectedReservation} onNavigate={navigate} onSelectTask={(task) => navigate('task-detail', { taskId: task.id, force: true })} onChooseReservation={(id) => { setProofFile(null); setProofFiles([]); navigate('proof', { reservationId: id, force: true }) }} proofFiles={proofFiles} setProofFiles={setProofFiles} selectedProofFile={proofFile} onProofFile={setProofFile} onReserve={reserveSelectedTask} onSubmitProof={submitProof} onToast={setToast} onRefresh={refreshMemberData} />}
           </div>
         </main>
       </div>
@@ -1375,6 +1387,21 @@ function HowPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
 function PasswordField({ label, name, autoComplete, value, onChange, required, minLength, error }: { label: string; name?: string; autoComplete: string; value?: string; onChange?: (value: string) => void; required?: boolean; minLength?: number; error?: string }) {
   const [visible, setVisible] = useState(false)
   return <label className="block text-xs font-semibold text-ink">{label}<div className="relative mt-2"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={16} /><input name={name} autoComplete={autoComplete} type={visible ? 'text' : 'password'} value={value} onChange={onChange ? (event) => onChange(event.target.value) : undefined} className="form-field pl-9 pr-11" minLength={minLength} required={required} aria-invalid={Boolean(error)} aria-describedby={error ? `${name || label.replace(/\s+/g, '-')}-error` : undefined} /> <button type="button" onClick={() => setVisible((current) => !current)} className="focus-ring absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:bg-canvas hover:text-navy" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible}><span className="sr-only">{visible ? 'Hide' : 'Show'} password</span>{visible ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>{error && <span id={`${name || label.replace(/\s+/g, '-')}-error`} className="mt-1 block text-[11px] font-normal text-error">{error}</span>}</label>
+}
+
+function VerifyEmailPage({ email, onResend, onLogout }: { email: string; onResend: () => Promise<void>; onLogout: () => void }) {
+  const [sending, setSending] = useState(false)
+
+  const resend = async () => {
+    setSending(true)
+    try {
+      await onResend()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return <div className="auth-page grid min-h-[100dvh] place-items-center bg-canvas px-5 py-8 text-ink"><section className="w-full max-w-[480px] rounded-3xl border border-line bg-white p-6 shadow-soft sm:p-8"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-soft-blue text-navy"><Mail size={22} /></span><p className="eyebrow mt-6">Email verification required</p><h1 className="mt-2 text-balance text-2xl font-semibold tracking-[-0.05em] text-ink sm:text-3xl">Confirm your email to continue</h1><p className="mt-3 text-pretty text-sm leading-6 text-muted">We sent a verification link to <strong className="font-semibold text-ink">{email}</strong>. Open that link to activate your account and use Click & Earn.</p><div className="mt-6 rounded-xl border border-[#C8D8EB] bg-soft-blue p-4 text-xs leading-5 text-[#526D96]">The link expires for your security. If you cannot find it, check your spam folder or send a new verification email.</div><button onClick={() => void resend()} disabled={sending} className="btn-primary mt-6 min-h-11 w-full disabled:cursor-wait disabled:opacity-60">{sending ? 'Sending…' : 'Send a new verification email'} <RefreshCw size={16} /></button><button onClick={onLogout} className="btn-secondary mt-3 min-h-11 w-full">Sign out</button></section></div>
 }
 
 function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login' | 'register' | 'forgot' | 'reset'; onNavigate: (page: AppPage) => void; onToast: (message: string) => void; onAuthenticated: (user: ApiUser) => void }) {

@@ -90,9 +90,15 @@ class VerificationService
 
             $this->notifications->notifyOnce($reservation->user, 'proof.approved.'.$proof->id, new EventNotification(
                 'Proof approved',
-                sprintf('Your %s proof was approved. Your %s payout is now queued.', $reservation->task->title, $payout->amount.' '.$payout->currency),
+                sprintf('Your proof for %s was approved. Your expected payout will now move through the payout process.', $reservation->task->title),
                 'success',
                 ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'currency' => $payout->currency],
+            ), $reservation->getAttribute('demo_batch_id'));
+            $this->notifications->notifyAdmins('proof.approved.'.$proof->id, new EventNotification(
+                'Proof approved',
+                sprintf('%s\'s proof for %s was approved. The related payout can now be processed through the normal payout workflow.', $reservation->user->name, $reservation->task->title),
+                'success',
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'member' => $reservation->user->name, 'proof_submission_id' => $proof->id, 'payout_id' => $payout->id, 'reimbursement_amount' => $reservation->reimbursement_amount, 'incentive_amount' => $reservation->incentive_amount, 'expected_payout' => $reservation->expected_payout, 'currency' => $payout->currency, 'admin_notification' => true],
             ), $reservation->getAttribute('demo_batch_id'));
             if (! $reservation->getAttribute('demo_batch_id')) {
                 ProcessPayoutJob::dispatch($payout->id)->afterCommit();
@@ -122,9 +128,15 @@ class VerificationService
             $this->audit->record('proof.changes_requested', $proof, actorId: $actorId, after: $proof->toArray(), reason: $reason);
             $this->notifications->notifyOnce($reservation->user, 'proof.changes_requested.'.$proof->id, new EventNotification(
                 'Changes requested',
-                $reason,
+                sprintf('The verification team requested updates to your proof for %s. Please review the note below and submit a new proof file.', $reservation->task->title),
                 'warning',
                 ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'reviewer_note' => $reason],
+            ), $reservation->getAttribute('demo_batch_id'));
+            $this->notifications->notifyAdmins('proof.changes_requested.'.$proof->id, new EventNotification(
+                'Changes requested for proof',
+                sprintf('Changes were requested for %s\'s proof for %s.', $reservation->user->name, $reservation->task->title),
+                'warning',
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'member' => $reservation->user->name, 'proof_submission_id' => $proof->id, 'reviewer_note' => $reason, 'admin_notification' => true],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);
@@ -153,9 +165,15 @@ class VerificationService
             $this->audit->record('proof.rejected', $proof, actorId: $actorId, after: $proof->toArray(), reason: $reason);
             $this->notifications->notifyOnce($reservation->user, 'proof.rejected.'.$proof->id, new EventNotification(
                 'Proof rejected',
-                $reason,
+                sprintf('Your proof for %s could not be approved. Please review the details below.', $reservation->task->title),
                 'error',
                 ['reservation_id' => $proof->task_reservation_id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'reason' => $reason],
+            ), $reservation->getAttribute('demo_batch_id'));
+            $this->notifications->notifyAdmins('proof.rejected.'.$proof->id, new EventNotification(
+                'Proof rejected',
+                sprintf('%s\'s proof for %s was rejected.', $reservation->user->name, $reservation->task->title),
+                'error',
+                ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'member' => $reservation->user->name, 'proof_submission_id' => $proof->id, 'reason' => $reason, 'admin_notification' => true],
             ), $reservation->getAttribute('demo_batch_id'));
 
             return $proof->fresh(['reservation']);
