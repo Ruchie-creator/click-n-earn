@@ -38,9 +38,7 @@ class EventNotificationService
             throw new \InvalidArgumentException('A demo notification cannot cross demo batches.');
         }
         $demoBatchId = $demoBatchId ?: $recipientBatchId;
-        $isDemoNotification = filled($demoBatchId);
-
-        $outbox = DB::transaction(function () use ($recipient, $eventKey, $notification, $demoBatchId, $isDemoNotification): NotificationOutbox {
+        $outbox = DB::transaction(function () use ($recipient, $eventKey, $notification, $demoBatchId): NotificationOutbox {
             $eventType = implode('.', array_slice(explode('.', $eventKey), 0, 2));
             $payload = array_merge($notification->toDatabase($recipient), [
                 'event_type' => $eventType,
@@ -53,7 +51,7 @@ class EventNotificationService
                     'body' => $notification->body,
                     'type' => $notification->type,
                     'data' => $payload,
-                    'email_status' => $isDemoNotification ? 'suppressed' : 'pending',
+                    'email_status' => 'pending',
                     'demo_batch_id' => $demoBatchId,
                 ],
             );
@@ -72,7 +70,7 @@ class EventNotificationService
             return $outbox;
         });
 
-        if (! $isDemoNotification && $outbox->wasRecentlyCreated && $outbox->email_status === 'pending') {
+        if ($outbox->wasRecentlyCreated && $outbox->email_status === 'pending') {
             SendNotificationEmailJob::dispatch($outbox->id)->afterCommit();
         }
     }

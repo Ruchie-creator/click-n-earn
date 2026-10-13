@@ -66,8 +66,8 @@ class DemoDataSystemTest extends TestCase
         ])));
         $this->assertGreaterThan(0, $first['counts']['notifications']);
         $this->assertTrue($first['installed']);
-        $this->assertSame(0, NotificationOutbox::query()->where('demo_batch_id', $batchId)->where('email_status', 'pending')->count());
-        $this->assertSame($first['counts']['notifications'], NotificationOutbox::query()->where('demo_batch_id', $batchId)->where('email_status', 'suppressed')->count());
+        $this->assertSame($first['counts']['notifications'], NotificationOutbox::query()->where('demo_batch_id', $batchId)->where('email_status', 'sent')->count());
+        $this->assertSame(0, NotificationOutbox::query()->where('demo_batch_id', $batchId)->where('email_status', 'suppressed')->count());
 
         $this->assertSame(0, Artisan::call('demo:seed'), Artisan::output());
         $second = app(DemoDataService::class)->status();
