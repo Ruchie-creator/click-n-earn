@@ -247,7 +247,7 @@ class FinancialLifecycleTest extends TestCase
         ];
 
         $this->call('POST', '/api/webhooks/airwallex', [], [], [], $server, $content)->assertOk();
-        $event = WebhookEvent::query()->where('provider', 'airwallex')->where('event_id', 'awx-controlled-event-1001')->firstOrFail();
+        $event = WebhookEvent::query()->where('provider', 'airwallex:sandbox')->where('event_id', 'awx-controlled-event-1001')->firstOrFail();
 
         $job = new ProcessAirwallexWebhookJob($event->id);
         $job->handle(app(PayoutService::class));

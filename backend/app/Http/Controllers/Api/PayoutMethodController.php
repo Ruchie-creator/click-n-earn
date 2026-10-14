@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Models\PayoutMethod;
 use App\Services\AirwallexEnvironment;
 use App\Services\PayoutProviderInterface;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -27,7 +29,19 @@ class PayoutMethodController extends ApiController
             'local_clearing_system' => ['nullable', 'string', 'max:32'],
         ]);
 
-        return $this->ok($provider->beneficiarySchema($criteria, $environments->active()));
+        try {
+            return $this->ok($provider->beneficiarySchema($criteria, $environments->active()));
+        } catch (RequestException $exception) {
+            Log::warning('Airwallex beneficiary schema request failed.', [
+                'environment' => $environments->active(),
+                'http_status' => $exception->response?->status(),
+                'provider_code' => data_get($exception->response?->json(), 'code'),
+            ]);
+
+            throw ValidationException::withMessages([
+                'payout_method' => 'Airwallex could not load requirements for this bank route. Check the country, currency, and local clearing system, then try again.',
+            ]);
+        }
     }
 
     public function store(Request $request): JsonResponse

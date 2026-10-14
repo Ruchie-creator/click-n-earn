@@ -7,6 +7,7 @@ use App\Jobs\ExpireReservationsJob;
 use App\Models\Task;
 use App\Models\TaskReservation;
 use App\Models\User;
+use App\Services\EventNotificationService;
 use App\Services\TaskReservationService;
 use App\Services\StatusTransitionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -100,8 +101,8 @@ class ReservationFinancialSafetyTest extends TestCase
         $reservation->forceFill(['expires_at' => now()->subMinute()])->save();
         $job = new ExpireReservationsJob();
 
-        $job->handle(app(TaskReservationService::class));
-        $job->handle(app(TaskReservationService::class));
+        $job->handle(app(TaskReservationService::class), app(EventNotificationService::class));
+        $job->handle(app(TaskReservationService::class), app(EventNotificationService::class));
 
         $this->assertSame('expired', $reservation->fresh()->status->value);
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'reserved_slots' => 0]);
@@ -127,7 +128,7 @@ class ReservationFinancialSafetyTest extends TestCase
         $transitions->transition($reservation, 'changes_requested', reason: 'Resubmit before expiry.');
         $reservation->forceFill(['expires_at' => now()->subMinute()])->save();
 
-        (new ExpireReservationsJob())->handle(app(TaskReservationService::class));
+        (new ExpireReservationsJob())->handle(app(TaskReservationService::class), app(EventNotificationService::class));
 
         $this->assertSame('expired', $reservation->fresh()->status->value);
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'reserved_slots' => 0]);

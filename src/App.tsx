@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState, type ReactNode } from 'react'
+import { FormEvent, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   AlertCircle,
@@ -588,6 +588,38 @@ function ReferralsPage({ onToast }: { onToast: (message: string) => void }) {
   </div>
 }
 
+type BeneficiarySchemaField = { key: string; path: string; required: boolean; rule?: { type?: string; pattern?: string } }
+
+const US_STATE_OPTIONS = [
+  'US-AL', 'US-AK', 'US-AZ', 'US-AR', 'US-CA', 'US-CO', 'US-CT', 'US-DE', 'US-FL', 'US-GA', 'US-HI', 'US-ID', 'US-IL', 'US-IN', 'US-IA', 'US-KS', 'US-KY', 'US-LA', 'US-ME', 'US-MD', 'US-MA', 'US-MI', 'US-MN', 'US-MS', 'US-MO', 'US-MT', 'US-NE', 'US-NV', 'US-NH', 'US-NJ', 'US-NM', 'US-NY', 'US-NC', 'US-ND', 'US-OH', 'US-OK', 'US-OR', 'US-PA', 'US-RI', 'US-SC', 'US-SD', 'US-TN', 'US-TX', 'US-UT', 'US-VT', 'US-VA', 'US-WA', 'US-WV', 'US-WI', 'US-WY',
+]
+
+function payoutFieldLabel(key: string) {
+  return ({
+    local_clearing_system: 'Local clearing system',
+    bank_account_category: 'Account type',
+    account_routing_type1: 'Routing number type',
+    account_routing_value1: 'Routing number',
+    country_code: 'Country',
+    postcode: 'Postal code',
+    street_address: 'Street address',
+    personal_email: 'Email address',
+    date_of_birth: 'Date of birth',
+  } as Record<string, string>)[key] || key.replace(/_/g, ' ')
+}
+
+function PayoutRequirementField({ field, value, country, onChange }: { field: BeneficiarySchemaField; value: string; country: string; onChange: (value: string) => void }) {
+  const id = `payout-${field.path.replace(/[^a-z0-9]+/gi, '-')}`
+  const common = { id, required: field.required, className: 'form-field mt-2', value, onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange(['local_clearing_system', 'bank_account_category', 'account_routing_type1'].includes(field.key) ? event.target.value.toUpperCase() : event.target.value) }
+  const label = <>{payoutFieldLabel(field.key)}{field.required && <span className="ml-1 text-error">*</span>}</>
+
+  if (field.key === 'bank_account_category') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select account type</option><option value="CHECKING">Checking</option><option value="SAVINGS">Savings</option></select><span className="mt-1 block text-[11px] font-normal leading-4 text-muted">Choose the account type held by your bank.</span></label>
+  if (field.key === 'local_clearing_system' && country.toUpperCase() === 'US') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select transfer network</option><option value="ACH">ACH (local bank transfer)</option><option value="FEDWIRE">Fedwire</option></select><span className="mt-1 block text-[11px] font-normal leading-4 text-muted">ACH is the usual choice for a United States bank account.</span></label>
+  if (field.key === 'state' && country.toUpperCase() === 'US') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select state</option>{US_STATE_OPTIONS.map((state) => <option key={state} value={state}>{state.replace('US-', '')}</option>)}</select></label>
+
+  return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<input {...common} type={field.key === 'date_of_birth' ? 'date' : field.key === 'personal_email' ? 'email' : 'text'} inputMode={field.key.includes('routing') || field.key.includes('account') ? 'numeric' : undefined} placeholder={field.key === 'local_clearing_system' ? 'For example, ACH' : field.key === 'account_routing_type1' ? 'For example, ABA' : undefined} autoComplete="off" /></label>
+}
+
 function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
   const { runOperation, processing } = useFeedback()
   const [showModal, setShowModal] = useState(false)
@@ -600,9 +632,10 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
   const [transferMethod, setTransferMethod] = useState<'LOCAL' | 'SWIFT'>('LOCAL')
   const [country, setCountry] = useState('')
   const [currency, setCurrency] = useState('')
-  const [schemaFields, setSchemaFields] = useState<Array<{ key: string; path: string; required: boolean; rule?: { type?: string; pattern?: string } }>>([])
+  const [schemaFields, setSchemaFields] = useState<BeneficiarySchemaField[]>([])
   const [beneficiaryValues, setBeneficiaryValues] = useState<Record<string, string>>({})
   const [schemaLoading, setSchemaLoading] = useState(false)
+  const [schemaError, setSchemaError] = useState('')
   const localClearingSystem = beneficiaryValues['beneficiary.bank_details.local_clearing_system']?.trim().toUpperCase() || ''
   useEffect(() => {
     let mounted = true
@@ -625,13 +658,15 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
   useEffect(() => {
     if (!showModal || country.length !== 2 || currency.length !== 3) {
       setSchemaFields([])
+      setSchemaError('')
       return
     }
     let active = true
     setSchemaLoading(true)
+    setSchemaError('')
     api.payoutMethodSchema({ country: country.toUpperCase(), currency: currency.toUpperCase(), entity_type: entityType, transfer_method: transferMethod, local_clearing_system: localClearingSystem || undefined })
       .then((response) => { if (active) setSchemaFields(response.data.fields) })
-      .catch((error) => { if (active) { setSchemaFields([]); onToast(error instanceof Error ? error.message : 'Bank requirements could not be loaded.') } })
+      .catch((error) => { if (active) setSchemaError(error instanceof Error ? error.message : 'Bank requirements could not be loaded.') })
       .finally(() => { if (active) setSchemaLoading(false) })
     return () => { active = false }
   }, [showModal, country, currency, entityType, transferMethod, localClearingSystem])
@@ -646,6 +681,10 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
       return
     }
     const missing = dynamicFields.find((field) => field.required && !beneficiaryValues[field.path]?.trim())
+    if (schemaError) {
+      onToast('Wait until Airwallex bank requirements load successfully before saving.')
+      return
+    }
     if (missing) {
       onToast(`Enter ${missing.key.replace(/_/g, ' ')} to continue.`)
       return
@@ -679,7 +718,49 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
     <PageHeader eyebrow="Get paid" title="Payouts" description="Manage where approved task rewards are sent and review your recorded payout history." actions={<button onClick={() => openMethod()} className="btn-primary"><Plus size={16} /> Add payout method</button>} />
     <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]"><section className="card p-5 sm:p-6"><div className="flex items-start justify-between"><div><p className="eyebrow">Default method</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">{defaultMethod ? (defaultMethod.provider === 'airwallex' ? 'Bank account via Airwallex' : defaultMethod.provider) : 'No payout method set'}</h2></div>{defaultMethod && <button onClick={() => openMethod(defaultMethod)} className="btn-ghost min-h-9 px-2.5"><Pencil size={14} /> Edit</button>}</div>{defaultMethod ? <div className="mt-6 flex items-center gap-3 rounded-xl border border-line bg-canvas p-4"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy"><Smartphone size={18} /></span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{defaultMethod.masked_account || 'Account details saved'}</p><p className="mt-1 text-[11px] text-muted">{defaultMethod.account_holder_name} · {defaultMethod.country} · {defaultMethod.currency}</p></div><StatusBadge tone={getTone(defaultMethod.status)} dot>{defaultMethod.status.replace(/_/g, ' ')}</StatusBadge></div> : <div className="mt-6 rounded-xl bg-canvas p-4 text-xs leading-5 text-muted">Add a payout method to receive approved rewards.</div>}<div className="mt-5 flex items-start gap-2.5 text-xs leading-5 text-muted"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-success" />Payout details are handled by the configured payout provider.</div></section><section className="card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#FFF7ED] text-warning"><Clock3 size={19} /></span><div><p className="eyebrow">Next payout</p>{(() => { const pending = payouts.find((payout) => ['Approved', 'Processing', 'Pending'].includes(payout.status)); return pending ? <><p className="number mt-1 text-[26px] font-semibold tracking-[-0.04em] text-navy">{formatCurrency(pending.amount)}</p><p className="mt-1 text-xs text-muted">{pending.method} · {pending.reference}</p><div className="mt-3"><StatusBadge tone={getTone(pending.status)} dot>{pending.status}</StatusBadge></div></> : <p className="mt-2 text-sm font-medium text-muted">No payout is currently in progress.</p> })()}</div></div></section></div>
     <section className="card overflow-hidden"><div className="border-b border-line px-5 py-4 sm:px-6"><p className="eyebrow">Payout history</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">Recorded payouts</h2></div>{payouts.length ? <><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[680px] text-left"><thead className="bg-canvas text-[11px] uppercase tracking-[0.1em] text-subtle"><tr><th className="px-6 py-3 font-semibold">Payout ID</th><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 font-semibold">Method</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-6 py-3 text-right font-semibold">Amount</th></tr></thead><tbody className="divide-y divide-line">{payouts.map((payout) => <tr key={payout.id} className="transition-colors hover:bg-canvas"><td className="px-6 py-4 text-xs font-semibold text-navy">{payout.id}</td><td className="px-4 py-4 text-xs text-muted">{payout.date}</td><td className="px-4 py-4 text-xs text-muted">{payout.method}</td><td className="px-4 py-4"><StatusBadge tone={getTone(payout.status)} dot>{payout.status}</StatusBadge></td><td className="number px-6 py-4 text-right text-sm font-semibold text-navy">{formatCurrency(payout.amount)}</td></tr>)}</tbody></table></div><div className="divide-y divide-line md:hidden">{payouts.map((payout) => <div key={payout.id} className="flex items-center justify-between gap-3 px-5 py-4"><div><p className="text-xs font-semibold text-navy">{payout.id}</p><p className="mt-1 text-[11px] text-muted">{payout.date} · {payout.method}</p></div><div className="text-right"><p className="number text-xs font-semibold text-navy">{formatCurrency(payout.amount)}</p><StatusBadge tone={getTone(payout.status)}>{payout.status}</StatusBadge></div></div>)}</div></> : <TableEmpty message="No payouts yet." />}</section>
-    <Modal open={showModal} title={editingId ? 'Edit payout method' : 'Add payout method'} description="Your bank details are saved securely. Airwallex loads the requirements for your selected country, currency, recipient type, and transfer route." onClose={() => { if (!processing) setShowModal(false) }}><div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Recipient type<select className="form-field mt-2" value={entityType} onChange={(event) => setEntityType(event.target.value as 'PERSONAL' | 'COMPANY')}><option value="PERSONAL">Individual</option><option value="COMPANY">Company</option></select></label><label className="text-xs font-semibold text-ink">Transfer route<select className="form-field mt-2" value={transferMethod} onChange={(event) => setTransferMethod(event.target.value as 'LOCAL' | 'SWIFT')}><option value="LOCAL">Local bank transfer</option><option value="SWIFT">International SWIFT</option></select></label></div><label className="text-xs font-semibold text-ink">Payout method<select className="form-field mt-2" value={accountType} onChange={(event) => setAccountType(event.target.value)}><option value="bank_account">Bank account via Airwallex</option><option value="ach">ACH / Bank transfer</option></select></label><label className="text-xs font-semibold text-ink">Bank account<input required className="form-field mt-2" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} autoComplete="off" /></label><label className="text-xs font-semibold text-ink">{entityType === 'COMPANY' ? 'Company name' : 'Account holder name'}<input required className="form-field mt-2" value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} /></label><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Country code<input required className="form-field mt-2" value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} maxLength={2} /></label><label className="text-xs font-semibold text-ink">Currency code<input required className="form-field mt-2" value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} maxLength={3} /></label></div>{schemaLoading && <p className="rounded-lg bg-soft-blue px-3 py-2 text-xs text-navy">Loading bank requirements…</p>}{dynamicFields.length > 0 && <div className="rounded-xl border border-line bg-canvas p-4"><p className="text-xs font-semibold text-ink">Required bank details</p><p className="mt-1 text-[11px] leading-5 text-muted">These fields are supplied by Airwallex for this payout route. Enter a local clearing system, such as ACH, to load its exact requirements.</p><div className="mt-4 grid gap-4 sm:grid-cols-2">{dynamicFields.map((field) => <label key={field.path} className="text-xs font-semibold text-ink">{field.key.replace(/_/g, ' ')}{field.required && <span className="ml-1 text-error">*</span>}<input required={field.required} className="form-field mt-2" placeholder={field.key === 'local_clearing_system' ? 'e.g. ACH' : field.key === 'bank_account_category' ? 'e.g. CHECKING' : undefined} value={beneficiaryValues[field.path] || ''} onChange={(event) => setBeneficiaryValues((current) => ({ ...current, [field.path]: ['local_clearing_system', 'bank_account_category'].includes(field.key) ? event.target.value.toUpperCase() : event.target.value }))} autoComplete="off" /></label>)}</div></div>}<div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowModal(false)} disabled={processing} className="btn-secondary disabled:opacity-60">Cancel</button><button type="button" disabled={processing || schemaLoading} onClick={() => void saveMethod()} className="btn-primary active:scale-[0.96] transition-transform disabled:cursor-wait disabled:opacity-60">Save changes <Check size={15} /></button></div></div></Modal>
+    <Modal open={showModal} title={editingId ? 'Edit payout method' : 'Add payout method'} description="Your bank details are saved securely. We show clear fields, while Airwallex remains the source of truth for your selected bank route." onClose={() => { if (!processing) setShowModal(false) }}>
+      <div className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-ink">Recipient type
+            <select className="form-field mt-2" value={entityType} onChange={(event) => setEntityType(event.target.value as 'PERSONAL' | 'COMPANY')}>
+              <option value="PERSONAL">Individual</option><option value="COMPANY">Company</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-ink">Transfer route
+            <select className="form-field mt-2" value={transferMethod} onChange={(event) => setTransferMethod(event.target.value as 'LOCAL' | 'SWIFT')}>
+              <option value="LOCAL">Local bank transfer</option><option value="SWIFT">International SWIFT</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-ink">Country code
+            <input required className="form-field mt-2" value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} maxLength={2} placeholder="For example, US" autoComplete="country" />
+          </label>
+          <label className="text-xs font-semibold text-ink">Currency code
+            <input required className="form-field mt-2" value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} maxLength={3} placeholder="For example, USD" autoComplete="off" />
+          </label>
+        </div>
+        <div className="rounded-2xl border border-[#C8D8EB] bg-soft-blue p-4">
+          <p className="text-xs font-semibold text-navy">Bank account details</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#526D96]">Select the recipient and route first. The fields below then match the requirements returned by Airwallex for that specific destination.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-ink">{entityType === 'COMPANY' ? 'Company name' : 'Account holder name'}
+              <input required className="form-field mt-2 bg-white" value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} autoComplete="name" />
+            </label>
+            <label className="text-xs font-semibold text-ink">Bank account number
+              <input required className="form-field mt-2 bg-white" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} autoComplete="off" inputMode="numeric" />
+            </label>
+          </div>
+        </div>
+        {schemaLoading && <p className="rounded-xl bg-soft-blue px-3 py-3 text-xs font-medium text-navy" role="status">Checking the bank requirements…</p>}
+        {schemaError && <div className="rounded-xl border border-[#F4D7A6] bg-[#FFFBEB] px-3 py-3 text-xs leading-5 text-[#9A5B05]" role="alert"><strong>We could not refresh the bank requirements.</strong><br />{schemaError} Your entries are still here; correct the destination details or try again.</div>}
+        {dynamicFields.length > 0 && <div className="rounded-2xl border border-line bg-canvas p-4 sm:p-5">
+          <div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-navy shadow-[0_1px_2px_rgba(23,32,51,0.08)]"><Landmark size={18} /></span><div><p className="text-sm font-semibold text-ink">Required bank details</p><p className="mt-1 text-[11px] leading-5 text-muted">Fields marked with an asterisk are required for this route. Choosing a transfer network updates the exact requirements.</p></div></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">{dynamicFields.map((field) => <PayoutRequirementField key={field.path} field={field} value={beneficiaryValues[field.path] || ''} country={country} onChange={(value) => setBeneficiaryValues((current) => ({ ...current, [field.path]: value }))} />)}</div>
+        </div>}
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowModal(false)} disabled={processing} className="btn-secondary min-h-10 disabled:opacity-60">Cancel</button><button type="button" disabled={processing || schemaLoading || Boolean(schemaError)} onClick={() => void saveMethod()} className="btn-primary min-h-10 active:scale-[0.96] transition-transform disabled:cursor-wait disabled:opacity-60">Save payout method <Check size={15} /></button></div>
+      </div>
+    </Modal>
   </div>
 }
 
