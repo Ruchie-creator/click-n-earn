@@ -1,7 +1,7 @@
-import { apiDownload, apiFetch, apiUpload, getToken, setToken } from './client'
+import { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken } from './client'
 import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
 
-export { apiDownload, apiFetch, apiUpload, getToken, setToken }
+export { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken }
 export type { ApiError } from './client'
 export type * from './contracts'
 

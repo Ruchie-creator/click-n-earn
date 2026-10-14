@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\TaskController as AdminTaskController;
 use App\Http\Controllers\Api\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ClientErrorController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EarningsController;
 use App\Http\Controllers\Api\NotificationController;
@@ -45,6 +46,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
     Route::post('logout', [AuthController::class, 'logout']);
 
     Route::middleware('verified_email')->group(function (): void {
+        Route::post('client-errors', [ClientErrorController::class, 'store']);
         Route::patch('profile', [AuthController::class, 'updateProfile']);
         Route::put('me', [AuthController::class, 'updateProfile']);
         Route::post('profile/photo', [AuthController::class, 'updateProfilePhoto']);

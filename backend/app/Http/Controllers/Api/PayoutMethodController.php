@@ -31,7 +31,21 @@ class PayoutMethodController extends ApiController
         ]);
 
         try {
-            return $this->ok($provider->beneficiarySchema($criteria, $environments->active()));
+            $schema = $provider->beneficiarySchema($criteria, $environments->active());
+            $fields = data_get($schema, 'fields', []);
+            $fields = is_array($fields) ? $fields : [];
+
+            Log::info('Airwallex beneficiary form schema loaded.', [
+                'environment' => $environments->active(),
+                'criteria' => $criteria,
+                'field_count' => count($fields),
+                'field_paths' => collect($fields)->pluck('path')->filter()->values()->all(),
+                'field_types' => collect($fields)->filter(fn (mixed $field): bool => is_array($field))->mapWithKeys(
+                    fn (mixed $field): array => [(string) data_get($field, 'path') => data_get($field, 'field.type')],
+                )->all(),
+            ]);
+
+            return $this->ok($schema);
         } catch (RequestException $exception) {
             Log::warning('Airwallex beneficiary schema request failed.', [
                 'environment' => $environments->active(),

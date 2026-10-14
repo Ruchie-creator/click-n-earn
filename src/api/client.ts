@@ -12,6 +12,43 @@ export function setToken(token: string | null): void {
   else window.localStorage.removeItem(TOKEN_KEY)
 }
 
+export type ClientErrorPayload = {
+  kind: 'render' | 'error' | 'unhandled_rejection'
+  message: string
+  stack?: string
+  page?: string
+}
+
+/**
+ * Records a client failure without using apiFetch so diagnostics can never
+ * recurse into the normal API error path. Sensitive form data is deliberately
+ * not accepted by this helper.
+ */
+export function reportClientError(payload: ClientErrorPayload): void {
+  const token = getToken()
+  if (!token) return
+
+  const page = (payload.page || window.location.pathname || '/')
+    .replace(/[^A-Za-z0-9/_-]/g, '')
+    .slice(0, 255) || '/'
+
+  void fetch(API_URL + '/client-errors', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + token,
+    },
+    body: JSON.stringify({
+      kind: payload.kind,
+      message: String(payload.message || 'Unknown client error').slice(0, 1000),
+      stack: payload.stack ? String(payload.stack).slice(0, 4000) : undefined,
+      page,
+    }),
+    keepalive: true,
+  }).catch(() => undefined)
+}
+
 function headers(body?: BodyInit): HeadersInit {
   const token = getToken()
   return {

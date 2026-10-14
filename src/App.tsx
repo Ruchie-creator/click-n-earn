@@ -596,6 +596,49 @@ type BeneficiarySchemaField = {
   field?: { default?: string; description?: string; example?: string; label?: string; placeholder?: string; refresh?: boolean; tip?: string; type?: 'INPUT' | 'SELECT' | 'DYNAMIC_SELECT' | 'RADIO' | 'TRANSFER_METHOD'; options?: Array<{ label: string; value: string; description?: string }> }
 }
 
+function normalizeBeneficiarySchemaFields(input: unknown): BeneficiarySchemaField[] {
+  if (!Array.isArray(input)) return []
+
+  return input.flatMap((item): BeneficiarySchemaField[] => {
+    if (!item || typeof item !== 'object') return []
+    const raw = item as Record<string, unknown>
+    const path = typeof raw.path === 'string' ? raw.path : ''
+    const pathSegments = path.split('.').filter(Boolean)
+    const derivedKey = pathSegments[pathSegments.length - 1] || ''
+    const key = typeof raw.key === 'string' ? raw.key : derivedKey
+    if (!path || !key) return []
+
+    const rawField = raw.field && typeof raw.field === 'object' ? raw.field as Record<string, unknown> : undefined
+    const options = Array.isArray(rawField?.options)
+      ? rawField.options.flatMap((option) => option && typeof option === 'object' && typeof (option as Record<string, unknown>).value === 'string'
+        ? [{
+            value: (option as Record<string, unknown>).value as string,
+            label: typeof (option as Record<string, unknown>).label === 'string' ? (option as Record<string, unknown>).label as string : (option as Record<string, unknown>).value as string,
+            description: typeof (option as Record<string, unknown>).description === 'string' ? (option as Record<string, unknown>).description as string : undefined,
+          }]
+        : [])
+      : undefined
+
+    return [{
+      key,
+      path,
+      required: Boolean(raw.required),
+      rule: raw.rule && typeof raw.rule === 'object' ? raw.rule as BeneficiarySchemaField['rule'] : undefined,
+      field: rawField ? {
+        default: typeof rawField.default === 'string' ? rawField.default : undefined,
+        description: typeof rawField.description === 'string' ? rawField.description : undefined,
+        example: typeof rawField.example === 'string' ? rawField.example : undefined,
+        label: typeof rawField.label === 'string' ? rawField.label : undefined,
+        placeholder: typeof rawField.placeholder === 'string' ? rawField.placeholder : undefined,
+        refresh: typeof rawField.refresh === 'boolean' ? rawField.refresh : undefined,
+        tip: typeof rawField.tip === 'string' ? rawField.tip : undefined,
+        type: ['INPUT', 'SELECT', 'DYNAMIC_SELECT', 'RADIO', 'TRANSFER_METHOD'].includes(String(rawField.type)) ? rawField.type as NonNullable<BeneficiarySchemaField['field']>['type'] : undefined,
+        options,
+      } : undefined,
+    }]
+  })
+}
+
 const US_STATE_OPTIONS = [
   'US-AL', 'US-AK', 'US-AZ', 'US-AR', 'US-CA', 'US-CO', 'US-CT', 'US-DE', 'US-FL', 'US-GA', 'US-HI', 'US-ID', 'US-IL', 'US-IN', 'US-IA', 'US-KS', 'US-KY', 'US-LA', 'US-ME', 'US-MD', 'US-MA', 'US-MI', 'US-MN', 'US-MS', 'US-MO', 'US-MT', 'US-NE', 'US-NV', 'US-NH', 'US-NJ', 'US-NM', 'US-NY', 'US-NC', 'US-ND', 'US-OH', 'US-OK', 'US-OR', 'US-PA', 'US-RI', 'US-SC', 'US-SD', 'US-TN', 'US-TX', 'US-UT', 'US-VT', 'US-VA', 'US-WA', 'US-WV', 'US-WI', 'US-WY',
 ]
@@ -705,7 +748,8 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
     api.payoutMethodSchema({ country: country.toUpperCase(), currency: currency.toUpperCase(), entity_type: entityType, transfer_method: transferMethod, local_clearing_system: localClearingSystem || undefined })
       .then((response) => {
         if (!active) return
-        const fields = Array.isArray(response.data?.fields) ? response.data.fields : []
+        const rawFields = response.data?.fields
+        const fields = normalizeBeneficiarySchemaFields(rawFields)
         setSchemaFields(fields)
         setBeneficiaryValues((current) => {
           const defaults = fields.reduce<Record<string, string>>((values, field) => {
@@ -715,7 +759,7 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
           }, {})
           return Object.keys(defaults).length ? { ...current, ...defaults } : current
         })
-        if (!Array.isArray(response.data?.fields)) setSchemaError('Airwallex returned incomplete bank requirements. Your entries are preserved; change the route or try again.')
+        if (!Array.isArray(rawFields) || (rawFields.length > 0 && fields.length === 0)) setSchemaError('Airwallex returned incomplete bank requirements. Your entries are preserved; change the route or try again.')
       })
       .catch((error) => { if (active) setSchemaError(error instanceof Error ? error.message : 'Bank requirements could not be loaded.') })
       .finally(() => { if (active) setSchemaLoading(false) })
