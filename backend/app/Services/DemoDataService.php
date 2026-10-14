@@ -199,7 +199,7 @@ class DemoDataService
         }
     }
 
-    /** @return array{member: string, member_two: string, admin: string} */
+    /** @return array{member: string, member_two: string} */
     private function validatedCredentials(): array
     {
         $credentials = [
@@ -215,7 +215,7 @@ class DemoDataService
             throw new RuntimeException('Each demo account must have a different password.');
         }
 
-        foreach (['member', 'member_two', 'admin'] as $account) {
+        foreach (['member', 'member_two'] as $account) {
             $email = (string) config('demo.accounts.'.$account.'.email');
             $domain = strtolower(substr(strrchr($email, '@') ?: '', 1));
             if (! filter_var($email, FILTER_VALIDATE_EMAIL)
