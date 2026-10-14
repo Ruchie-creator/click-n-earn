@@ -161,6 +161,15 @@ export type ApiPayoutMethod = {
   status: string
 }
 
+export type ApiBeneficiarySchema = {
+  fields: Array<{
+    key: string
+    path: string
+    required: boolean
+    rule?: { type?: string; pattern?: string }
+  }>
+}
+
 export type ReferralListData = {
   code: string
   items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status: string }>

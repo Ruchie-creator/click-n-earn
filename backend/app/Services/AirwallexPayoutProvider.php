@@ -8,6 +8,7 @@ use App\Models\PayoutMethod;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -118,12 +119,15 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
         $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : $firstName;
 
         return array_filter([
+            'type' => data_get($method->account_details, 'type', 'BANK_ACCOUNT'),
             'entity_type' => $method->entity_type ?: 'PERSONAL',
             'first_name' => $method->entity_type === 'COMPANY' ? null : $firstName,
             'last_name' => $method->entity_type === 'COMPANY' ? null : $lastName,
             'company_name' => $method->entity_type === 'COMPANY' ? $method->account_holder_name : null,
-            'bank_details' => array_merge(['account_currency' => strtoupper($method->currency), 'account_name' => $method->account_holder_name, 'bank_country_code' => strtoupper($method->country)], $method->routing_details ?: [], $method->account_details ?: []),
+            'bank_details' => array_merge(['account_currency' => strtoupper($method->currency), 'account_name' => $method->account_holder_name, 'bank_country_code' => strtoupper($method->country)], $method->routing_details ?: [], Arr::except($method->account_details ?: [], ['additional_info', 'nickname', 'type'])),
             'address' => $method->beneficiary_address ?: null,
+            'additional_info' => data_get($method->account_details, 'additional_info'),
+            'nickname' => data_get($method->account_details, 'nickname'),
         ], fn (mixed $value): bool => $value !== null);
     }
 

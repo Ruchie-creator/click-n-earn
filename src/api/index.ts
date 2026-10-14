@@ -1,5 +1,5 @@
 import { apiDownload, apiFetch, apiUpload, getToken, setToken } from './client'
-import type { AdminDashboardData, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
+import type { AdminDashboardData, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
 
 export { apiDownload, apiFetch, apiUpload, getToken, setToken }
 export type { ApiError } from './client'
@@ -75,6 +75,10 @@ export const api = {
   },
   payoutMethods() {
     return apiFetch<ApiEnvelope<ApiPayoutMethod[]>>('/payout-methods')
+  },
+  payoutMethodSchema(criteria: { country: string; currency: string; entity_type: 'PERSONAL' | 'COMPANY'; transfer_method: 'LOCAL' | 'SWIFT' }) {
+    const query = new URLSearchParams(criteria).toString()
+    return apiFetch<ApiEnvelope<ApiBeneficiarySchema>>('/payout-methods/schema?' + query)
   },
   savePayoutMethod(payload: Record<string, unknown>) {
     return apiFetch<ApiEnvelope<ApiPayoutMethod>>('/payout-methods', { method: 'POST', body: JSON.stringify(payload) })
