@@ -33,12 +33,12 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
 
     public function beneficiarySchema(array $criteria, string $environment): array
     {
-        return $this->http($environment)->post($this->endpoint($environment, 'beneficiary_api_schemas/generate'), array_filter([
+        return $this->http($environment)->post($this->endpoint($environment, 'beneficiary_form_schemas/generate'), array_filter([
             'type' => 'BANK_ACCOUNT',
-            'entity_type' => $criteria['entity_type'] ?? 'PERSONAL',
-            'bank_country_code' => strtoupper((string) ($criteria['country'] ?? '')),
-            'account_currency' => strtoupper((string) ($criteria['currency'] ?? '')),
-            'transfer_method' => $criteria['transfer_method'] ?? 'LOCAL',
+            'entity_type' => $criteria['entity_type'] ?? null,
+            'bank_country_code' => filled($criteria['country'] ?? null) ? strtoupper((string) $criteria['country']) : null,
+            'account_currency' => filled($criteria['currency'] ?? null) ? strtoupper((string) $criteria['currency']) : null,
+            'transfer_method' => $criteria['transfer_method'] ?? null,
             'local_clearing_system' => $criteria['local_clearing_system'] ?? null,
         ], fn (mixed $value): bool => $value !== null))->throw()->json();
     }
@@ -49,7 +49,7 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
 
         return Cache::remember($cacheKey, now()->addHours(6), function () use ($environment): array {
             $payload = $this->http($environment)->post(
-                $this->endpoint($environment, 'beneficiary_api_schemas/generate'),
+                $this->endpoint($environment, 'beneficiary_form_schemas/generate'),
                 ['type' => 'BANK_ACCOUNT'],
             )->throw()->json();
             $field = collect(data_get($payload, 'fields', []))->first(
@@ -60,6 +60,7 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
                 (array) data_get($rule, 'values', []),
                 (array) data_get($rule, 'enum', []),
                 (array) data_get($field, 'options', []),
+                (array) data_get($field, 'field.options', []),
             );
             $pattern = (string) data_get($rule, 'pattern', '');
             preg_match_all('/(?<![A-Z])[A-Z]{2}(?![A-Z])/', $pattern, $matches);
@@ -74,6 +75,16 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
                 ->values()
                 ->all();
         });
+    }
+
+    public function validateBeneficiary(PayoutMethod $method, string $environment): void
+    {
+        $this->http($environment)->post($this->endpoint($environment, 'beneficiaries/validate'), [
+            'beneficiary' => $this->beneficiaryPayload($method),
+            'transfer_methods' => [$method->transfer_method ?: 'LOCAL'],
+            'transfer_reason' => 'other_services',
+            'payer_entity_type' => 'COMPANY',
+        ])->throw();
     }
 
     public function validate(Payout $payout, PayoutMethod $method): void

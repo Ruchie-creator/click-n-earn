@@ -588,7 +588,13 @@ function ReferralsPage({ onToast }: { onToast: (message: string) => void }) {
   </div>
 }
 
-type BeneficiarySchemaField = { key: string; path: string; required: boolean; rule?: { type?: string; pattern?: string } }
+type BeneficiarySchemaField = {
+  key: string
+  path: string
+  required: boolean
+  rule?: { type?: string; pattern?: string }
+  field?: { default?: string; description?: string; example?: string; label?: string; placeholder?: string; refresh?: boolean; type?: 'INPUT' | 'SELECT' | 'DYNAMIC_SELECT' | 'RADIO' | 'TRANSFER_METHOD'; options?: Array<{ label: string; value: string; description?: string }> }
+}
 
 const US_STATE_OPTIONS = [
   'US-AL', 'US-AK', 'US-AZ', 'US-AR', 'US-CA', 'US-CO', 'US-CT', 'US-DE', 'US-FL', 'US-GA', 'US-HI', 'US-ID', 'US-IL', 'US-IN', 'US-IA', 'US-KS', 'US-KY', 'US-LA', 'US-ME', 'US-MD', 'US-MA', 'US-MI', 'US-MN', 'US-MS', 'US-MO', 'US-MT', 'US-NE', 'US-NV', 'US-NH', 'US-NJ', 'US-NM', 'US-NY', 'US-NC', 'US-ND', 'US-OH', 'US-OK', 'US-OR', 'US-PA', 'US-RI', 'US-SC', 'US-SD', 'US-TN', 'US-TX', 'US-UT', 'US-VT', 'US-VA', 'US-WA', 'US-WV', 'US-WI', 'US-WY',
@@ -624,14 +630,18 @@ function countryName(code: string) {
 function PayoutRequirementField({ field, value, country, onChange }: { field: BeneficiarySchemaField; value: string; country: string; onChange: (value: string) => void }) {
   const id = `payout-${field.path.replace(/[^a-z0-9]+/gi, '-')}`
   const common = { id, required: field.required, className: 'form-field mt-2', value, onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange(['local_clearing_system', 'bank_account_category', 'account_routing_type1'].includes(field.key) ? event.target.value.toUpperCase() : event.target.value) }
-  const label = <>{payoutFieldLabel(field.key)}{field.required && <span className="ml-1 text-error">*</span>}</>
+  const label = <>{field.field?.label || payoutFieldLabel(field.key)}{field.required && <span className="ml-1 text-error">*</span>}</>
+  const description = field.field?.description || field.field?.tip
+  const options = field.field?.options || []
+
+  if (options.length > 0) return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select an option</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{description && <span className="mt-1 block text-[11px] font-normal leading-4 text-muted">{description}</span>}</label>
 
   if (field.key === 'bank_account_category') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select account type</option><option value="CHECKING">Checking</option><option value="SAVINGS">Savings</option></select><span className="mt-1 block text-[11px] font-normal leading-4 text-muted">Choose the account type held by your bank.</span></label>
   if (field.key === 'local_clearing_system' && country.toUpperCase() === 'US') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select transfer network</option><option value="ACH">ACH (local bank transfer)</option><option value="FEDWIRE">Fedwire</option></select><span className="mt-1 block text-[11px] font-normal leading-4 text-muted">ACH is the usual choice for a United States bank account.</span></label>
   if (field.key === 'account_routing_type1' && country.toUpperCase() === 'US') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select routing number type</option><option value="ABA">ABA routing number</option></select><span className="mt-1 block text-[11px] font-normal leading-4 text-muted">United States local transfers use an ABA routing number.</span></label>
   if (field.key === 'state' && country.toUpperCase() === 'US') return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select state</option>{US_STATE_OPTIONS.map((state) => <option key={state} value={state}>{state.replace('US-', '')}</option>)}</select></label>
 
-  return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<input {...common} type={field.key === 'date_of_birth' ? 'date' : field.key === 'personal_email' ? 'email' : 'text'} inputMode={field.key.includes('routing') || field.key.includes('account') ? 'numeric' : undefined} placeholder={field.key === 'local_clearing_system' ? 'For example, ACH' : field.key === 'account_routing_type1' ? 'For example, ABA' : undefined} autoComplete="off" /></label>
+  return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<input {...common} type={field.key === 'date_of_birth' ? 'date' : field.key === 'personal_email' ? 'email' : 'text'} inputMode={field.key.includes('routing') || field.key.includes('account') ? 'numeric' : undefined} placeholder={field.field?.placeholder || field.field?.example || (field.key === 'local_clearing_system' ? 'For example, ACH' : field.key === 'account_routing_type1' ? 'For example, ABA' : undefined)} autoComplete="off" />{description && <span className="mt-1 block text-[11px] font-normal leading-4 text-muted">{description}</span>}</label>
 }
 
 function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
@@ -688,7 +698,18 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
     setSchemaLoading(true)
     setSchemaError('')
     api.payoutMethodSchema({ country: country.toUpperCase(), currency: currency.toUpperCase(), entity_type: entityType, transfer_method: transferMethod, local_clearing_system: localClearingSystem || undefined })
-      .then((response) => { if (active) setSchemaFields(response.data.fields) })
+      .then((response) => {
+        if (!active) return
+        setSchemaFields(response.data.fields)
+        setBeneficiaryValues((current) => {
+          const defaults = response.data.fields.reduce<Record<string, string>>((values, field) => {
+            const defaultValue = field.field?.default
+            if (defaultValue && !current[field.path]) values[field.path] = defaultValue
+            return values
+          }, {})
+          return Object.keys(defaults).length ? { ...current, ...defaults } : current
+        })
+      })
       .catch((error) => { if (active) setSchemaError(error instanceof Error ? error.message : 'Bank requirements could not be loaded.') })
       .finally(() => { if (active) setSchemaLoading(false) })
     return () => { active = false }

@@ -14,6 +14,8 @@ interface PayoutProviderInterface
     /** @return list<string> ISO 3166-1 alpha-2 bank destination codes supported by this account. */
     public function beneficiaryCountries(string $environment): array;
 
+    public function validateBeneficiary(PayoutMethod $method, string $environment): void;
+
     public function validate(Payout $payout, PayoutMethod $method): void;
 
     public function submit(Payout $payout, PayoutMethod $method): PayoutResult;

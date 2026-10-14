@@ -27,11 +27,16 @@ class PayoutMethodSchemaTest extends TestCase
     {
         Http::fake([
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
-            'https://api.sandbox.airwallex.com/api/v1/beneficiary_api_schemas/generate' => Http::response([
+            'https://api.sandbox.airwallex.com/api/v1/beneficiary_form_schemas/generate' => Http::response([
                 'fields' => [[
-                    'key' => 'bank_account_category',
-                    'path' => 'beneficiary.bank_details.bank_account_category',
+                    'key' => 'account_routing_type1',
+                    'path' => 'beneficiary.bank_details.account_routing_type1',
                     'required' => true,
+                    'field' => [
+                        'type' => 'SELECT',
+                        'default' => 'ABA',
+                        'options' => [['label' => 'ABA routing number', 'value' => 'ABA']],
+                    ],
                 ]],
             ]),
         ]);
@@ -41,11 +46,11 @@ class PayoutMethodSchemaTest extends TestCase
         $this->actingAs($member, 'sanctum')
             ->getJson('/api/payout-methods/schema?country=US&currency=USD&entity_type=PERSONAL&transfer_method=LOCAL&local_clearing_system=ACH')
             ->assertOk()
-            ->assertJsonPath('data.fields.0.path', 'beneficiary.bank_details.bank_account_category')
-            ->assertJsonPath('data.fields.0.required', true);
+            ->assertJsonPath('data.fields.0.path', 'beneficiary.bank_details.account_routing_type1')
+            ->assertJsonPath('data.fields.0.field.default', 'ABA');
 
         Http::assertSent(function ($request): bool {
-            return str_ends_with($request->url(), '/beneficiary_api_schemas/generate')
+            return str_ends_with($request->url(), '/beneficiary_form_schemas/generate')
                 && $request['local_clearing_system'] === 'ACH'
                 && $request['entity_type'] === 'PERSONAL';
         });
@@ -55,11 +60,15 @@ class PayoutMethodSchemaTest extends TestCase
     {
         Http::fake([
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
-            'https://api.sandbox.airwallex.com/api/v1/beneficiary_api_schemas/generate' => Http::response([
+            'https://api.sandbox.airwallex.com/api/v1/beneficiary_form_schemas/generate' => Http::response([
                 'fields' => [[
                     'key' => 'bank_country_code',
                     'path' => 'beneficiary.bank_details.bank_country_code',
-                    'rule' => ['pattern' => 'US|KE|GB'],
+                    'field' => ['type' => 'SELECT', 'options' => [
+                        ['label' => 'United Kingdom', 'value' => 'GB'],
+                        ['label' => 'Kenya', 'value' => 'KE'],
+                        ['label' => 'United States', 'value' => 'US'],
+                    ]],
                 ]],
             ]),
         ]);
@@ -71,7 +80,7 @@ class PayoutMethodSchemaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.countries', ['GB', 'KE', 'US']);
 
-        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/beneficiary_api_schemas/generate')
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/beneficiary_form_schemas/generate')
             && $request['type'] === 'BANK_ACCOUNT');
     }
 
@@ -79,7 +88,7 @@ class PayoutMethodSchemaTest extends TestCase
     {
         Http::fake([
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
-            'https://api.sandbox.airwallex.com/api/v1/beneficiary_api_schemas/generate' => Http::response(['code' => 'validation_failed'], 400),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiary_form_schemas/generate' => Http::response(['code' => 'validation_failed'], 400),
         ]);
 
         $member = User::factory()->create();
@@ -88,5 +97,63 @@ class PayoutMethodSchemaTest extends TestCase
             ->getJson('/api/payout-methods/schema?country=US&currency=USD&entity_type=PERSONAL&transfer_method=LOCAL&local_clearing_system=ACH')
             ->assertUnprocessable()
             ->assertJsonPath('errors.payout_method.0', 'Airwallex could not load requirements for this bank route. Check the country, currency, and local clearing system, then try again.');
+    }
+
+    public function test_payout_method_is_validated_with_airwallex_before_it_is_saved(): void
+    {
+        Http::fake([
+            'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiaries/validate' => function ($request) {
+                $this->assertSame('ABA', $request['beneficiary']['bank_details']['account_routing_type1']);
+                $this->assertSame('021000021', $request['beneficiary']['bank_details']['account_routing_value1']);
+
+                return Http::response([], 200);
+            },
+        ]);
+
+        $member = User::factory()->create();
+
+        $this->actingAs($member, 'sanctum')
+            ->postJson('/api/payout-methods', [
+                'account_holder_name' => 'John Walker',
+                'entity_type' => 'PERSONAL',
+                'transfer_method' => 'LOCAL',
+                'country' => 'US',
+                'currency' => 'USD',
+                'routing_details' => [
+                    'local_clearing_system' => 'ACH',
+                    'bank_account_category' => 'CHECKING',
+                    'account_routing_type1' => 'ABA',
+                    'account_routing_value1' => '021000021',
+                ],
+                'account_details' => ['account_number' => '50001121', 'type' => 'BANK_ACCOUNT'],
+                'beneficiary_address' => ['country_code' => 'US', 'state' => 'US-WA', 'city' => 'Seattle', 'postcode' => '98104', 'street_address' => '412 5th Avenue'],
+            ])
+            ->assertCreated();
+    }
+
+    public function test_invalid_beneficiary_data_is_rejected_when_saving_the_method(): void
+    {
+        Http::fake([
+            'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiaries/validate' => Http::response([
+                'code' => 'validation_failed',
+                'errors' => [['source' => 'beneficiary.bank_details.account_routing_type1']],
+            ], 400),
+        ]);
+
+        $member = User::factory()->create();
+
+        $this->actingAs($member, 'sanctum')
+            ->postJson('/api/payout-methods', [
+                'account_holder_name' => 'John Walker',
+                'entity_type' => 'PERSONAL',
+                'transfer_method' => 'LOCAL',
+                'country' => 'US',
+                'currency' => 'USD',
+                'account_details' => ['account_number' => '50001121', 'type' => 'BANK_ACCOUNT'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.payout_method.0', 'Update the required bank detail: account routing type1.');
     }
 }

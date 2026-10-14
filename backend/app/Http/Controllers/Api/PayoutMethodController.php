@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\PayoutMethod;
 use App\Services\AirwallexEnvironment;
 use App\Services\PayoutProviderInterface;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,7 +62,7 @@ class PayoutMethodController extends ApiController
         }
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
     {
         $data = $request->validate([
             'provider' => ['nullable', 'string', 'in:airwallex'],
@@ -84,6 +85,7 @@ class PayoutMethodController extends ApiController
             throw ValidationException::withMessages(['account_details' => 'Provide the account identifier required by the selected bank route.']);
         }
         $data['account_last4'] = substr($accountNumber, -4);
+        $this->validateBeneficiaryWithProvider($data, $provider, $environments);
 
         $method = DB::transaction(function () use ($request, $data): PayoutMethod {
             if (($data['is_default'] ?? false) === true) {
@@ -112,7 +114,7 @@ class PayoutMethodController extends ApiController
         return $this->message('Payout method removed.');
     }
 
-    public function update(Request $request, PayoutMethod $payoutMethod): JsonResponse
+    public function update(Request $request, PayoutMethod $payoutMethod, PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
     {
         abort_unless($payoutMethod->user_id === $request->user()->id, 404);
         $data = $request->validate([
@@ -140,6 +142,10 @@ class PayoutMethodController extends ApiController
             }
             $data['account_last4'] = substr($identifier, -4);
         }
+        $this->validateBeneficiaryWithProvider(array_merge($payoutMethod->only([
+            'provider', 'account_holder_name', 'account_type', 'entity_type', 'transfer_method', 'country', 'currency',
+            'routing_details', 'account_details', 'beneficiary_address', 'account_last4',
+        ]), $data), $provider, $environments);
 
         DB::transaction(function () use ($request, $payoutMethod, $data): void {
             if (($data['is_default'] ?? false) === true) {
@@ -171,5 +177,56 @@ class PayoutMethodController extends ApiController
             'is_default' => $method->is_default,
             'status' => $method->status,
         ];
+    }
+
+    private function validateBeneficiaryWithProvider(array $attributes, PayoutProviderInterface $provider, AirwallexEnvironment $environments): void
+    {
+        $method = new PayoutMethod($attributes);
+
+        try {
+            $provider->validateBeneficiary($method, $environments->active());
+        } catch (RequestException $exception) {
+            Log::warning('Airwallex beneficiary validation failed.', [
+                'environment' => $environments->active(),
+                'http_status' => $exception->response?->status(),
+                'provider_code' => data_get($exception->response?->json(), 'code'),
+                'provider_error_fields' => $this->providerErrorFields($exception),
+            ]);
+
+            throw ValidationException::withMessages([
+                'payout_method' => $this->beneficiaryValidationMessage($exception),
+            ]);
+        } catch (ConnectionException $exception) {
+            Log::warning('Airwallex beneficiary validation connection failed.', [
+                'environment' => $environments->active(),
+                'exception' => $exception::class,
+            ]);
+
+            throw ValidationException::withMessages([
+                'payout_method' => 'Airwallex is temporarily unavailable to validate these payout details. Please try again shortly.',
+            ]);
+        }
+    }
+
+    /** @return list<string> */
+    private function providerErrorFields(RequestException $exception): array
+    {
+        return collect(data_get($exception->response?->json(), 'errors', []))
+            ->pluck('source')
+            ->filter(fn (mixed $source): bool => is_string($source) && str_starts_with($source, 'beneficiary.'))
+            ->values()
+            ->all();
+    }
+
+    private function beneficiaryValidationMessage(RequestException $exception): string
+    {
+        $field = $this->providerErrorFields($exception)[0] ?? null;
+        if ($field === null) {
+            return 'Airwallex could not validate these payout details. Review the required bank fields and try again.';
+        }
+
+        $label = str($field)->afterLast('.')->replace('_', ' ')->lower()->toString();
+
+        return 'Update the required bank detail: '.$label.'.';
     }
 }
