@@ -94,13 +94,14 @@ class PayoutService
 
                 return $this->markReconciliationRequiredLocked($model, 'Airwallex did not confirm whether this transfer was created. Reconcile before retrying.');
             } catch (\Throwable $exception) {
+                $failureContext = $this->safeProviderFailureContext($exception);
                 Log::warning('Payout provider submission failed.', [
                     'payout_id' => $model->id,
                     'exception' => $exception::class,
-                    ...$this->safeProviderFailureContext($exception),
+                    ...$failureContext,
                 ]);
 
-                return $this->markFailedLocked($model, 'The payout provider could not accept this payout. It is available for manual retry.', [
+                return $this->markFailedLocked($model, $this->payoutFailureReason($failureContext), [
                     'exception' => $exception::class,
                 ]);
             }
@@ -462,5 +463,25 @@ class PayoutService
             'provider_message' => is_array($body) ? data_get($body, 'message') : null,
             'provider_error_fields' => $fields ?: null,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
+    }
+
+    /** @param array{provider_error_fields?: array<int, string>, provider_http_status?: int, provider_code?: mixed, provider_message?: mixed} $context */
+    private function payoutFailureReason(array $context): string
+    {
+        $fields = $context['provider_error_fields'] ?? [];
+        if ($fields === []) {
+            return 'The payout provider could not accept this payout. Review the payout method and retry.';
+        }
+
+        $labels = array_map(function (string $field): string {
+            $key = str($field)->afterLast('.')->replace('_', ' ')->title()->toString();
+
+            return match ($field) {
+                'beneficiary.bank_details.bank_account_category' => 'bank account category',
+                default => strtolower($key),
+            };
+        }, $fields);
+
+        return 'Your payout method needs additional information: '.implode(', ', $labels).'. Update it and retry.';
     }
 }

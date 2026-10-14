@@ -76,8 +76,8 @@ export const api = {
   payoutMethods() {
     return apiFetch<ApiEnvelope<ApiPayoutMethod[]>>('/payout-methods')
   },
-  payoutMethodSchema(criteria: { country: string; currency: string; entity_type: 'PERSONAL' | 'COMPANY'; transfer_method: 'LOCAL' | 'SWIFT' }) {
-    const query = new URLSearchParams(criteria).toString()
+  payoutMethodSchema(criteria: { country: string; currency: string; entity_type: 'PERSONAL' | 'COMPANY'; transfer_method: 'LOCAL' | 'SWIFT'; local_clearing_system?: string }) {
+    const query = new URLSearchParams(Object.entries(criteria).filter(([, value]) => Boolean(value)) as Array<[string, string]>).toString()
     return apiFetch<ApiEnvelope<ApiBeneficiarySchema>>('/payout-methods/schema?' + query)
   },
   savePayoutMethod(payload: Record<string, unknown>) {
