@@ -43,6 +43,39 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
         ], fn (mixed $value): bool => $value !== null))->throw()->json();
     }
 
+    public function beneficiaryCountries(string $environment): array
+    {
+        $cacheKey = 'airwallex:beneficiary-countries:'.$environment;
+
+        return Cache::remember($cacheKey, now()->addHours(6), function () use ($environment): array {
+            $payload = $this->http($environment)->post(
+                $this->endpoint($environment, 'beneficiary_api_schemas/generate'),
+                ['type' => 'BANK_ACCOUNT'],
+            )->throw()->json();
+            $field = collect(data_get($payload, 'fields', []))->first(
+                fn (mixed $candidate): bool => data_get($candidate, 'path') === 'beneficiary.bank_details.bank_country_code',
+            );
+            $rule = data_get($field, 'rule', []);
+            $values = array_merge(
+                (array) data_get($rule, 'values', []),
+                (array) data_get($rule, 'enum', []),
+                (array) data_get($field, 'options', []),
+            );
+            $pattern = (string) data_get($rule, 'pattern', '');
+            preg_match_all('/(?<![A-Z])[A-Z]{2}(?![A-Z])/', $pattern, $matches);
+            $values = array_merge($values, $matches[0] ?? []);
+
+            return collect($values)
+                ->map(fn (mixed $value): string => is_array($value) ? (string) ($value['value'] ?? '') : (string) $value)
+                ->map(fn (string $value): string => strtoupper(trim($value)))
+                ->filter(fn (string $value): bool => preg_match('/^[A-Z]{2}$/', $value) === 1)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+        });
+    }
+
     public function validate(Payout $payout, PayoutMethod $method): void
     {
         $this->http($payout->provider_environment)->post(

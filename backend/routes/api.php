@@ -65,6 +65,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
         Route::get('earnings', [EarningsController::class, 'index']);
         Route::get('referrals', [ReferralController::class, 'index']);
         Route::get('payout-methods', [PayoutMethodController::class, 'index']);
+        Route::get('payout-methods/countries', [PayoutMethodController::class, 'countries']);
         Route::get('payout-methods/schema', [PayoutMethodController::class, 'schema']);
         Route::post('payout-methods', [PayoutMethodController::class, 'store']);
         Route::put('payout-methods/{payoutMethod}', [PayoutMethodController::class, 'update']);

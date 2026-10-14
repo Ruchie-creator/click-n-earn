@@ -44,6 +44,23 @@ class PayoutMethodController extends ApiController
         }
     }
 
+    public function countries(PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
+    {
+        try {
+            return $this->ok(['countries' => $provider->beneficiaryCountries($environments->active())]);
+        } catch (RequestException $exception) {
+            Log::warning('Airwallex beneficiary country lookup failed.', [
+                'environment' => $environments->active(),
+                'http_status' => $exception->response?->status(),
+                'provider_code' => data_get($exception->response?->json(), 'code'),
+            ]);
+
+            throw ValidationException::withMessages([
+                'payout_method' => 'Airwallex could not load supported destination countries. Try again shortly.',
+            ]);
+        }
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

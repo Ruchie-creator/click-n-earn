@@ -1,5 +1,5 @@
 import { apiDownload, apiFetch, apiUpload, getToken, setToken } from './client'
-import type { AdminDashboardData, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
+import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
 
 export { apiDownload, apiFetch, apiUpload, getToken, setToken }
 export type { ApiError } from './client'
@@ -75,6 +75,9 @@ export const api = {
   },
   payoutMethods() {
     return apiFetch<ApiEnvelope<ApiPayoutMethod[]>>('/payout-methods')
+  },
+  payoutMethodCountries() {
+    return apiFetch<ApiEnvelope<ApiBeneficiaryCountries>>('/payout-methods/countries')
   },
   payoutMethodSchema(criteria: { country: string; currency: string; entity_type: 'PERSONAL' | 'COMPANY'; transfer_method: 'LOCAL' | 'SWIFT'; local_clearing_system?: string }) {
     const query = new URLSearchParams(Object.entries(criteria).filter(([, value]) => Boolean(value)) as Array<[string, string]>).toString()

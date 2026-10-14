@@ -51,6 +51,30 @@ class PayoutMethodSchemaTest extends TestCase
         });
     }
 
+    public function test_member_receives_the_airwallex_supported_destination_country_list(): void
+    {
+        Http::fake([
+            'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
+            'https://api.sandbox.airwallex.com/api/v1/beneficiary_api_schemas/generate' => Http::response([
+                'fields' => [[
+                    'key' => 'bank_country_code',
+                    'path' => 'beneficiary.bank_details.bank_country_code',
+                    'rule' => ['pattern' => 'US|KE|GB'],
+                ]],
+            ]),
+        ]);
+
+        $member = User::factory()->create();
+
+        $this->actingAs($member, 'sanctum')
+            ->getJson('/api/payout-methods/countries')
+            ->assertOk()
+            ->assertJsonPath('data.countries', ['GB', 'KE', 'US']);
+
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/beneficiary_api_schemas/generate')
+            && $request['type'] === 'BANK_ACCOUNT');
+    }
+
     public function test_provider_schema_failure_is_a_clear_validation_response_not_a_server_error(): void
     {
         Http::fake([

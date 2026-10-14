@@ -608,6 +608,19 @@ function payoutFieldLabel(key: string) {
   } as Record<string, string>)[key] || key.replace(/_/g, ' ')
 }
 
+function countryFlag(code: string) {
+  const normalized = code.toUpperCase()
+  return /^[A-Z]{2}$/.test(normalized) ? String.fromCodePoint(...[...normalized].map((letter) => 127397 + letter.charCodeAt(0))) : '🏳️'
+}
+
+function countryName(code: string) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code.toUpperCase()) || code
+  } catch {
+    return code
+  }
+}
+
 function PayoutRequirementField({ field, value, country, onChange }: { field: BeneficiarySchemaField; value: string; country: string; onChange: (value: string) => void }) {
   const id = `payout-${field.path.replace(/[^a-z0-9]+/gi, '-')}`
   const common = { id, required: field.required, className: 'form-field mt-2', value, onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange(['local_clearing_system', 'bank_account_category', 'account_routing_type1'].includes(field.key) ? event.target.value.toUpperCase() : event.target.value) }
@@ -637,13 +650,22 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
   const [beneficiaryValues, setBeneficiaryValues] = useState<Record<string, string>>({})
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaError, setSchemaError] = useState('')
+  const [supportedCountries, setSupportedCountries] = useState<string[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(false)
+  const [countriesError, setCountriesError] = useState('')
   const localClearingSystem = beneficiaryValues['beneficiary.bank_details.local_clearing_system']?.trim().toUpperCase() || ''
   useEffect(() => {
     let mounted = true
     api.payoutMethods().then((response) => { if (mounted) setMethods(response.data) }).catch((error) => { if (mounted) onToast(error instanceof Error ? error.message : 'Payout methods could not be loaded.') })
+    setCountriesLoading(true)
+    api.payoutMethodCountries()
+      .then((response) => { if (mounted) setSupportedCountries(response.data.countries) })
+      .catch((error) => { if (mounted) setCountriesError(error instanceof Error ? error.message : 'Supported countries could not be loaded.') })
+      .finally(() => { if (mounted) setCountriesLoading(false) })
     return () => { mounted = false }
   }, [])
   const defaultMethod = methods.find((method) => method.is_default) || methods[0]
+  const countryOptions = Array.from(new Set([...supportedCountries, country.toUpperCase()].filter((value) => /^[A-Z]{2}$/.test(value)))).sort()
   const openMethod = (method?: ApiPayoutMethod) => {
     setEditingId(method?.id || null)
     setAccountHolder(method?.account_holder_name || '')
@@ -734,8 +756,12 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
           </label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-ink">Country code
-            <input required className="form-field mt-2" value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} maxLength={2} placeholder="For example, US" autoComplete="country" />
+          <label className="text-xs font-semibold text-ink">Bank country
+            {countryOptions.length > 0 ? <select required className="form-field mt-2" value={country} onChange={(event) => setCountry(event.target.value)} disabled={countriesLoading}>
+              <option value="">{countriesLoading ? 'Loading supported countries…' : 'Select bank country'}</option>
+              {countryOptions.map((code) => <option key={code} value={code}>{countryFlag(code)} {countryName(code)} ({code})</option>)}
+            </select> : <input required className="form-field mt-2" value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} maxLength={2} placeholder="For example, US" autoComplete="country" />}
+            {countriesError && <span className="mt-1 block text-[11px] font-normal leading-4 text-warning">{countriesError} Enter a two-letter country code and Airwallex will validate it before saving.</span>}
           </label>
           <label className="text-xs font-semibold text-ink">Currency code
             <input required className="form-field mt-2" value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} maxLength={3} placeholder="For example, USD" autoComplete="off" />
