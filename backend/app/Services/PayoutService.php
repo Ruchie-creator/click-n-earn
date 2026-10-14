@@ -389,7 +389,7 @@ class PayoutService
             $this->transitions->transition($reservation, ReservationStatus::PAYOUT_FAILED->value, reason: $reason);
             $this->ledger->updateReservationStatus($reservation, LedgerStatus::FAILED);
         }
-        $failureEventKey = 'payout.failed.'.$payout->id.'.'.($payout->failed_at?->getTimestamp() ?? now()->getTimestamp());
+        $failureEventKey = 'payout.failed.'.$payout->id.'.'.hash('sha256', mb_strtolower(trim($reason)));
         if ($payout->user) {
             $this->notifications->notifyOnce($payout->user, $failureEventKey, new EventNotification(
                 'Payout needs attention',
