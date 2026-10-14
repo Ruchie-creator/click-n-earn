@@ -21,6 +21,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -154,6 +155,27 @@ class DemoDataSystemTest extends TestCase
         $this->getJson('/api/admin/payouts', $headers)->assertOk();
         $this->getJson('/api/admin/transactions', $headers)->assertOk();
         $this->getJson('/api/admin/demo-data', $headers)->assertOk()->assertJsonPath('data.installed', true);
+    }
+
+    public function test_legacy_demo_administrator_cannot_manage_demo_data_or_invalidate_its_own_session(): void
+    {
+        $batch = DemoBatch::create([
+            'id' => (string) Str::uuid(),
+            'slug' => 'legacy-admin-preview',
+            'label' => 'Legacy preview',
+            'metadata' => ['synthetic' => true],
+        ]);
+        $legacyAdmin = User::factory()->create([
+            'role' => UserRole::ADMIN,
+            'demo_batch_id' => $batch->id,
+            'demo_key' => 'administrator',
+        ]);
+
+        $this->actingAs($legacyAdmin, 'sanctum')
+            ->postJson('/api/admin/demo-data/refresh', ['confirmation' => 'REFRESH DEMO DATA'])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', ['id' => $legacyAdmin->id]);
     }
 
     public function test_demo_clear_requires_confirmation_and_preserves_unrelated_financial_and_product_records(): void
