@@ -9,6 +9,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -205,6 +206,7 @@ class PayoutMethodController extends ApiController
                 'http_status' => $exception->response?->status(),
                 'provider_code' => data_get($exception->response?->json(), 'code'),
                 'provider_error_fields' => $this->providerErrorFields($exception),
+                'provider_error_codes' => $this->providerErrorCodes($exception),
             ]);
 
             throw ValidationException::withMessages([
@@ -225,11 +227,32 @@ class PayoutMethodController extends ApiController
     /** @return list<string> */
     private function providerErrorFields(RequestException $exception): array
     {
-        return collect(data_get($exception->response?->json(), 'errors', []))
+        return $this->providerErrors($exception)
             ->pluck('source')
             ->filter(fn (mixed $source): bool => is_string($source) && str_starts_with($source, 'beneficiary.'))
             ->values()
             ->all();
+    }
+
+    /** @return list<string> */
+    private function providerErrorCodes(RequestException $exception): array
+    {
+        return $this->providerErrors($exception)
+            ->pluck('code')
+            ->filter(fn (mixed $code): bool => is_string($code) || is_int($code))
+            ->map(fn (string|int $code): string => (string) $code)
+            ->values()
+            ->all();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, array<string, mixed>> */
+    private function providerErrors(RequestException $exception): \Illuminate\Support\Collection
+    {
+        $payload = $exception->response?->json() ?? [];
+        $errors = data_get($payload, 'details.errors', data_get($payload, 'errors', []));
+
+        return collect(Arr::wrap($errors))
+            ->filter(fn (mixed $error): bool => is_array($error));
     }
 
     private function beneficiaryValidationMessage(RequestException $exception): string

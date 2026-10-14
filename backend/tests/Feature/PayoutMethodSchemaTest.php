@@ -138,7 +138,7 @@ class PayoutMethodSchemaTest extends TestCase
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
             'https://api.sandbox.airwallex.com/api/v1/beneficiaries/validate' => Http::response([
                 'code' => 'validation_failed',
-                'errors' => [['source' => 'beneficiary.bank_details.account_routing_type1']],
+                'details' => ['errors' => [['source' => 'beneficiary.bank_details.account_routing_type1', 'code' => '018']]],
             ], 400),
         ]);
 
