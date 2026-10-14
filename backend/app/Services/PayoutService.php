@@ -11,6 +11,7 @@ use App\Models\Payout;
 use App\Models\TaskReservation;
 use App\Models\User;
 use App\Notifications\EventNotification;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -96,6 +97,7 @@ class PayoutService
                 Log::warning('Payout provider submission failed.', [
                     'payout_id' => $model->id,
                     'exception' => $exception::class,
+                    ...$this->safeProviderFailureContext($exception),
                 ]);
 
                 return $this->markFailedLocked($model, 'The payout provider could not accept this payout. It is available for manual retry.', [
@@ -140,6 +142,7 @@ class PayoutService
                 Log::warning('Payout provider status sync failed.', [
                     'payout_id' => $model->id,
                     'exception' => $exception::class,
+                    ...$this->safeProviderFailureContext($exception),
                 ]);
 
                 return $model;
@@ -430,5 +433,26 @@ class PayoutService
         }
 
         return $payout->fresh(['reservation', 'user', 'payoutMethod']);
+    }
+
+    /**
+     * Keep enough provider diagnostics to resolve a failed sandbox payout without
+     * recording an access token, bank details, or the complete provider payload.
+     *
+     * @return array{provider_http_status?: int, provider_code?: mixed, provider_message?: mixed}
+     */
+    private function safeProviderFailureContext(\Throwable $exception): array
+    {
+        if (! $exception instanceof RequestException || ! $exception->response) {
+            return [];
+        }
+
+        $body = $exception->response->json();
+
+        return array_filter([
+            'provider_http_status' => $exception->response->status(),
+            'provider_code' => is_array($body) ? data_get($body, 'code') : null,
+            'provider_message' => is_array($body) ? data_get($body, 'message') : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 }

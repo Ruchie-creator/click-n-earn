@@ -38,13 +38,16 @@ class EventNotificationService
             throw new \InvalidArgumentException('A demo notification cannot cross demo batches.');
         }
         $demoBatchId = $demoBatchId ?: $recipientBatchId;
-        $outbox = DB::transaction(function () use ($recipient, $eventKey, $notification, $demoBatchId): NotificationOutbox {
+        $outbox = DB::transaction(function () use ($recipient, $recipientBatchId, $eventKey, $notification, $demoBatchId): NotificationOutbox {
             $eventType = implode('.', array_slice(explode('.', $eventKey), 0, 2));
             $payload = array_merge($notification->toDatabase($recipient), [
                 'event_type' => $eventType,
                 'event_key' => $eventKey,
             ]);
-            $suppressDemoEmail = $demoBatchId && ! config('demo.deliver_emails', false);
+            // A catalog task can belong to the preview batch while being completed by a
+            // real member.  That must never suppress the member or admin's transactional
+            // mail.  Only a recipient account created as demo data is non-deliverable.
+            $suppressDemoEmail = filled($recipientBatchId);
             $outbox = NotificationOutbox::query()->firstOrCreate(
                 ['user_id' => $recipient->id, 'event_key' => $eventKey],
                 [
