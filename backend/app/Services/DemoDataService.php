@@ -120,13 +120,13 @@ class DemoDataService
                     $batch->forceFill(['label' => (string) config('demo.batch_label')])->save();
                 }
 
+                $owner = $this->resolvePreviewOwner();
                 $member = $this->ensureUser($batch, 'member', 'Demo Member', 'member', $credentials['member']);
                 $memberTwo = $this->ensureUser($batch, 'member-two', 'Demo Member 2', 'member_two', $credentials['member_two']);
-                $admin = $this->ensureUser($batch, 'administrator', 'Demo Administrator', 'admin', $credentials['admin']);
 
                 $tasks = [];
                 foreach (self::TASKS as $index => $definition) {
-                    $tasks[$index] = $this->ensureTask($batch, $admin, $definition);
+                    $tasks[$index] = $this->ensureTask($batch, $owner, $definition);
                 }
 
                 $this->ensurePayoutMethod($batch, $member, 'payout-method-member');
@@ -146,7 +146,7 @@ class DemoDataService
 
                     if ($state !== 'reserved') {
                         $proof = $this->ensureProof($batch, $reservation, $state, $createdFiles);
-                        $this->ensureWorkflowState($reservation, $proof, $state, $admin);
+                        $this->ensureWorkflowState($reservation, $proof, $state, $owner);
                         $this->receiptVerification->verify($proof->fresh());
                     }
                 }
@@ -205,11 +205,10 @@ class DemoDataService
         $credentials = [
             'member' => (string) config('demo.accounts.member.password'),
             'member_two' => (string) config('demo.accounts.member_two.password'),
-            'admin' => (string) config('demo.accounts.admin.password'),
         ];
         foreach ($credentials as $name => $password) {
             if (strlen($password) < 12) {
-                throw new RuntimeException('Configure DEMO_MEMBER_PASSWORD, DEMO_MEMBER_TWO_PASSWORD, and DEMO_ADMIN_PASSWORD with unique values of at least 12 characters.');
+                throw new RuntimeException('Configure DEMO_MEMBER_PASSWORD and DEMO_MEMBER_TWO_PASSWORD with unique values of at least 12 characters.');
             }
         }
         if (count(array_unique($credentials)) !== count($credentials)) {
@@ -231,11 +230,11 @@ class DemoDataService
     private function ensureUser(DemoBatch $batch, string $demoKey, string $name, string $account, string $password): User
     {
         $email = (string) config('demo.accounts.'.$account.'.email');
-        $role = $account === 'admin' ? UserRole::ADMIN : UserRole::MEMBER;
+        $role = UserRole::MEMBER;
         $referralCode = match ($account) {
             'member' => 'DEMOMEMBER01',
             'member_two' => 'DEMOMEMBER02',
-            default => 'DEMOADMIN001',
+            default => throw new RuntimeException('Invalid demo member account.'),
         };
         $user = User::query()
             ->where('demo_batch_id', $batch->id)
@@ -275,6 +274,25 @@ class DemoDataService
         $user->forceFill(['demo_batch_id' => $batch->id, 'demo_key' => $demoKey])->save();
 
         return $user;
+    }
+
+    private function resolvePreviewOwner(): User
+    {
+        $query = User::query()
+            ->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])
+            ->where('account_status', AccountStatus::ACTIVE->value)
+            ->whereNull('demo_batch_id');
+        $email = trim((string) config('demo.owner_email'));
+        if ($email !== '') {
+            $query->where('email', $email);
+        }
+
+        $owner = $query->orderBy('id')->first();
+        if (! $owner) {
+            throw new RuntimeException('Create a non-demo active administrator and configure DEMO_OWNER_EMAIL before seeding preview data.');
+        }
+
+        return $owner;
     }
 
     /** @param array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string} $definition */
@@ -705,7 +723,7 @@ class DemoDataService
         $unmarked = fn ($query) => $query->where(fn ($scope) => $scope->whereNull('demo_batch_id')->orWhere('demo_batch_id', '<>', $batchId));
 
         if ($this->hasUnmarked(Task::class, ['created_by' => $userIds], $unmarked)) {
-            $blockers[] = 'tasks created by a demo administrator';
+            $blockers[] = 'tasks created by a demo account';
         }
         if ($this->hasUnmarked(TaskReservation::class, ['user_id' => $userIds, 'task_id' => $taskIds], $unmarked)) {
             $blockers[] = 'reservations linked to a demo user or task';

@@ -238,6 +238,16 @@ fi
 as_app_user php "$ARTISAN" queue:restart
 # Signal a schedule:work service, if one is used, to reload the new code too.
 as_app_user php "$ARTISAN" schedule:interrupt || true
+if [[ "$ENVIRONMENT" == "staging" ]]; then
+    # Keep queued mail and provider jobs alive across deployments. The unit uses
+    # Restart=always, so it also comes back after a reboot or worker crash.
+    systemctl restart click-earn-queue
+    systemctl is-active --quiet click-earn-queue || die "click-earn-queue is not active after deployment."
+    if systemctl list-unit-files click-earn-scheduler.service --no-legend 2>/dev/null | grep -q '^click-earn-scheduler\.service'; then
+        systemctl restart click-earn-scheduler
+        systemctl is-active --quiet click-earn-scheduler || die "click-earn-scheduler is not active after deployment."
+    fi
+fi
 php-fpm8.5 -t
 nginx -t
 systemctl reload php8.5-fpm

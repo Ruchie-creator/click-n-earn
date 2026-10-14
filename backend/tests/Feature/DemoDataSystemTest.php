@@ -28,6 +28,8 @@ class DemoDataSystemTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $previewOwner;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,9 +39,18 @@ class DemoDataSystemTest extends TestCase
             'demo.client_preview' => true,
             'demo.accounts.member.password' => 'MemberPreview!2026-A',
             'demo.accounts.member_two.password' => 'MemberPreview!2026-B',
-            'demo.accounts.admin.password' => 'AdminPreview!2026-C',
+            'demo.owner_email' => 'official.admin@example.test',
             'payout.airwallex.environment' => 'sandbox',
             'filesystems.proof_disk' => 'proofs',
+        ]);
+        $this->previewOwner = User::create([
+            'name' => 'Official Administrator',
+            'email' => 'official.admin@example.test',
+            'password' => 'OfficialAdmin!2026',
+            'role' => UserRole::ADMIN,
+            'account_status' => AccountStatus::ACTIVE,
+            'email_verified_at' => now(),
+            'referral_code' => 'OFFICIALADMIN',
         ]);
         Storage::fake('proofs');
     }
@@ -53,7 +64,7 @@ class DemoDataSystemTest extends TestCase
         $this->assertSame('/task-images/ai-writing-tool.jpg', $sampleTask->image_path);
 
         $this->assertSame([
-            'users' => 3,
+            'users' => 2,
             'tasks' => 8,
             'reservations' => 7,
             'proofs' => 6,
@@ -104,15 +115,14 @@ class DemoDataSystemTest extends TestCase
         $this->assertTrue(Storage::disk('proofs')->exists($proof->file_path));
         $this->assertStringStartsWith('%PDF-1.4', Storage::disk('proofs')->get($proof->file_path));
         $this->assertStringContainsString('DEMO', $proof->original_file_name);
-        $this->assertSame(3, User::query()->where('demo_batch_id', $batchId)->whereIn('email', [
+        $this->assertSame(2, User::query()->where('demo_batch_id', $batchId)->whereIn('email', [
             'demo.member@clickearn.example',
             'demo.member2@clickearn.example',
-            'demo.admin@clickearn.example',
         ])->count());
         $this->assertTrue(Payout::query()->where('demo_batch_id', $batchId)->whereNotNull('provider_reference')->where('provider_reference', 'like', 'DEMO-SANDBOX-%')->exists());
     }
 
-    public function test_demo_accounts_authenticate_and_member_and_admin_use_normal_api_routes(): void
+    public function test_demo_members_and_the_official_administrator_use_normal_api_routes(): void
     {
         Artisan::call('demo:seed');
 
@@ -131,8 +141,8 @@ class DemoDataSystemTest extends TestCase
         $this->getJson('/api/admin/demo-data', ['Authorization' => 'Bearer '.$memberToken])->assertForbidden();
 
         $adminLogin = $this->postJson('/api/auth/login', [
-            'email' => 'demo.admin@clickearn.example',
-            'password' => 'AdminPreview!2026-C',
+            'email' => 'official.admin@example.test',
+            'password' => 'OfficialAdmin!2026',
         ])->assertOk()->assertJsonPath('data.user.role', 'admin');
         $adminToken = $adminLogin->json('data.token');
         Auth::forgetGuards();
@@ -186,14 +196,14 @@ class DemoDataSystemTest extends TestCase
         ]);
 
         $this->postJson('/api/auth/login', [
-            'email' => 'demo.admin@clickearn.example',
-            'password' => 'AdminPreview!2026-C',
+            'email' => 'official.admin@example.test',
+            'password' => 'OfficialAdmin!2026',
         ])->assertOk();
-        $admin = User::query()->where('demo_batch_id', $batchId)->where('demo_key', 'administrator')->firstOrFail();
+        $admin = $this->previewOwner;
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/admin/demo-data/clear')
             ->assertUnprocessable();
-        $this->assertSame(3, User::query()->where('demo_batch_id', $batchId)->count());
+        $this->assertSame(2, User::query()->where('demo_batch_id', $batchId)->count());
 
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/admin/demo-data/clear', ['confirmation' => 'CLEAR DEMO DATA'])
@@ -210,11 +220,11 @@ class DemoDataSystemTest extends TestCase
         $this->assertDatabaseMissing('demo_batches', ['id' => $batchId]);
     }
 
-    public function test_cleanup_stops_without_mutation_when_an_unmarked_task_references_a_demo_administrator(): void
+    public function test_cleanup_stops_without_mutation_when_an_unmarked_task_references_a_demo_member(): void
     {
         Artisan::call('demo:seed');
         $batchId = DemoBatch::query()->where('slug', 'client-preview')->value('id');
-        $admin = User::query()->where('demo_batch_id', $batchId)->where('demo_key', 'administrator')->firstOrFail();
+        $member = User::query()->where('demo_batch_id', $batchId)->where('demo_key', 'member')->firstOrFail();
         Task::create([
             'title' => 'Unmarked linked task',
             'slug' => 'unmarked-linked-task',
@@ -228,7 +238,7 @@ class DemoDataSystemTest extends TestCase
             'instructions' => [],
             'proof_requirements' => [],
             'status' => 'available',
-            'created_by' => $admin->id,
+            'created_by' => $member->id,
         ]);
 
         try {
@@ -238,7 +248,7 @@ class DemoDataSystemTest extends TestCase
             $this->assertStringContainsString('stopped before deleting anything', $exception->getMessage());
         }
 
-        $this->assertSame(3, User::query()->where('demo_batch_id', $batchId)->count());
+        $this->assertSame(2, User::query()->where('demo_batch_id', $batchId)->count());
         $this->assertSame(8, Task::query()->where('demo_batch_id', $batchId)->count());
         $this->assertDatabaseHas('tasks', ['slug' => 'unmarked-linked-task']);
     }

@@ -13,6 +13,11 @@ class PasswordResetNotification extends Notification implements ShouldQueue
 
     public int $tries = 5;
 
+    public function backoff(): array
+    {
+        return [30, 120, 600, 1800];
+    }
+
     public function __construct(private readonly string $token) {}
 
     public function via(object $notifiable): array

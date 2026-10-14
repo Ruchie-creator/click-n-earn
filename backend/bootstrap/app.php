@@ -3,6 +3,7 @@
 use App\Console\Commands\DemoClearCommand;
 use App\Console\Commands\DemoSeedCommand;
 use App\Console\Commands\DemoStatusCommand;
+use App\Console\Commands\PromoteAdminCommand;
 use App\Http\Middleware\ActiveAccountMiddleware;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\RoleMiddleware;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         DemoSeedCommand::class,
         DemoClearCommand::class,
         DemoStatusCommand::class,
+        PromoteAdminCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(

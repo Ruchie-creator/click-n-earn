@@ -30,9 +30,9 @@ npm run dev
 
 ## Controlled client preview demo data
 
-Demo records are stored in the database and tagged with a dedicated batch UUID; they are not frontend fixtures. For local testing, they use the database selected by `backend/.env` (here, `click_and_earn`). An isolated staging preview works the same way using that environment's `.env`. Enable `CLIENT_PREVIEW=true`, `DEMO_DATA_ENABLED=true`, and `PAYOUT_DRIVER=fake`, and configure three different secrets using `DEMO_MEMBER_PASSWORD`, `DEMO_MEMBER_TWO_PASSWORD`, and `DEMO_ADMIN_PASSWORD`. Each password must be at least 12 characters. The committed examples contain no usable demo passwords, and demo login emails use the reserved `.example` domain. Production rejects demo operations and must keep both demo flags false.
+Demo records are stored in the database and tagged with a dedicated batch UUID; they are not frontend fixtures. An isolated staging preview uses Airwallex Sandbox only. Enable `CLIENT_PREVIEW=true`, `DEMO_DATA_ENABLED=true`, configure an existing non-demo administrator with `DEMO_OWNER_EMAIL`, and configure two different secrets using `DEMO_MEMBER_PASSWORD` and `DEMO_MEMBER_TWO_PASSWORD`. Each password must be at least 12 characters. The committed examples contain no usable demo passwords, and demo member emails use the reserved `.example` domain. Production rejects demo operations and must keep both demo flags false.
 
-The preview frontend should be built with `VITE_CLIENT_PREVIEW=true` (see `.env.preview.example`); production builds must use `VITE_CLIENT_PREVIEW=false`. The preview indicator and Admin Settings demo controls are visible only in that preview build. Backend production boot rejects either demo flag being enabled, and demo operations require the fake payout provider.
+The preview frontend should be built with `VITE_CLIENT_PREVIEW=true` (see `.env.preview.example`); production builds must use `VITE_CLIENT_PREVIEW=false`. The preview indicator and Admin Settings demo controls are visible only in that preview build. Backend production boot rejects either demo flag being enabled, and demo operations require Airwallex Sandbox.
 
 ```powershell
 cd C:\product-marketplace
@@ -51,7 +51,7 @@ php artisan demo:clear
 
 `demo:clear` prompts before deleting. Use `php artisan demo:clear --force` only for an intentional scripted cleanup. The Admin Settings refresh/delete actions require typing `REFRESH DEMO DATA` or `CLEAR DEMO DATA`. Cleanup removes only records tagged with the configured demo batch, its preview proof files, and that batch's login tokens/sessions; it stops without deleting if it finds unmarked records attached to demo-owned entities. Do not run demo commands against a production database.
 
-The demo member emails are `demo.member@clickearn.example` and `demo.member2@clickearn.example`; the admin email is `demo.admin@clickearn.example`. Their passwords are environment-configured and must be shared with client reviewers through a secure channel, not committed to this repository.
+The demo member emails are `demo.member@clickearn.example` and `demo.member2@clickearn.example`. Preview data is managed by the non-demo administrator configured in `DEMO_OWNER_EMAIL`; no demo administrator account is created. Demo member passwords are environment-configured and must be shared with client reviewers through a secure channel, not committed to this repository.
 
 The root `.env.example` points local Vite development at `http://127.0.0.1:8001/api`. Vite uses `VITE_API_URL` when supplied; otherwise the client falls back to that local API only in development and to same-origin `/api` in production. Auth uses a Sanctum bearer token stored by the browser client.
 
@@ -78,7 +78,7 @@ Do not point the command at an application database. If the safety guard refuses
 
 ## Local background services
 
-Local defaults use the fake payout provider and private local proof storage. To exercise the fake payout states, set `FAKE_PAYOUT_OUTCOME` to `processing`, `paid`, or `failed` in the local backend environment. A queue worker and scheduler are needed to exercise asynchronous flows:
+Local and staging use Airwallex Sandbox; automated tests fake Airwallex HTTP responses and never call the provider. Use the Sandbox simulation API to exercise transfer lifecycle states. A queue worker and scheduler are needed to exercise asynchronous flows:
 
 ```powershell
 cd C:\product-marketplace\backend
@@ -90,7 +90,7 @@ cd C:\product-marketplace\backend
 php artisan schedule:work
 ```
 
-The local mailer uses Laravel's `log` driver; it is not production delivery. Email verification is optional/future hardening and the current API returns `501` rather than claiming verification succeeded.
+The local mailer may use Laravel's `log` driver; staging and production require a real, environment-configured mail transport. Email verification is required before members can use protected platform routes.
 
 ## Frontend production build
 

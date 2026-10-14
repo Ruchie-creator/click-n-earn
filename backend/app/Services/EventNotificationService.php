@@ -44,6 +44,7 @@ class EventNotificationService
                 'event_type' => $eventType,
                 'event_key' => $eventKey,
             ]);
+            $suppressDemoEmail = $demoBatchId && ! config('demo.deliver_emails', false);
             $outbox = NotificationOutbox::query()->firstOrCreate(
                 ['user_id' => $recipient->id, 'event_key' => $eventKey],
                 [
@@ -51,7 +52,7 @@ class EventNotificationService
                     'body' => $notification->body,
                     'type' => $notification->type,
                     'data' => $payload,
-                    'email_status' => 'pending',
+                    'email_status' => $suppressDemoEmail ? 'suppressed' : 'pending',
                     'demo_batch_id' => $demoBatchId,
                 ],
             );
