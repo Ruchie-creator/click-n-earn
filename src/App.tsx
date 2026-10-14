@@ -593,7 +593,7 @@ type BeneficiarySchemaField = {
   path: string
   required: boolean
   rule?: { type?: string; pattern?: string }
-  field?: { default?: string; description?: string; example?: string; label?: string; placeholder?: string; refresh?: boolean; type?: 'INPUT' | 'SELECT' | 'DYNAMIC_SELECT' | 'RADIO' | 'TRANSFER_METHOD'; options?: Array<{ label: string; value: string; description?: string }> }
+  field?: { default?: string; description?: string; example?: string; label?: string; placeholder?: string; refresh?: boolean; tip?: string; type?: 'INPUT' | 'SELECT' | 'DYNAMIC_SELECT' | 'RADIO' | 'TRANSFER_METHOD'; options?: Array<{ label: string; value: string; description?: string }> }
 }
 
 const US_STATE_OPTIONS = [
