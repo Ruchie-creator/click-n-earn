@@ -179,6 +179,31 @@ class DemoDataSystemTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $legacyAdmin->id]);
     }
 
+    public function test_demo_cleanup_refuses_to_delete_a_legacy_demo_administrator(): void
+    {
+        $batch = DemoBatch::create([
+            'id' => (string) Str::uuid(),
+            'slug' => config('demo.batch_slug'),
+            'label' => 'Legacy preview',
+            'metadata' => ['synthetic' => true],
+        ]);
+        $legacyAdmin = User::factory()->create([
+            'role' => UserRole::ADMIN,
+            'demo_batch_id' => $batch->id,
+            'demo_key' => 'administrator',
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('administrator '.$legacyAdmin->email.' is still tagged as demo data');
+
+        try {
+            app(DemoDataService::class)->clear();
+        } finally {
+            $this->assertDatabaseHas('users', ['id' => $legacyAdmin->id]);
+            $this->assertDatabaseHas('demo_batches', ['id' => $batch->id]);
+        }
+    }
+
     public function test_official_administrator_session_remains_valid_after_demo_refresh(): void
     {
         $token = $this->previewOwner->createToken('demo-refresh-regression-test')->plainTextToken;

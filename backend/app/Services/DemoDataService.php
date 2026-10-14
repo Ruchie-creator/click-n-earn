@@ -620,6 +620,17 @@ class DemoDataService
                 ->unique()
                 ->all();
 
+            $legacyAdministrator = User::query()
+                ->whereIn('id', $userIds)
+                ->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])
+                ->first(['id', 'email']);
+            if ($legacyAdministrator) {
+                throw new RuntimeException(sprintf(
+                    'Demo cleanup stopped because administrator %s is still tagged as demo data. Promote it to a non-demo administrator before refreshing the batch.',
+                    $legacyAdministrator->email,
+                ));
+            }
+
             $this->assertNoUnmarkedRelatedRecords($batchId, $userIds, $taskIds, $reservationIds, $proofIds, $referralIds, $payoutIds, $methodIds);
 
             $counts = [];
