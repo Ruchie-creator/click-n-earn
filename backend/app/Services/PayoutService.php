@@ -439,7 +439,7 @@ class PayoutService
      * Keep enough provider diagnostics to resolve a failed sandbox payout without
      * recording an access token, bank details, or the complete provider payload.
      *
-     * @return array{provider_http_status?: int, provider_code?: mixed, provider_message?: mixed}
+     * @return array{provider_http_status?: int, provider_code?: mixed, provider_message?: mixed, provider_error_fields?: array<int, string>}
      */
     private function safeProviderFailureContext(\Throwable $exception): array
     {
@@ -449,10 +449,18 @@ class PayoutService
 
         $body = $exception->response->json();
 
+        $fields = collect(data_get($body, 'details.errors', []))
+            ->map(static fn (mixed $error): ?string => is_array($error) ? data_get($error, 'source') : null)
+            ->filter(static fn (mixed $source): bool => is_string($source) && $source !== '')
+            ->unique()
+            ->values()
+            ->all();
+
         return array_filter([
             'provider_http_status' => $exception->response->status(),
             'provider_code' => is_array($body) ? data_get($body, 'code') : null,
             'provider_message' => is_array($body) ? data_get($body, 'message') : null,
+            'provider_error_fields' => $fields ?: null,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 }
