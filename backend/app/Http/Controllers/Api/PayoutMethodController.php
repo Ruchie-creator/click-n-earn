@@ -95,6 +95,7 @@ class PayoutMethodController extends ApiController
         $data['provider'] = $data['provider'] ?? 'airwallex';
         $data['country'] = strtoupper($data['country']);
         $data['currency'] = strtoupper($data['currency']);
+        $this->normalizeRouteValues($data);
         $accountNumber = (string) (data_get($data, 'account_details.account_number') ?: data_get($data, 'account_details.iban') ?: data_get($data, 'account_details.account_identifier'));
         if (strlen($accountNumber) < 4) {
             throw ValidationException::withMessages(['account_details' => 'Provide the account identifier required by the selected bank route.']);
@@ -150,6 +151,7 @@ class PayoutMethodController extends ApiController
         if (isset($data['currency'])) {
             $data['currency'] = strtoupper($data['currency']);
         }
+        $this->normalizeRouteValues($data, $payoutMethod);
         if (isset($data['account_details'])) {
             $identifier = (string) (data_get($data, 'account_details.account_number') ?: data_get($data, 'account_details.iban') ?: data_get($data, 'account_details.account_identifier'));
             if (strlen($identifier) < 4) {
@@ -265,5 +267,21 @@ class PayoutMethodController extends ApiController
         $label = str($field)->afterLast('.')->replace('_', ' ')->lower()->toString();
 
         return 'Update the required bank detail: '.$label.'.';
+    }
+
+    /** @param array<string, mixed> $data */
+    private function normalizeRouteValues(array &$data, ?PayoutMethod $existing = null): void
+    {
+        $country = strtoupper((string) ($data['country'] ?? $existing?->country));
+        $transferMethod = strtoupper((string) ($data['transfer_method'] ?? $existing?->transfer_method));
+        $routing = $data['routing_details'] ?? null;
+
+        if ($country !== 'US' || $transferMethod !== 'LOCAL' || !is_array($routing) || !isset($routing['account_routing_type1'])) {
+            return;
+        }
+
+        // Airwallex validates the US ABA routing type as the schema value "aba".
+        $routing['account_routing_type1'] = strtolower((string) $routing['account_routing_type1']);
+        $data['routing_details'] = $routing;
     }
 }

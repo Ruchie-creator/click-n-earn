@@ -104,7 +104,7 @@ class PayoutMethodSchemaTest extends TestCase
         Http::fake([
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
             'https://api.sandbox.airwallex.com/api/v1/beneficiaries/validate' => function ($request) {
-                $this->assertSame('ABA', $request['beneficiary']['bank_details']['account_routing_type1']);
+                $this->assertSame('aba', $request['beneficiary']['bank_details']['account_routing_type1']);
                 $this->assertSame('021000021', $request['beneficiary']['bank_details']['account_routing_value1']);
 
                 return Http::response([], 200);

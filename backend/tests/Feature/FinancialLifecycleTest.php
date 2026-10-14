@@ -38,7 +38,11 @@ class FinancialLifecycleTest extends TestCase
         Http::fake([
             'https://api.sandbox.airwallex.com/api/v1/authentication/login' => Http::response(['token' => 'sandbox-token'], 201),
             'https://api.sandbox.airwallex.com/api/v1/beneficiaries/create' => Http::response(['id' => 'ben_1']),
-            'https://api.sandbox.airwallex.com/api/v1/transfers/validate' => Http::response([], 200),
+            'https://api.sandbox.airwallex.com/api/v1/transfers/validate' => function ($request) {
+                $this->assertSame('USD', $request['source_currency']);
+
+                return Http::response([], 200);
+            },
             'https://api.sandbox.airwallex.com/api/v1/transfers/create' => Http::response(['id' => 'tr_1', 'status' => 'PAID']),
         ]);
 

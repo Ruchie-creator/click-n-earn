@@ -177,7 +177,18 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
 
     private function transferPayload(Payout $payout, PayoutMethod $method, ?string $beneficiaryId): array
     {
-        return ['beneficiary_id' => $beneficiaryId, 'transfer_amount' => (float) $payout->amount, 'transfer_currency' => $payout->currency, 'transfer_method' => $method->transfer_method ?: 'LOCAL', 'reason' => 'other_services', 'reference' => 'CLICK-EARN-'.$payout->id, 'request_id' => $payout->provider_request_id];
+        return [
+            'beneficiary_id' => $beneficiaryId,
+            'transfer_amount' => (float) $payout->amount,
+            'transfer_currency' => $payout->currency,
+            // Funding currency is mandatory for Airwallex transfer validation.
+            // Matching it to the payout currency avoids an FX conversion.
+            'source_currency' => $payout->currency,
+            'transfer_method' => $method->transfer_method ?: 'LOCAL',
+            'reason' => 'other_services',
+            'reference' => 'CLICK-EARN-'.$payout->id,
+            'request_id' => $payout->provider_request_id,
+        ];
     }
 
     private function resultFromPayload(array $body, string $message): PayoutResult
