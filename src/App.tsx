@@ -632,7 +632,7 @@ function PayoutRequirementField({ field, value, country, onChange }: { field: Be
   const common = { id, required: field.required, className: 'form-field mt-2', value, onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange(['local_clearing_system', 'bank_account_category', 'account_routing_type1'].includes(field.key) ? event.target.value.toUpperCase() : event.target.value) }
   const label = <>{field.field?.label || payoutFieldLabel(field.key)}{field.required && <span className="ml-1 text-error">*</span>}</>
   const description = field.field?.description || field.field?.tip
-  const options = field.field?.options || []
+  const options = Array.isArray(field.field?.options) ? field.field.options : []
 
   if (options.length > 0) return <label htmlFor={id} className="text-xs font-semibold text-ink">{label}<select {...common}><option value="">Select an option</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{description && <span className="mt-1 block text-[11px] font-normal leading-4 text-muted">{description}</span>}</label>
 
@@ -705,15 +705,17 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
     api.payoutMethodSchema({ country: country.toUpperCase(), currency: currency.toUpperCase(), entity_type: entityType, transfer_method: transferMethod, local_clearing_system: localClearingSystem || undefined })
       .then((response) => {
         if (!active) return
-        setSchemaFields(response.data.fields)
+        const fields = Array.isArray(response.data?.fields) ? response.data.fields : []
+        setSchemaFields(fields)
         setBeneficiaryValues((current) => {
-          const defaults = response.data.fields.reduce<Record<string, string>>((values, field) => {
+          const defaults = fields.reduce<Record<string, string>>((values, field) => {
             const defaultValue = field.field?.default
             if (defaultValue && !current[field.path]) values[field.path] = defaultValue
             return values
           }, {})
           return Object.keys(defaults).length ? { ...current, ...defaults } : current
         })
+        if (!Array.isArray(response.data?.fields)) setSchemaError('Airwallex returned incomplete bank requirements. Your entries are preserved; change the route or try again.')
       })
       .catch((error) => { if (active) setSchemaError(error instanceof Error ? error.message : 'Bank requirements could not be loaded.') })
       .finally(() => { if (active) setSchemaLoading(false) })
