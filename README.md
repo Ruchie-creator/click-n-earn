@@ -30,7 +30,7 @@ npm run dev
 
 ## Controlled client preview demo data
 
-Demo records are stored in the database and tagged with a dedicated batch UUID; they are not frontend fixtures. An isolated staging preview uses Airwallex Sandbox only. Enable `CLIENT_PREVIEW=true`, `DEMO_DATA_ENABLED=true`, configure an existing non-demo administrator with `DEMO_OWNER_EMAIL`, and configure two different secrets using `DEMO_MEMBER_PASSWORD` and `DEMO_MEMBER_TWO_PASSWORD`. Each password must be at least 12 characters. The committed examples contain no usable demo passwords, and demo member emails use the reserved `.example` domain. Production rejects demo operations and must keep both demo flags false.
+Demo records are stored in the database and tagged with a dedicated batch UUID; they are not frontend fixtures. An isolated staging preview uses Airwallex Sandbox only. Enable `CLIENT_PREVIEW=true`, `DEMO_DATA_ENABLED=true`, and configure an existing non-demo administrator with `DEMO_OWNER_EMAIL`. The demo seed creates only the synthetic digital-product catalog. It never creates demo users, reservations, proofs, payout methods, payouts, ledger entries, or Airwallex transfers. Production rejects demo operations and must keep both demo flags false.
 
 The preview frontend should be built with `VITE_CLIENT_PREVIEW=true` (see `.env.preview.example`); production builds must use `VITE_CLIENT_PREVIEW=false`. The preview indicator and Admin Settings demo controls are visible only in that preview build. Backend production boot rejects either demo flag being enabled, and demo operations require Airwallex Sandbox.
 
@@ -51,7 +51,7 @@ php artisan demo:clear
 
 `demo:clear` prompts before deleting. Use `php artisan demo:clear --force` only for an intentional scripted cleanup. The Admin Settings refresh/delete actions require typing `REFRESH DEMO DATA` or `CLEAR DEMO DATA`. Cleanup removes only records tagged with the configured demo batch, its preview proof files, and that batch's login tokens/sessions; it stops without deleting if it finds unmarked records attached to demo-owned entities. Do not run demo commands against a production database.
 
-The demo member emails are `demo.member@clickearn.example` and `demo.member2@clickearn.example`. Preview data is managed by the non-demo administrator configured in `DEMO_OWNER_EMAIL`; no demo administrator account is created. Demo member passwords are environment-configured and must be shared with client reviewers through a secure channel, not committed to this repository.
+Preview data is managed by the non-demo administrator configured in `DEMO_OWNER_EMAIL`; no demo accounts are created. Use real, verified staging accounts and non-demo tasks when testing the proof and Airwallex Sandbox payout flow.
 
 The root `.env.example` points local Vite development at `http://127.0.0.1:8001/api`. Vite uses `VITE_API_URL` when supplied; otherwise the client falls back to that local API only in development and to same-origin `/api` in production. Auth uses a Sanctum bearer token stored by the browser client.
 

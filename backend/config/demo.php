@@ -6,15 +6,4 @@ return [
     'batch_slug' => env('DEMO_BATCH_SLUG', 'client-preview'),
     'batch_label' => env('DEMO_BATCH_LABEL', 'Click & Earn Client Preview'),
     'owner_email' => env('DEMO_OWNER_EMAIL'),
-    'deliver_emails' => (bool) env('DEMO_EMAIL_DELIVERY', false),
-    'accounts' => [
-        'member' => [
-            'email' => env('DEMO_MEMBER_EMAIL', 'demo.member@clickearn.example'),
-            'password' => env('DEMO_MEMBER_PASSWORD'),
-        ],
-        'member_two' => [
-            'email' => env('DEMO_MEMBER_TWO_EMAIL', 'demo.member2@clickearn.example'),
-            'password' => env('DEMO_MEMBER_TWO_PASSWORD'),
-        ],
-    ],
 ];

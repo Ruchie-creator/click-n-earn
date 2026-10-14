@@ -42,16 +42,6 @@ class DemoDataService
         ['analytics-dashboard-toolkit', 'Analytics Dashboard Toolkit', 'Analytics', '49.00', '14.00', 'A fictional analytics dashboard toolkit preview.', 'bought a sample analytics toolkit'],
     ];
 
-    private const WORKFLOWS = [
-        ['reserved', 1, 'member'],
-        ['proof_submitted', 2, 'member'],
-        ['under_review', 3, 'member'],
-        ['approved', 4, 'member'],
-        ['processing', 5, 'member_two'],
-        ['paid', 6, 'member'],
-        ['changes_requested', 7, 'member_two'],
-    ];
-
     private const COUNTS = [
         'users' => User::class,
         'tasks' => Task::class,
@@ -103,61 +93,24 @@ class DemoDataService
     public function seed(): array
     {
         $this->assertMutationAllowed();
-        $credentials = $this->validatedCredentials();
-        $createdFiles = [];
-
-        try {
-            DB::transaction(function () use ($credentials, &$createdFiles): void {
-                $batch = DemoBatch::query()->firstOrCreate(
-                    ['slug' => (string) config('demo.batch_slug')],
-                    [
-                        'id' => (string) Str::uuid(),
-                        'label' => (string) config('demo.batch_label'),
-                        'metadata' => ['purpose' => 'client_preview', 'synthetic' => true],
-                    ],
-                );
-                if ($batch->label !== config('demo.batch_label')) {
-                    $batch->forceFill(['label' => (string) config('demo.batch_label')])->save();
-                }
-
-                $owner = $this->resolvePreviewOwner();
-                $member = $this->ensureUser($batch, 'member', 'Demo Member', 'member', $credentials['member']);
-                $memberTwo = $this->ensureUser($batch, 'member-two', 'Demo Member 2', 'member_two', $credentials['member_two']);
-
-                $tasks = [];
-                foreach (self::TASKS as $index => $definition) {
-                    $tasks[$index] = $this->ensureTask($batch, $owner, $definition);
-                }
-
-                $this->ensurePayoutMethod($batch, $member, 'payout-method-member');
-                $this->ensurePayoutMethod($batch, $memberTwo, 'payout-method-member-two');
-                $this->ensureReferral($batch, $member, $memberTwo);
-
-                foreach (self::WORKFLOWS as [$state, $taskIndex, $memberKey]) {
-                    $user = $memberKey === 'member_two' ? $memberTwo : $member;
-                    $reservationKey = 'reservation-'.$state;
-                    $reservation = TaskReservation::query()
-                        ->where('demo_batch_id', $batch->id)
-                        ->where('demo_key', $reservationKey)
-                        ->first();
-                    if (! $reservation) {
-                        $reservation = $this->reservations->reserve($user, $tasks[$taskIndex], $reservationKey);
-                    }
-
-                    if ($state !== 'reserved') {
-                        $proof = $this->ensureProof($batch, $reservation, $state, $createdFiles);
-                        $this->ensureWorkflowState($reservation, $proof, $state, $owner);
-                        $this->receiptVerification->verify($proof->fresh());
-                    }
-                }
-            });
-        } catch (\Throwable $exception) {
-            foreach ($createdFiles as [$disk, $path]) {
-                Storage::disk($disk)->delete($path);
+        DB::transaction(function (): void {
+            $batch = DemoBatch::query()->firstOrCreate(
+                ['slug' => (string) config('demo.batch_slug')],
+                [
+                    'id' => (string) Str::uuid(),
+                    'label' => (string) config('demo.batch_label'),
+                    'metadata' => ['purpose' => 'catalog_preview', 'synthetic' => true],
+                ],
+            );
+            if ($batch->label !== config('demo.batch_label')) {
+                $batch->forceFill(['label' => (string) config('demo.batch_label')])->save();
             }
 
-            throw $exception;
-        }
+            $owner = $this->resolvePreviewOwner();
+            foreach (self::TASKS as $definition) {
+                $this->ensureTask($batch, $owner, $definition);
+            }
+        });
 
         return $this->status();
     }
@@ -172,7 +125,6 @@ class DemoDataService
     public function refresh(): array
     {
         $this->assertMutationAllowed();
-        $this->validatedCredentials();
         $this->clearCurrentBatch();
 
         return $this->seed();
