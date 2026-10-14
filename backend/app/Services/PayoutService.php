@@ -395,7 +395,14 @@ class PayoutService
                 'Payout needs attention',
                 $reason,
                 'error',
-                ['payout_id' => $payout->id],
+                [
+                    'payout_id' => $payout->id,
+                    'amount' => $payout->amount,
+                    'currency' => $payout->currency,
+                    'reference' => $payout->provider_reference ?: 'Unavailable',
+                    'masked_account' => $payout->payoutMethod?->maskedAccount(),
+                    'reason' => $reason,
+                ],
             ), $payout->getAttribute('demo_batch_id'));
         }
         User::query()->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])->get()->each(
@@ -403,7 +410,15 @@ class PayoutService
                 'Payout failed',
                 sprintf('Payout #%d needs attention: %s', $payout->id, $reason),
                 'error',
-                ['payout_id' => $payout->id, 'amount' => $payout->amount, 'currency' => $payout->currency, 'reference' => $payout->provider_reference ?: 'Unavailable'],
+                [
+                    'payout_id' => $payout->id,
+                    'amount' => $payout->amount,
+                    'currency' => $payout->currency,
+                    'reference' => $payout->provider_reference ?: 'Unavailable',
+                    'masked_account' => $payout->payoutMethod?->maskedAccount(),
+                    'reason' => $reason,
+                    'admin_notification' => true,
+                ],
             ), $payout->getAttribute('demo_batch_id')),
         );
 
