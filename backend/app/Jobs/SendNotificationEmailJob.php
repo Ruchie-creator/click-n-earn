@@ -18,9 +18,7 @@ class SendNotificationEmailJob implements ShouldQueue
 
     public int $tries = 5;
 
-    public function __construct(public readonly int $outboxId)
-    {
-    }
+    public function __construct(public readonly int $outboxId) {}
 
     public function backoff(): array
     {
@@ -49,6 +47,16 @@ class SendNotificationEmailJob implements ShouldQueue
         });
 
         if (! $outbox || ! $outbox->user || blank($outbox->user->email)) {
+            return;
+        }
+
+        if ($this->hasReservedDocumentationDomain($outbox->user->email)) {
+            NotificationOutbox::query()->whereKey($outbox->id)->where('email_status', 'sending')->update([
+                'email_status' => 'suppressed',
+                'email_locked_at' => null,
+                'email_last_error' => 'Recipient uses a reserved non-deliverable documentation domain.',
+            ]);
+
             return;
         }
 
@@ -83,5 +91,15 @@ class SendNotificationEmailJob implements ShouldQueue
             'email_locked_at' => null,
             'email_last_error' => $exception ? $exception::class : 'Email delivery failed after retries.',
         ]);
+    }
+
+    private function hasReservedDocumentationDomain(string $email): bool
+    {
+        $domain = strtolower((string) str($email)->afterLast('@'));
+
+        return in_array($domain, ['example', 'invalid', 'test'], true)
+            || str_ends_with($domain, '.example')
+            || str_ends_with($domain, '.invalid')
+            || str_ends_with($domain, '.test');
     }
 }
