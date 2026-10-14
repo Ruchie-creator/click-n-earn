@@ -669,13 +669,18 @@ function PayoutsPage({ onToast }: { onToast: (message: string) => void }) {
     api.payoutMethods().then((response) => { if (mounted) setMethods(response.data) }).catch((error) => { if (mounted) onToast(error instanceof Error ? error.message : 'Payout methods could not be loaded.') })
     setCountriesLoading(true)
     api.payoutMethodCountries()
-      .then((response) => { if (mounted) setSupportedCountries(response.data.countries) })
+      .then((response) => {
+        if (!mounted) return
+        const countries = Array.isArray(response.data?.countries) ? response.data.countries : []
+        setSupportedCountries(countries.filter((code): code is string => typeof code === 'string' && /^[A-Z]{2}$/i.test(code)).map((code) => code.toUpperCase()))
+        if (!Array.isArray(response.data?.countries)) setCountriesError('Airwallex returned an unexpected country list. Enter a country code and try again.')
+      })
       .catch((error) => { if (mounted) setCountriesError(error instanceof Error ? error.message : 'Supported countries could not be loaded.') })
       .finally(() => { if (mounted) setCountriesLoading(false) })
     return () => { mounted = false }
   }, [])
   const defaultMethod = methods.find((method) => method.is_default) || methods[0]
-  const countryOptions = Array.from(new Set([...supportedCountries, country.toUpperCase()].filter((value) => /^[A-Z]{2}$/.test(value)))).sort()
+  const countryOptions = Array.from(new Set([...(Array.isArray(supportedCountries) ? supportedCountries : []), country.toUpperCase()].filter((value) => typeof value === 'string' && /^[A-Z]{2}$/.test(value)))).sort()
   const openMethod = (method?: ApiPayoutMethod) => {
     setEditingId(method?.id || null)
     setAccountHolder(method?.account_holder_name || '')
