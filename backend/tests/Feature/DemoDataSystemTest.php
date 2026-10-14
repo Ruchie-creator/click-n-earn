@@ -53,6 +53,7 @@ class DemoDataSystemTest extends TestCase
             'email_verified_at' => now(),
             'referral_code' => 'OFFICIALADMIN',
         ]);
+        $this->previewOwner->forceFill(['email_verified_at' => now()])->save();
         Storage::fake('proofs');
     }
 
@@ -176,6 +177,20 @@ class DemoDataSystemTest extends TestCase
             ->assertForbidden();
 
         $this->assertDatabaseHas('users', ['id' => $legacyAdmin->id]);
+    }
+
+    public function test_official_administrator_session_remains_valid_after_demo_refresh(): void
+    {
+        $token = $this->previewOwner->createToken('demo-refresh-regression-test')->plainTextToken;
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $this->postJson('/api/admin/demo-data/refresh', ['confirmation' => 'REFRESH DEMO DATA'], $headers)
+            ->assertOk();
+
+        $this->getJson('/api/me', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.id', $this->previewOwner->id)
+            ->assertJsonPath('data.role', UserRole::ADMIN->value);
     }
 
     public function test_demo_clear_requires_confirmation_and_preserves_unrelated_financial_and_product_records(): void
