@@ -35,7 +35,7 @@ export function StatusJourney() {
   };
 
   return (
-    <section aria-labelledby="status-title" className="relative isolate overflow-hidden bg-white py-20 sm:py-28">
+    <section aria-labelledby="status-title" className="relative isolate overflow-hidden bg-[#152b4b] py-20 sm:py-28">
       <div aria-hidden="true" className="ce-status-background"><img src="/public-images/progress-together.png" alt="" loading="lazy" decoding="async" /></div>
       <Container className="relative z-10">
         <SectionHead
@@ -43,10 +43,11 @@ export function StatusJourney() {
           eyebrow="Status tracking"
           title="Follow every task, step by step"
           sub="Each task moves through clear statuses, so you always know where things stand. Select a step to learn more."
+          dark
         />
         <div ref={ref} className="mx-auto mt-14 max-w-4xl">
           <div className="relative">
-            <div aria-hidden="true" className="absolute left-0 right-0 top-6 hidden h-1 rounded-full bg-[#EEF3FA] sm:block">
+            <div aria-hidden="true" className="absolute left-0 right-0 top-6 hidden h-1 rounded-full bg-white/25 sm:block">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-[#4F6FAE] to-[#1F3558] transition-[width] duration-700 ease-out"
                 style={{ width: `${(active / (STATUSES.length - 1)) * 100}%` }}
@@ -65,12 +66,12 @@ export function StatusJourney() {
                     >
                       <span
                         className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 ${
-                          done ? 'border-[#1F3558] bg-[#1F3558] text-white' : 'border-[#D9E2EC] bg-white text-[#667085]'
+                          done ? 'border-[#7ba0dc] bg-[#4F6FAE] text-white' : 'border-white/35 bg-[#17345b]/80 text-white/80'
                         } ${i === active ? 'scale-105 shadow-[0_10px_24px_-8px_rgba(31,53,88,0.6)]' : ''}`}
                       >
                         <Icon name={s.icon} size={20} />
                       </span>
-                      <span className={`text-sm font-semibold sm:mt-3 ${done ? 'text-[#172033]' : 'text-[#667085]'}`}>{s.label}</span>
+                      <span className={`text-sm font-semibold sm:mt-3 ${done ? 'text-white' : 'text-white/70'}`}>{s.label}</span>
                     </button>
                   </li>
                 );
@@ -78,7 +79,7 @@ export function StatusJourney() {
             </ol>
           </div>
 
-          <div className="ce-card mt-8 p-6 text-center sm:p-8" aria-live="polite">
+          <div className="mt-8 rounded-[20px] border border-white/40 bg-white/95 p-6 text-center shadow-[0_18px_44px_-28px_rgba(5,17,35,.8)] backdrop-blur-sm sm:p-8" aria-live="polite">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#4F6FAE]">Step {active + 1} of {STATUSES.length}</p>
             <h3 className="mt-2 text-xl font-semibold text-[#172033]">{STATUSES[active].label}</h3>
             <p className="mx-auto mt-2 max-w-lg text-[15px] leading-relaxed text-[#667085]">{STATUSES[active].text}</p>
