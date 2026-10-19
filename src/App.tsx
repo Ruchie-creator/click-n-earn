@@ -90,6 +90,8 @@ import {
   type StatusTone,
 } from './components'
 import { FeedbackProvider, useFeedback } from './feedback'
+import PublicLandingPage from './public/landing/LandingPage'
+import { PublicLegalPage, PublicNotFound, PublicTaskDetailPage, PublicTasksPage } from './public/PublicPages'
 
 const memberPages: AppPage[] = ['dashboard', 'tasks', 'my-tasks', 'task-detail', 'proof', 'earnings', 'referrals', 'payouts', 'notifications', 'profile']
 const adminPages: AppPage[] = ['admin-dashboard', 'admin-tasks', 'admin-submissions', 'admin-verification', 'admin-payouts', 'admin-users', 'admin-referrals', 'admin-transactions', 'admin-notifications', 'admin-settings', 'admin-profile']
@@ -116,6 +118,27 @@ const pageTitles: Partial<Record<AppPage, string>> = {
   'admin-notifications': 'Notifications',
   'admin-settings': 'Settings',
   'admin-profile': 'Profile',
+}
+
+const publicPageForPathname = (pathname: string): AppPage => {
+  if (pathname === '/' || pathname === '/index.html') return 'landing'
+  if (pathname === '/tasks') return 'public-tasks'
+  if (pathname.startsWith('/tasks/')) return 'public-task'
+  if (pathname === '/terms') return 'terms'
+  if (pathname === '/privacy') return 'privacy'
+  if (pathname === '/login') return 'login'
+  if (pathname === '/register') return 'register'
+  if (pathname === '/forgot-password') return 'forgot'
+  if (pathname === '/reset-password') return 'reset-password'
+  return 'not-found'
+}
+
+const decodeTaskSlug = (pathname: string): string => {
+  try {
+    return decodeURIComponent(pathname.slice('/tasks/'.length))
+  } catch {
+    return ''
+  }
 }
 
 const getTone = (status: string): StatusTone => {
@@ -150,9 +173,14 @@ export default function App() {
 function AppShell() {
   const { notify: setToast, runOperation, runLoading } = useFeedback()
   const [page, setPage] = useState<AppPage>(() => {
-    if (window.location.pathname === '/reset-password') return 'reset-password'
-    const savedPage = window.history.state?.clickEarnPage
-    return typeof savedPage === 'string' ? savedPage as AppPage : 'dashboard'
+    const pathname = window.location.pathname
+    if (pathname === '/' || pathname === '/index.html') {
+      const savedPage = window.history.state?.clickEarnPage
+      if (typeof savedPage === 'string' && (memberPages.includes(savedPage as AppPage) || adminPages.includes(savedPage as AppPage))) {
+        return savedPage as AppPage
+      }
+    }
+    return publicPageForPathname(pathname)
   })
   const [mobileOpen, setMobileOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState('')
@@ -214,13 +242,23 @@ function AppShell() {
         setAuthChecking(false)
         const roleCanAccessAdmin = response.data.role === 'admin' || response.data.role === 'super_admin'
         const savedPage = window.history.state?.clickEarnPage
+        const currentPath = window.location.pathname
+        const directPublicRoute = currentPath.startsWith('/tasks')
+          || currentPath === '/terms'
+          || currentPath === '/privacy'
         const requestedPage = new URLSearchParams(window.location.search).get('page')
         const allowedSavedPage = typeof savedPage === 'string'
           && (memberPages.includes(savedPage as AppPage) || (roleCanAccessAdmin && adminPages.includes(savedPage as AppPage)))
         const allowedRequestedPage = typeof requestedPage === 'string'
           && (memberPages.includes(requestedPage as AppPage) || (roleCanAccessAdmin && adminPages.includes(requestedPage as AppPage)))
         const landingPage: AppPage = roleCanAccessAdmin ? 'admin-dashboard' : 'tasks'
-        const nextPage = allowedRequestedPage ? requestedPage as AppPage : allowedSavedPage ? savedPage as AppPage : landingPage
+        const nextPage = directPublicRoute
+          ? publicPageForPathname(currentPath)
+          : allowedRequestedPage
+            ? requestedPage as AppPage
+            : allowedSavedPage
+              ? savedPage as AppPage
+              : landingPage
         setPage(nextPage)
         window.history.replaceState({ ...window.history.state, clickEarnPage: nextPage }, '', window.location.href)
       })
@@ -249,6 +287,12 @@ function AppShell() {
     setCurrentUser(user)
     setAuthenticated(true)
     setAuthChecking(false)
+    const nextHref = new URLSearchParams(window.location.search).get('next')
+    if (nextHref?.startsWith('/tasks/')) {
+      window.history.replaceState({ clickEarnPage: 'public-task', selectedTaskId: '', selectedReservationId: null }, '', nextHref)
+      setPage('public-task')
+      return
+    }
     const requestedPage = new URLSearchParams(window.location.search).get('page') as AppPage | null
     const isAdmin = user.role === 'admin' || user.role === 'super_admin'
     const nextPage: AppPage = requestedPage && (memberPages.includes(requestedPage) || (isAdmin && adminPages.includes(requestedPage)))
@@ -290,20 +334,56 @@ function AppShell() {
     const nextTaskId = options.taskId ?? selectedTaskId
     const nextReservationId = options.reservationId ?? selectedReservationId
     const nextState = { ...window.history.state, clickEarnPage: nextPage, selectedTaskId: nextTaskId, selectedReservationId: nextReservationId }
-    if (options.replace) window.history.replaceState(nextState, '', window.location.href)
-    else if (options.force || nextPage !== page || options.taskId !== undefined || options.reservationId !== undefined) window.history.pushState(nextState, '', window.location.href)
+    const href = nextPage === 'landing' ? '/' : nextPage === 'public-tasks' ? '/tasks' : nextPage === 'terms' ? '/terms' : nextPage === 'privacy' ? '/privacy' : nextPage === 'login' ? '/login' : nextPage === 'register' ? '/register' : nextPage === 'forgot' ? '/forgot-password' : nextPage === 'reset-password' ? '/reset-password' : window.location.href
+    if (options.replace) window.history.replaceState(nextState, '', href)
+    else if (options.force || nextPage !== page || options.taskId !== undefined || options.reservationId !== undefined) window.history.pushState(nextState, '', href)
     if (options.taskId !== undefined) setSelectedTaskId(options.taskId)
     if (options.reservationId !== undefined) setSelectedReservationId(options.reservationId)
     setPage(nextPage)
     setMobileOpen(false)
   }
 
+  const navigatePublicHref = (href: string) => {
+    const target = new URL(href, window.location.origin)
+    let nextPage: AppPage = 'not-found'
+    if (target.pathname === '/') nextPage = 'landing'
+    else if (target.pathname === '/tasks') nextPage = 'public-tasks'
+    else if (target.pathname.startsWith('/tasks/')) nextPage = 'public-task'
+    else if (target.pathname === '/terms') nextPage = 'terms'
+    else if (target.pathname === '/privacy') nextPage = 'privacy'
+    else if (target.pathname === '/login') nextPage = 'login'
+    else if (target.pathname === '/register') nextPage = 'register'
+    else if (target.pathname === '/forgot-password') nextPage = 'forgot'
+    else if (target.pathname === '/reset-password') nextPage = 'reset-password'
+    window.history.pushState({ clickEarnPage: nextPage }, '', target.pathname + target.search + target.hash)
+    setPage(nextPage)
+    setMobileOpen(false)
+    window.setTimeout(() => {
+      if (target.hash) document.getElementById(target.hash.slice(1))?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      else window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    }, 0)
+  }
+
+  useEffect(() => {
+    const onPublicNavigate = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href
+      if (href) navigatePublicHref(href)
+    }
+    window.addEventListener('click-earn:navigate', onPublicNavigate)
+    return () => window.removeEventListener('click-earn:navigate', onPublicNavigate)
+  })
+
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const nextPage = event.state?.clickEarnPage
+      const publicPages: AppPage[] = ['landing', 'public-tasks', 'public-task', 'terms', 'privacy', 'not-found', 'login', 'register', 'forgot', 'reset-password']
       const canOpen = typeof nextPage === 'string'
-        && (memberPages.includes(nextPage as AppPage) || (canAccessAdmin && adminPages.includes(nextPage as AppPage)))
-      if (!canOpen) return
+        && (publicPages.includes(nextPage as AppPage) || memberPages.includes(nextPage as AppPage) || (canAccessAdmin && adminPages.includes(nextPage as AppPage)))
+      if (!canOpen) {
+        setPage(publicPageForPathname(window.location.pathname))
+        setMobileOpen(false)
+        return
+      }
       setPage(nextPage as AppPage)
       if (typeof event.state?.selectedTaskId === 'string') setSelectedTaskId(event.state.selectedTaskId)
       if (typeof event.state?.selectedReservationId === 'number') setSelectedReservationId(event.state.selectedReservationId)
@@ -360,6 +440,21 @@ function AppShell() {
       }
     })
   }
+  const reservePublicTask = async (taskId: number): Promise<void> => {
+    await runOperation({
+      title: 'Reserving your reward',
+      description: 'Confirming the task details and securing an available slot.',
+      successMessage: 'Reward reserved successfully',
+      successDescription: 'Your reservation is ready. Submit proof after completing the purchase.',
+    }, async () => {
+      const response = await api.reserveTask(taskId)
+      setSelectedReservationId(response.data.id)
+      setProofFile(null)
+      setProofFiles([])
+      await refreshMemberData()
+      navigate('proof', { reservationId: response.data.id })
+    })
+  }
   const submitProof = async (details: { amount: string; date: string; time: string; reference: string; note: string }) => {
     if (!selectedReservationId || !proofFile) {
       setToast('Reserve the task and add a proof file first.')
@@ -385,8 +480,13 @@ function AppShell() {
   const admin = adminPages.includes(page)
 
   if (authChecking) return <div className="grid min-h-screen place-items-center bg-canvas text-sm font-medium text-muted">Checking your session…</div>
-  if (page === 'landing') return <LandingPage onNavigate={navigate} />
-  if (page === 'how') return <HowPage onNavigate={navigate} />
+  if (page === 'landing') return <PublicLandingPage />
+  if (page === 'public-tasks') return <PublicTasksPage />
+  if (page === 'public-task') return <PublicTaskDetailPage slug={decodeTaskSlug(window.location.pathname)} authenticated={authenticated} onReserve={reservePublicTask} />
+  if (page === 'terms') return <PublicLegalPage type="terms" />
+  if (page === 'privacy') return <PublicLegalPage type="privacy" />
+  if (page === 'not-found') return <PublicNotFound />
+  if (page === 'how') return <LegacyHowPage onNavigate={navigate} />
   if (page === 'login' || page === 'register' || page === 'forgot' || page === 'reset-password') return <AuthPage mode={page === 'reset-password' ? 'reset' : page} onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
   if (authenticated && currentUser && !currentUser.email_verified_at) return <VerifyEmailPage email={currentUser.email} onResend={resendEmailVerification} onLogout={() => void handleLogout()} />
   if (showAppShell && !authenticated) return <AuthPage mode="login" onNavigate={navigate} onToast={setToast} onAuthenticated={handleAuthenticated} />
@@ -1609,7 +1709,7 @@ function PublicHeader({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
   return <header className="flex items-center justify-between py-5"><Logo onClick={() => onNavigate('landing')} /><nav className="hidden items-center gap-1 md:flex"><button onClick={() => onNavigate('how')} className="btn-ghost">How it works</button><button onClick={() => onNavigate('tasks')} className="btn-ghost">Browse tasks</button><button onClick={() => onNavigate('login')} className="btn-ghost">Sign in</button><button onClick={() => onNavigate('register')} className="btn-primary ml-2 min-h-10">Get started <ArrowRight size={15} /></button></nav><button onClick={() => onNavigate('register')} className="btn-primary min-h-10 px-3 text-xs md:hidden">Get started</button></header>
 }
 
-function LandingPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
+function LegacyLandingPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
   return <div className="min-h-screen overflow-x-hidden bg-white text-ink"><div className="mx-auto max-w-[1240px] px-5 sm:px-8"><PublicHeader onNavigate={onNavigate} /><section className="grid gap-10 pb-16 pt-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:pb-24 lg:pt-16"><div><div className="inline-flex items-center gap-2 rounded-full border border-[#C8D8EB] bg-soft-blue px-3 py-1.5 text-[11px] font-semibold text-navy"><span className="h-1.5 w-1.5 rounded-full bg-success" /> A clearer way to earn online</div><h1 className="mt-6 max-w-[620px] text-[44px] font-semibold leading-[1.04] tracking-[-0.06em] text-ink sm:text-[64px]">Turn smart purchases into <span className="text-navy">real rewards.</span></h1><p className="mt-6 max-w-[530px] text-base leading-7 text-muted sm:text-lg">Click & Earn connects you with funded purchase tasks. Review the task terms, reserve a slot, submit purchase proof, and track the review and payout status.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><button onClick={() => onNavigate('register')} className="btn-primary min-h-12 px-5">Start earning <ArrowRight size={17} /></button><button onClick={() => onNavigate('how')} className="btn-secondary min-h-12 px-5">See how it works <ChevronRight size={17} /></button></div><div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted"><span className="flex items-center gap-2"><ShieldCheck size={15} className="text-success" /> Clear reward terms</span><span className="flex items-center gap-2"><Clock3 size={15} className="text-navy" /> Status updates from the workflow</span><span className="flex items-center gap-2"><LockKeyhole size={15} className="text-navy" /> Secure proof review</span></div></div><div className="relative"><div className="absolute -inset-6 rounded-[40px] bg-soft-blue/70 blur-2xl" /><div className="relative overflow-hidden rounded-[28px] border border-[#C8D8EB] bg-[#F4F7FB] p-3 shadow-soft sm:p-5"><div className="overflow-hidden rounded-2xl border border-line bg-white"><div className="flex items-center justify-between border-b border-line px-4 py-3"><div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-navy"><span className="h-3 w-3 rounded-[4px] border border-white" /></span><span className="text-xs font-bold text-ink">Click & Earn</span></div><span className="rounded-full bg-soft-blue px-2 py-1 text-[9px] font-semibold text-navy">Task details</span></div><div className="grid gap-3 p-4 sm:grid-cols-[1fr_0.88fr]"><div><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Task economics</p><h2 className="mt-1 text-base font-semibold text-ink">Know the terms before reserving</h2><div className="mt-5 space-y-3 rounded-xl bg-canvas p-3"><div className="flex items-center justify-between"><span className="text-[10px] font-medium text-muted">Reimbursement</span><span className="text-[10px] font-semibold text-ink">Shown on each task</span></div><div className="flex items-center justify-between"><span className="text-[10px] font-medium text-muted">Incentive</span><span className="text-[10px] font-semibold text-ink">Shown on each task</span></div><div className="border-t border-line pt-3"><div className="flex items-center justify-between"><span className="text-[10px] font-semibold text-ink">Expected payout</span><span className="text-[10px] font-semibold text-navy">Calculated from task terms</span></div></div></div><div className="mt-4 flex items-center gap-2 rounded-lg bg-soft-blue px-3 py-2.5 text-[10px] leading-4 text-navy"><ShieldCheck size={15} /> The server records these values when a slot is reserved.</div></div><div className="rounded-xl bg-navy p-3 text-white"><p className="text-[10px] font-semibold">Reward workflow</p><div className="mt-5 space-y-3">{['Reserve a task', 'Complete the purchase', 'Submit proof', 'Review and payout'].map((step, index) => <div key={step} className="flex items-center gap-2"><span className="grid h-5 w-5 place-items-center rounded-full border border-white/20 text-[9px] font-semibold text-white/70">{index + 1}</span><span className="text-[10px] text-white/75">{step}</span></div>)}</div><div className="mt-6 rounded-lg bg-white/10 p-2.5"><p className="text-[9px] text-white/50">Each status is tied to a real workflow event.</p></div></div></div></div></div></div></section><section className="border-t border-line py-16 sm:py-20"><div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end"><div><p className="eyebrow">A marketplace with receipts</p><h2 className="mt-2 max-w-lg text-3xl font-semibold leading-tight tracking-[-0.05em] text-ink sm:text-4xl">Every reward has a clear path from purchase to payout.</h2></div><p className="max-w-xl text-sm leading-6 text-muted">No mystery balances or vague promises. Click & Earn shows you the product price, incentive, proof requirements, and payout status up front.</p></div><div className="mt-10 grid gap-4 md:grid-cols-3"><InfoStep number="01" title="Choose a funded task" body="Browse opportunities with the purchase amount, incentive, and remaining slots clearly displayed." icon={<Tag size={19} />} /><InfoStep number="02" title="Purchase & prove" body="Complete checkout with the partner, then upload a receipt or screenshot with the key details." icon={<FileCheck2 size={19} />} /><InfoStep number="03" title="Get paid" body="After verification, your reimbursement and incentive move through processing to your payout method." icon={<CircleDollarSign size={19} />} /></div></section><section className="pb-16 sm:pb-24"><div className="flex flex-col gap-5 rounded-[28px] bg-navy p-6 text-white sm:p-10 lg:flex-row lg:items-center lg:justify-between"><div><p className="eyebrow text-white/50">Ready when you are</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">Make your next smart purchase count.</h2><p className="mt-2 max-w-lg text-sm leading-6 text-white/60">Join a growing community completing useful, funded tasks and getting rewarded for the proof.</p></div><button onClick={() => onNavigate('register')} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-navy transition-[background-color,transform] duration-200 hover:bg-soft-blue active:scale-[0.96]">Create your account <ArrowRight size={16} /></button></div></section><footer className="flex flex-col gap-4 border-t border-line py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><Logo compact /><span>© 2026 Click & Earn. Built for clear, proof-first rewards.</span><div className="flex gap-4"><button onClick={() => onNavigate('how')} className="hover:text-navy">How it works</button><button onClick={() => onNavigate('login')} className="hover:text-navy">Sign in</button></div></footer></div></div>
 }
 
@@ -1617,7 +1717,7 @@ function InfoStep({ number, title, body, icon }: { number: string; title: string
   return <div className="card p-5"><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy">{icon}</span><span className="text-[11px] font-bold tracking-[0.16em] text-subtle">{number}</span></div><h3 className="mt-5 text-sm font-semibold text-ink">{title}</h3><p className="mt-2 text-xs leading-5 text-muted">{body}</p></div>
 }
 
-function HowPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
+function LegacyHowPage({ onNavigate }: { onNavigate: (page: AppPage) => void }) {
   return <div className="min-h-screen bg-white text-ink"><div className="mx-auto max-w-[1000px] px-5 sm:px-8"><PublicHeader onNavigate={onNavigate} /><div className="py-12 sm:py-20"><button onClick={() => onNavigate('landing')} className="btn-ghost -ml-3 mb-6"><ArrowLeft size={16} /> Back home</button><p className="eyebrow">How Click & Earn works</p><h1 className="mt-2 max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.06em] sm:text-6xl">One purchase. One proof. One clear reward journey.</h1><p className="mt-5 max-w-2xl text-base leading-7 text-muted">Click & Earn is designed around transparency. You always know what you’ll pay, what you’ll earn, and exactly where your submission is in the process.</p><div className="mt-12 space-y-4">{[{ number: '01', title: 'Choose a task that fits', body: 'Browse funded tasks by category, reward, and available slots. Every card shows the full expected payout before you commit.', icon: <Tag size={20} /> }, { number: '02', title: 'Complete the external purchase', body: 'Open the partner checkout, purchase the digital product, and keep your confirmation or receipt close by.', icon: <ExternalLink size={20} /> }, { number: '03', title: 'Submit your proof', body: 'Return to Click & Earn and upload a screenshot, receipt, or PDF. Add the amount, date, time, and transaction reference.', icon: <Upload size={20} /> }, { number: '04', title: 'Track verification to payout', body: 'Your proof moves through verification, processing, and payout. You’ll receive an update at each meaningful step.', icon: <CircleDollarSign size={20} /> }].map((step) => <div key={step.number} className="grid gap-5 rounded-2xl border border-line bg-canvas p-5 sm:grid-cols-[72px_1fr_1.3fr] sm:items-center sm:p-7"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-navy text-sm font-bold text-white">{step.number}</span><div className="flex items-center gap-3 sm:block"><span className="grid h-9 w-9 place-items-center rounded-lg bg-white text-navy sm:mb-3">{step.icon}</span><h2 className="text-lg font-semibold tracking-[-0.03em] text-ink">{step.title}</h2></div><p className="text-sm leading-6 text-muted">{step.body}</p></div>)}</div><div className="mt-12 flex flex-col items-start justify-between gap-4 rounded-2xl border border-[#C8D8EB] bg-soft-blue p-5 sm:flex-row sm:items-center sm:p-6"><div><p className="text-sm font-semibold text-navy">Ready to explore funded tasks?</p><p className="mt-1 text-xs text-[#526D96]">Create a free account and see your first opportunities.</p></div><button onClick={() => onNavigate('register')} className="btn-primary">Get started <ArrowRight size={15} /></button></div></div></div></div>
 }
 
@@ -1732,7 +1832,7 @@ function AuthPage({ mode, onNavigate, onToast, onAuthenticated }: { mode: 'login
           {mode === 'login' && <div className="flex justify-end"><button type="button" onClick={() => onNavigate('forgot')} className="text-xs font-semibold text-navy hover:text-accent">Forgot password?</button></div>}
           <button type="submit" disabled={submitting} className="btn-primary min-h-11 w-full disabled:cursor-wait disabled:opacity-60">{submitLabel} <ArrowRight size={16} /></button>
         </form>
-        <div className="mt-7 border-t border-line pt-6 text-center text-xs text-muted">{isRegister ? <>Already have an account? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Sign in</button></> : isForgot || isReset ? <>Remembered your password? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Back to sign in</button></> : <>New to Click & Earn? <button onClick={() => onNavigate('register')} className="font-semibold text-navy hover:text-accent">Create an account</button></>}</div></div><p className="text-center text-[11px] text-subtle">By continuing, you agree to Click & Earn’s terms and privacy policy.</p></div>
+        <div className="mt-7 border-t border-line pt-6 text-center text-xs text-muted">{isRegister ? <>Already have an account? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Sign in</button></> : isForgot || isReset ? <>Remembered your password? <button onClick={() => onNavigate('login')} className="font-semibold text-navy hover:text-accent">Back to sign in</button></> : <>New to Click & Earn? <button onClick={() => onNavigate('register')} className="font-semibold text-navy hover:text-accent">Create an account</button></>}</div></div>{isRegister && <p className="mt-5 text-center text-[11px] leading-5 text-subtle">Full Terms of Use and Privacy Notice are pending approved copy. Review the current summaries: <button type="button" onClick={() => onNavigate('terms')} className="font-semibold text-navy underline underline-offset-2">Terms</button> and <button type="button" onClick={() => onNavigate('privacy')} className="font-semibold text-navy underline underline-offset-2">Privacy</button>.</p>}</div>
     </div>
   )
 }

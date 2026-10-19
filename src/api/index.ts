@@ -1,5 +1,5 @@
 import { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken } from './client'
-import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, ReferralListData, TaskListData } from './contracts'
+import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, PublicTask, PublicTaskListData, ReferralListData, TaskListData } from './contracts'
 
 export { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken }
 export type { ApiError } from './client'
@@ -43,6 +43,13 @@ export const api = {
   tasks(params: Record<string, string> = {}) {
     const query = new URLSearchParams(params).toString()
     return apiFetch<ApiEnvelope<TaskListData>>('/tasks' + (query ? '?' + query : ''))
+  },
+  publicTasks(params: Record<string, string> = {}, options: RequestInit = {}) {
+    const query = new URLSearchParams(params).toString()
+    return apiFetch<ApiEnvelope<PublicTaskListData>>('/public/tasks' + (query ? '?' + query : ''), options)
+  },
+  publicTask(slug: string, options: RequestInit = {}) {
+    return apiFetch<ApiEnvelope<PublicTask>>('/public/tasks/' + encodeURIComponent(slug), options)
   },
   reservations() {
     return apiFetch<ApiEnvelope<{ items: ApiReservation[] }>>('/reservations')

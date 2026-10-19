@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\PayoutMethodController;
 use App\Http\Controllers\Api\ProofSubmissionController;
+use App\Http\Controllers\Api\PublicTaskController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\TaskController;
@@ -39,6 +40,8 @@ Route::get('email/verify/{id}/{hash}', [AuthController::class, 'confirmEmail'])
 Route::get('profile-photos/{user}', [AuthController::class, 'showProfilePhoto'])
     ->middleware('throttle:api')
     ->name('profile-photos.show');
+Route::get('public/tasks', [PublicTaskController::class, 'index'])->middleware('throttle:api');
+Route::get('public/tasks/{task}', [PublicTaskController::class, 'show'])->middleware('throttle:api');
 
 Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function (): void {
     Route::get('me', [AuthController::class, 'me']);

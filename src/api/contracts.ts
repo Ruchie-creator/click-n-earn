@@ -95,6 +95,25 @@ export type TaskListData = {
   meta: { current_page: number; last_page: number; total: number }
 }
 
+export type PublicTask = {
+  id: number
+  slug: string
+  title: string
+  short_description: string
+  category: string
+  image?: string | null
+  reimbursement_amount: number
+  incentive: number
+  expected_payout: number
+  slots: number
+  status: 'available'
+}
+
+export type PublicTaskListData = {
+  items: PublicTask[]
+  meta: { current_page: number; last_page: number; per_page: number; total: number; categories: string[] }
+}
+
 export type NotificationItem = {
   id: string
   title: string
