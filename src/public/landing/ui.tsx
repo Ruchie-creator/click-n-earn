@@ -113,7 +113,7 @@ export function Container({ children, className = '' }: { children: ReactNode; c
 export function ScrollToTop() {
   const visible = useScrolled(420);
   const reducedMotion = usePrefersReducedMotion();
-  return <button type="button" className={`ce-scroll-top ${visible ? 'is-visible' : ''}`} onClick={() => window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })} aria-label="Scroll back to top" tabIndex={visible ? 0 : -1}><Icon name="arrow" size={19} className="-rotate-90" /><span>Top</span></button>;
+  return <button type="button" className={`ce-scroll-top ${visible ? 'is-visible' : ''}`} onClick={() => window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })} aria-label="Scroll back to top" tabIndex={visible ? 0 : -1}><Icon name="arrow" size={22} className="-rotate-90" /></button>;
 }
 
 export const money = (n: number, currency = 'USD') =>

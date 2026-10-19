@@ -6,7 +6,8 @@ export function FinalCta() {
     <section aria-labelledby="cta-title" className="px-5 py-20 sm:px-8 sm:py-28">
       <Container className="!px-0">
         <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1F3558] via-[#1F3558] to-[#2C2C55] px-6 py-16 text-center sm:px-12 sm:py-20">
-          <div aria-hidden="true" className="ce-grid-dark absolute inset-0" />
+          <img aria-hidden="true" src="/public-images/proof-review-workspace.png" alt="" loading="lazy" decoding="async" className="ce-cta-photo" />
+          <div aria-hidden="true" className="ce-cta-photo-overlay absolute inset-0" />
           <div aria-hidden="true" className="ce-orb absolute -right-16 -top-16 h-72 w-72 rounded-full bg-[#4F6FAE]/40 blur-[90px]" />
           <div aria-hidden="true" className="ce-orb absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-[#4F6FAE]/25 blur-[100px]" style={{ animationDelay: '-9s' }} />
           <Reveal className="relative">

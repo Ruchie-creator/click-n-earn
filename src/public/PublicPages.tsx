@@ -90,7 +90,7 @@ export function PublicFooter() {
 function PublicScrollTop() {
   const [visible, setVisible] = useState(false)
   useEffect(() => { const update = () => setVisible(window.scrollY > 420); update(); window.addEventListener('scroll', update, { passive: true }); return () => window.removeEventListener('scroll', update) }, [])
-  return <button type="button" className={`ce-public-scroll-top ${visible ? 'is-visible' : ''}`} tabIndex={visible ? 0 : -1} aria-label="Scroll back to top" onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })}><ArrowUp size={18} /><span>Top</span></button>
+  return <button type="button" className={`ce-public-scroll-top ${visible ? 'is-visible' : ''}`} tabIndex={visible ? 0 : -1} aria-label="Scroll back to top" onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })}><ArrowUp size={22} strokeWidth={2.7} /></button>
 }
 
 function RewardBreakdown({ task }: { task: PublicTask }) {

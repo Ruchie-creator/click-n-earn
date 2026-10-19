@@ -35,15 +35,15 @@ export function StatusJourney() {
   };
 
   return (
-    <section aria-labelledby="status-title" className="bg-white py-20 sm:py-28">
-      <Container>
+    <section aria-labelledby="status-title" className="relative isolate overflow-hidden bg-white py-20 sm:py-28">
+      <div aria-hidden="true" className="ce-status-background"><img src="/public-images/progress-together.png" alt="" loading="lazy" decoding="async" /></div>
+      <Container className="relative z-10">
         <SectionHead
           id="status-title"
           eyebrow="Status tracking"
           title="Follow every task, step by step"
           sub="Each task moves through clear statuses, so you always know where things stand. Select a step to learn more."
         />
-
         <div ref={ref} className="mx-auto mt-14 max-w-4xl">
           <div className="relative">
             <div aria-hidden="true" className="absolute left-0 right-0 top-6 hidden h-1 rounded-full bg-[#EEF3FA] sm:block">

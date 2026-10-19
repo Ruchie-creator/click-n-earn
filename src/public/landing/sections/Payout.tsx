@@ -33,9 +33,10 @@ export function Payout() {
         </div>
 
         <Reveal delay={120}>
-          <div className="relative">
+          <div className="relative ce-reward-photo-stage">
             <div aria-hidden="true" className="absolute -inset-4 -z-10 rounded-[32px] bg-gradient-to-br from-[#EEF3FA] to-transparent" />
-            <div className="ce-card p-6 sm:p-8" role="group" aria-label="Example reward breakdown. Sample data.">
+            <img src="/public-images/rewards-at-home.png" alt="Member checking a reward update on her phone" loading="lazy" decoding="async" className="ce-reward-photo" />
+            <div className="ce-card ce-reward-breakdown-card p-6 sm:p-8" role="group" aria-label="Example reward breakdown. Sample data.">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-[#172033]">Reward breakdown</p>
                 <span className="rounded-md bg-[#EEF3FA] px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#4F6FAE]">Example</span>
