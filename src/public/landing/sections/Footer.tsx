@@ -42,8 +42,8 @@ export function Footer() {
           <Col title="Support" links={support} />
         </div>
         <div className="mt-12 flex flex-col gap-2 border-t border-[#EEF3FA] pt-6 text-xs text-[#667085] sm:flex-row sm:items-center sm:justify-between">
-          <p>Developed with <span aria-label="love">love</span> by <a href="https://clint-rono.dev" target="_blank" rel="noreferrer" className="font-semibold text-[#1F3558] underline decoration-[#4F6FAE]/50 underline-offset-4 transition-colors hover:text-[#4F6FAE]">Clint R</a>.</p>
-          <p>Rewards depend on completing and passing verification. Earnings are not guaranteed.</p>
+          <p>© {new Date().getFullYear()} {C.brandName}. All rights reserved.</p>
+          <p>Developed with <span role="img" aria-label="love">❤️</span> by <a href="https://clint-rono.dev" target="_blank" rel="noreferrer" className="font-semibold text-[#1F3558] underline decoration-[#4F6FAE]/50 underline-offset-4 transition-colors hover:text-[#4F6FAE]">Clint R</a>.</p>
         </div>
       </Container>
     </footer>
