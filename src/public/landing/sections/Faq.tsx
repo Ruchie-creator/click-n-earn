@@ -18,6 +18,27 @@ export function Faq() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (faqs.length === 0) return;
+
+    const script = document.createElement('script');
+    script.id = 'faq-structured-data';
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faqs.map((faq) => ({
+        '@type': 'Question',
+        name: faq.question,
+        acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+      })),
+    });
+    document.head.querySelector('#faq-structured-data')?.remove();
+    document.head.appendChild(script);
+
+    return () => script.remove();
+  }, [faqs]);
+
   return (
     <section id="faq" aria-labelledby="faq-title" className="bg-white py-20 sm:py-28">
       <Container className="max-w-3xl">
