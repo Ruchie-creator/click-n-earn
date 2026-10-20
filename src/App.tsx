@@ -564,10 +564,10 @@ function AccountEligibilityPanel({ user, onNavigate, onResendEmail, compact = fa
     ? 'Payout information requires review'
     : payoutStatus === 'not_submitted' ? 'Not submitted'
       : payoutStatus.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-  const checks = [
-    { label: 'Email verified', complete: emailVerified, status: emailVerified ? 'Verified' : 'Action needed' },
-    { label: 'Bank account submitted', complete: payoutStatus !== 'not_submitted', status: payoutStatus === 'not_submitted' ? 'Not submitted' : 'Submitted' },
-    { label: 'Bank account approved', complete: payoutApproved, status: payoutApproved ? 'Approved' : payoutLabel },
+  const checks: Array<{ label: string; complete: boolean; status: string; target: AppPage; destination: string }> = [
+    { label: 'Email verified', complete: emailVerified, status: emailVerified ? 'Verified' : 'Action needed', target: 'profile', destination: 'Open profile' },
+    { label: 'Bank account submitted', complete: payoutStatus !== 'not_submitted', status: payoutStatus === 'not_submitted' ? 'Not submitted' : 'Submitted', target: 'payouts', destination: 'Open payouts' },
+    { label: 'Bank account approved', complete: payoutApproved, status: payoutApproved ? 'Approved' : payoutLabel, target: 'payouts', destination: 'Open payouts' },
   ]
   return <section className={`card ${compact ? 'p-4 sm:p-5' : 'p-5 sm:p-6'}`} aria-label="Account verification status">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -576,10 +576,11 @@ function AccountEligibilityPanel({ user, onNavigate, onResendEmail, compact = fa
         <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-ink">{user?.eligible_to_reserve ? 'You’re ready to reserve tasks' : 'Complete these steps to reserve tasks'}</h2>
         {!user?.eligible_to_reserve && user?.eligibility_message && <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">{user.eligibility_message}</p>}
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          {checks.map((check) => <div key={check.label} className="flex min-w-0 items-start gap-2 rounded-lg bg-canvas px-3 py-2.5">
+          {checks.map((check) => <button key={check.label} type="button" onClick={() => onNavigate(check.target)} aria-label={`${check.label}: ${check.status}. ${check.destination}`} className="group flex min-h-12 w-full min-w-0 items-start gap-2 rounded-lg bg-canvas px-3 py-2.5 text-left transition-[background-color,box-shadow,transform] duration-200 hover:bg-soft-blue hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[0.96]">
             {check.complete ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-success" /> : <Clock3 size={15} className="mt-0.5 shrink-0 text-warning" />}
             <div className="min-w-0"><p className="text-[11px] font-semibold text-ink">{check.label}</p><p className="mt-0.5 truncate text-[10px] text-muted">{check.status}</p></div>
-          </div>)}
+            <ChevronRight size={14} className="ml-auto mt-0.5 shrink-0 text-subtle transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
+          </button>)}
         </div>
       </div>
       {!user?.eligible_to_reserve && <div className="flex shrink-0 flex-col gap-2 sm:min-w-[190px] sm:self-center">
