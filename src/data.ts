@@ -18,6 +18,8 @@ export type Task = {
   checkoutUrl?: string
 }
 
+export let taskCategories: string[] = []
+
 export type ActivityItem = {
   title: string
   meta: string
@@ -43,7 +45,7 @@ export type NotificationItem = {
   referralId?: number
 }
 
-export type ReferralItem = { id: number; name: string; joined: string; status: string; reward: number; rewardStatus?: string }
+export type ReferralItem = { id: number; name: string; joined: string; status: string; reward: number; rewardStatus?: string; qualificationStatus?: string; task?: string | null; purchaseAmount?: number; approvedAt?: string | null; payoutStatus?: string | null; paidAt?: string | null }
 
 export type ReservationItem = {
   id: number
@@ -124,11 +126,9 @@ export type AdminNotificationRow = { id: number; title: string; body: string; re
 const money = (value: unknown) => '$' + Number(value || 0).toFixed(2)
 const dateLabel = (value?: string | null) => value ? new Date(value).toLocaleString() : '—'
 const readableStatus = (value?: string | null) => value ? value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : '—'
-const payoutProviderLabel = (provider?: string | null) => provider === 'airwallex'
-  ? 'Airwallex'
-  : provider === 'fake'
-    ? 'Sandbox demo'
-    : readableStatus(provider)
+const payoutProviderLabel = (provider?: string | null) => provider === 'airwallex' || provider === 'fake'
+  ? 'Bank Transfer'
+  : readableStatus(provider)
 const confidenceLabel = (value?: number | null) => value === null || value === undefined
   ? 'Not checked'
   : value >= 0.85 ? 'High' : value >= 0.6 ? 'Medium' : 'Review'
@@ -173,6 +173,12 @@ export let adminStats = {
   qualifiedReferrals: '—',
   referralConversion: '—',
   referralRewardsPaid: '—',
+  pendingBankVerifications: '—',
+  approvedBankVerifications: '—',
+  changesRequestedBankVerifications: '—',
+  duplicatePayoutDetails: '—',
+  pendingReferralApprovals: '—',
+  referralRewardsAwaitingPayout: '—',
 }
 
 export let adminNotificationStats = {
@@ -290,11 +296,13 @@ function mapTask(task: BackendTask): Task {
 
 export function hydrateMarketplaceData(payload: {
   tasks?: BackendTask[]
+    categories?: string[]
   reservations?: BackendReservation[]
   notifications?: Array<{ id: string; title: string; body: string; type?: string; event_type?: string; event_key?: string; task_id?: number; reservation_id?: number; proof_submission_id?: number; payout_id?: number; referral_id?: number; read?: boolean; created_at?: string | null }>
   unreadCount?: number
 }): void {
   if (payload.tasks !== undefined) tasks = payload.tasks.map(mapTask)
+    if (payload.categories !== undefined) taskCategories = payload.categories.filter((category) => category.trim() !== '')
   if (payload.reservations !== undefined) {
     reservations = payload.reservations.map((reservation) => ({
       id: reservation.id,
@@ -399,6 +407,12 @@ export function hydrateAdminData(stats: Record<string, string | number>, queues?
     qualifiedReferrals: String(stats.qualified_referrals ?? 0),
     referralConversion: `${Number(stats.referral_conversion_rate ?? 0).toFixed(1)}%`,
     referralRewardsPaid: money(stats.referral_rewards_paid),
+    pendingBankVerifications: String(stats.pending_bank_verifications ?? 0),
+    approvedBankVerifications: String(stats.approved_bank_verifications ?? 0),
+    changesRequestedBankVerifications: String(stats.bank_verifications_changes_requested ?? 0),
+    duplicatePayoutDetails: String(stats.duplicate_payout_details ?? 0),
+    pendingReferralApprovals: String(stats.pending_referral_approvals ?? 0),
+    referralRewardsAwaitingPayout: String(stats.referral_rewards_awaiting_payout ?? 0),
   }
   if (queues !== undefined) {
     verificationQueue = (queues.verification ?? []).map(mapQueueSubmission)
@@ -479,7 +493,7 @@ export function hydrateAdminPayouts(items: Array<{ id: number; amount: number; r
 export function hydrateFinanceData(payload: {
   earnings?: { items: Array<{ id: number; amount: number; type: string; direction: string; status: string; task?: string | null; created_at?: string | null }> }
   payouts?: { items: Array<{ id: number; amount: number; currency: string; status: string; provider?: string; provider_reference?: string | null; paid_at?: string | null; requested_at?: string | null }> }
-  referrals?: { code: string; qualified_count?: number; items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status?: string }> }
+    referrals?: { code: string; qualified_count?: number; items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status?: string; qualification_status?: string; task?: string | null; qualifying_purchase?: { task?: string | null; purchase_amount: number; approved_at?: string | null } | null; payout_status?: string | null; paid_at?: string | null }> }
 }): void {
   if (payload.earnings !== undefined) {
     activity = payload.earnings.items.map((item) => ({
@@ -508,6 +522,12 @@ export function hydrateFinanceData(payload: {
       status: item.status,
       reward: item.reward,
       rewardStatus: item.reward_status,
+      qualificationStatus: item.qualification_status,
+      task: item.qualifying_purchase?.task || item.task,
+      purchaseAmount: item.qualifying_purchase?.purchase_amount,
+      approvedAt: item.qualifying_purchase?.approved_at,
+      payoutStatus: item.payout_status,
+      paidAt: item.paid_at,
     }))
     dashboardStats = {
       ...dashboardStats,
@@ -578,6 +598,7 @@ export function markNotificationsRead(): void {
 
 export function clearAllData(): void {
   tasks = []
+  taskCategories = []
   adminTasks = []
   reservations = []
   activity = []
@@ -615,6 +636,12 @@ export function clearAllData(): void {
     qualifiedReferrals: '—',
     referralConversion: '—',
     referralRewardsPaid: '—',
+    pendingBankVerifications: '—',
+    approvedBankVerifications: '—',
+    changesRequestedBankVerifications: '—',
+    duplicatePayoutDetails: '—',
+    pendingReferralApprovals: '—',
+    referralRewardsAwaitingPayout: '—',
   }
   adminNotificationStats = {
     sentThisMonth: '—',

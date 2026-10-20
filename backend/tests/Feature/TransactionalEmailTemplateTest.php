@@ -47,4 +47,22 @@ class TransactionalEmailTemplateTest extends TestCase
         $this->assertStringContainsString('****1234', $html);
         $this->assertStringContainsString('https://app.example.test/?page=payouts', $html);
     }
+
+    public function test_email_verification_uses_the_shared_transactional_template_and_signed_action(): void
+    {
+        config()->set('app.frontend_url', 'https://app.example.test');
+        $notification = new EventNotification('Verify your email address', 'Verify your address to secure your account.', 'warning', [
+            'event_key' => 'email.verification',
+            'cta_label' => 'Verify Email Address',
+            'cta_url' => 'https://api.example.test/api/email/verify/42/abcdef?expires=1999999999&signature=signed-value',
+        ]);
+
+        $mail = $notification->toMail(new User(['name' => 'Taylor']));
+        $html = view('emails.transactional', $notification->payloadFor(new User(['name' => 'Taylor'])))->render();
+
+        $this->assertSame(['html' => 'emails.transactional', 'text' => 'emails.transactional-text'], $mail->view);
+        $this->assertStringContainsString('Verify Email Address', $html);
+        $this->assertStringContainsString('https://api.example.test/api/email/verify/42/abcdef?expires=1999999999&amp;signature=signed-value', $html);
+        $this->assertStringNotContainsString('Airwallex', $html);
+    }
 }

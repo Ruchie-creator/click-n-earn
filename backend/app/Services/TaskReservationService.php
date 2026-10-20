@@ -20,11 +20,14 @@ class TaskReservationService
         private readonly AuditLogService $audit,
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
+        private readonly TaskEligibilityService $eligibility,
     ) {}
 
     public function reserve(User $user, Task|int $task, ?string $demoKey = null): TaskReservation
     {
         return DB::transaction(function () use ($user, $task, $demoKey): TaskReservation {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            $this->eligibility->assertCanReserve($user);
             $taskModel = Task::query()->lockForUpdate()->findOrFail($task instanceof Task ? $task->getKey() : $task);
 
             $userBatchId = $user->getAttribute('demo_batch_id');
@@ -48,6 +51,13 @@ class TaskReservationService
                 )),
             )->exists()) {
                 throw ValidationException::withMessages(['task' => 'You already have an active reservation for this task.']);
+            }
+            if (TaskReservation::query()
+                ->where('user_id', $user->id)
+                ->where('task_id', $taskModel->id)
+                ->whereNotNull('participation_claimed_at')
+                ->exists()) {
+                throw ValidationException::withMessages(['task' => 'You have already submitted proof or completed this task. Each task can be completed once per account.']);
             }
 
             $reimbursement = (string) $taskModel->reimbursement_amount;

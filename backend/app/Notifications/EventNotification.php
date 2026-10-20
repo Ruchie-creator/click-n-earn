@@ -137,6 +137,7 @@ class EventNotification extends Notification
         $adminNotification = (bool) data_get($this->data, 'admin_notification');
 
         return match (true) {
+            str_starts_with($eventKey, 'email.verified') => ['Browse Available Tasks', '/?page=tasks'],
             str_starts_with($eventKey, 'welcome') => ['Browse Available Tasks', '/?page=tasks'],
             str_starts_with($eventKey, 'reservation.created') && $adminNotification => ['Review Reservations', '/?page=admin-dashboard'],
             str_starts_with($eventKey, 'reservation.created') => ['View Task', '/?page=task-detail&task='.data_get($this->data, 'task_id')],
@@ -150,6 +151,9 @@ class EventNotification extends Notification
             str_starts_with($eventKey, 'payout.paid') => ['View Payout History', '/?page=payouts'],
             str_starts_with($eventKey, 'payout.failed') && data_get($this->data, 'admin_notification') => ['Review Payout', '/?page=admin-payouts'],
             str_starts_with($eventKey, 'payout.') => ['View Payout', '/?page=payouts'],
+            str_starts_with($eventKey, 'payout_verification.') && $adminNotification => ['Review Bank Accounts', '/?page=admin-payout-verification'],
+            str_starts_with($eventKey, 'payout_verification.') => ['View Bank Account Settings', '/?page=payouts'],
+            str_starts_with($eventKey, 'referral.pending_approval') => ['Review Referral Rewards', '/?page=admin-referrals'],
             str_starts_with($eventKey, 'referral.') => ['View Referrals', '/?page=referrals'],
             default => ['Open Click & Earn', '/?page=notifications'],
         };

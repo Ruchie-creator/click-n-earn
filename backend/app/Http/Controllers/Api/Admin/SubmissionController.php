@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\ProofSubmission;
-use App\Services\ReceiptVerificationService;
 use App\Services\VerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,11 +13,26 @@ class SubmissionController extends ApiController
 {
     public function index(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'status' => ['sometimes', 'string', 'in:all,proof_submitted,under_review,approved,rejected,changes_requested'],
+            'search' => ['sometimes', 'string', 'max:120'],
+        ]);
         $query = ProofSubmission::with(['user', 'reservation.task', 'verification'])->where('is_current', true);
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
-        } else {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
+            $query->where('status', $filters['status']);
+        } elseif (($filters['status'] ?? null) !== 'all') {
             $query->whereIn('status', ['proof_submitted', 'under_review']);
+        }
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('transaction_reference', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('user', fn ($user) => $user->where('name', 'ilike', '%'.$search.'%')->orWhere('email', 'ilike', '%'.$search.'%'))
+                    ->orWhereHas('reservation.task', fn ($task) => $task->where('title', 'ilike', '%'.$search.'%'));
+                if (preg_match('/\Asub-?0*(\d+)\z/i', $search, $matches)) {
+                    $builder->orWhere('id', (int) $matches[1]);
+                }
+            });
         }
         $query->latest();
         $items = $query->paginate(30);

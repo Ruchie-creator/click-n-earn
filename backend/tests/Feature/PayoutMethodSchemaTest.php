@@ -96,7 +96,7 @@ class PayoutMethodSchemaTest extends TestCase
         $this->actingAs($member, 'sanctum')
             ->getJson('/api/payout-methods/schema?country=US&currency=USD&entity_type=PERSONAL&transfer_method=LOCAL&local_clearing_system=ACH')
             ->assertUnprocessable()
-            ->assertJsonPath('errors.payout_method.0', 'Airwallex could not load requirements for this bank route. Check the country, currency, and local clearing system, then try again.');
+            ->assertJsonPath('errors.payout_method.0', 'We could not load requirements for this bank route. Check the country, currency, and local clearing system, then try again.');
     }
 
     public function test_payout_method_is_validated_with_airwallex_before_it_is_saved(): void

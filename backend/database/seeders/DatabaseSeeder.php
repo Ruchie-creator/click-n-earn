@@ -88,6 +88,10 @@ class DatabaseSeeder extends Seeder
                 'account_details' => ['account_number' => '000000004219'],
                 'status' => 'active',
                 'is_default' => true,
+                'verification_status' => 'approved',
+                'verification_submitted_at' => now()->subDays(2),
+                'verification_reviewed_at' => now()->subDay(),
+                'verification_reviewed_by' => $admin->id,
             ],
         );
 
@@ -165,6 +169,13 @@ class DatabaseSeeder extends Seeder
                 'expires_at' => now()->addDays(2),
             ],
         );
+        foreach ([$paidReservation, $reviewReservation] as $consumedReservation) {
+            if ($consumedReservation->participation_claimed_at === null) {
+                $consumedReservation->forceFill([
+                    'participation_claimed_at' => $consumedReservation->submitted_at ?: $consumedReservation->created_at ?: now(),
+                ])->save();
+            }
+        }
 
         $ledger = app(LedgerService::class);
         foreach ([$paidReservation, $reviewReservation, $reservedReservation] as $reservation) {
@@ -182,23 +193,29 @@ class DatabaseSeeder extends Seeder
             ['from_status' => null, 'actor_id' => $member->id, 'reason' => 'Seeded reservation', 'created_at' => now()->subDays(2), 'updated_at' => now()->subDays(2)],
         );
 
-        Storage::disk('local')->put('proofs/seed/demo-receipt.txt', 'Seed proof file for local development.');
+        $proofPath = sprintf('proofs/%d/%d/v1-demo-receipt.png', $member->id, $reviewReservation->id);
+        $proofBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC', true);
+        if ($proofBytes === false) {
+            throw new RuntimeException('The demo proof image could not be decoded.');
+        }
+        Storage::disk('local')->put($proofPath, $proofBytes);
         $proof = ProofSubmission::updateOrCreate(
             ['task_reservation_id' => $reviewReservation->id, 'version' => 1],
             [
                 'user_id' => $member->id,
                 'file_disk' => 'local',
-                'file_path' => 'proofs/seed/demo-receipt.txt',
-                'original_file_name' => 'receipt_jordan.txt',
-                'mime_type' => 'text/plain',
-                'file_size' => 43,
-                'file_sha256' => hash('sha256', 'Seed proof file for local development.'),
+                'file_path' => $proofPath,
+                'original_file_name' => 'receipt_jordan.png',
+                'mime_type' => 'image/png',
+                'file_size' => strlen($proofBytes),
+                'file_sha256' => hash('sha256', $proofBytes),
                 'purchase_amount' => 47,
                 'purchase_date' => now()->subDays(2)->toDateString(),
                 'purchase_time' => '09:42',
                 'transaction_reference' => 'CE-SEED-2841',
                 'user_note' => 'Seeded example proof for the admin review queue.',
                 'status' => 'under_review',
+                'is_current' => true,
                 'submitted_at' => now()->subHours(3),
             ],
         );
@@ -244,17 +261,18 @@ class DatabaseSeeder extends Seeder
                 'referrer_id' => $member->id,
                 'referral_code' => $member->referral_code,
                 'registered_at' => now()->subDays(8),
-                'qualified_at' => now()->subDays(2),
+                'qualified_at' => null,
+                'qualifying_task_reservation_id' => null,
                 'reward_amount' => 12,
                 'reward_status' => 'pending',
             ],
         );
-        $ledger->issueReferralReward($referral);
 
         Notification::sendNow($member, new EventNotification('Proof Submitted', 'Your Digital Marketing Toolkit submission is now Under Review.', 'processing'));
         Notification::sendNow($member, new EventNotification('Your payout is on the way', 'The $30.00 reward for Remote Work Starter Pack has been marked paid.', 'success'));
         Setting::updateOrCreate(['key' => 'verification.require_transaction_reference'], ['value' => ['enabled' => true]]);
         Setting::updateOrCreate(['key' => 'payouts.minimum_threshold'], ['value' => ['amount' => 10]]);
         Setting::updateOrCreate(['key' => 'referrals.reward_amount'], ['value' => ['amount' => 12]]);
+        $this->call([TaskCategorySeeder::class, FaqSeeder::class]);
     }
 }

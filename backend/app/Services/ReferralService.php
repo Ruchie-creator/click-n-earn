@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Referral;
 use App\Models\Setting;
+use App\Models\TaskReservation;
 use App\Models\User;
 use App\Notifications\EventNotification;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,7 @@ class ReferralService
 
         $referrer = User::query()->where('referral_code', strtoupper(trim($code)))->first();
 
-        if (! $referrer || $referrer->is($referredUser)) {
+        if (! $referrer || $referrer->is($referredUser) || mb_strtolower($referrer->email) === mb_strtolower($referredUser->email)) {
             return null;
         }
 
@@ -59,9 +60,9 @@ class ReferralService
         return (string) data_get($configured, 'amount', config('referrals.reward_amount', 12));
     }
 
-    public function qualifyAfterApprovedTask(User $referredUser): ?Referral
+    public function qualifyAfterApprovedTask(User $referredUser, TaskReservation $reservation): ?Referral
     {
-        return DB::transaction(function () use ($referredUser): ?Referral {
+        return DB::transaction(function () use ($referredUser, $reservation): ?Referral {
             $referral = Referral::query()
                 ->with('referrer')
                 ->where('referred_user_id', $referredUser->id)
@@ -73,22 +74,55 @@ class ReferralService
                 return null;
             }
 
+            $sharedPayoutDetails = $this->sharesApprovedPayoutIdentifier($referral);
             $referral->forceFill([
                 'qualified_at' => now(),
-                'reward_status' => 'pending',
+                'qualifying_task_reservation_id' => $reservation->id,
+                'reward_status' => 'pending_approval',
+                'self_abuse_flagged_at' => $sharedPayoutDetails ? now() : null,
             ])->save();
 
             app(LedgerService::class)->issueReferralReward($referral);
             if ($referral->referrer) {
                 $this->notifications->notifyOnce($referral->referrer, 'referral.qualified.'.$referral->id, new EventNotification(
                     'Referral reward qualified',
-                    $referredUser->name.' completed their first approved task. A referral reward has been added to your earnings.',
-                    'success',
-                    ['referral_id' => $referral->id, 'reward_amount' => $referral->reward_amount, 'currency' => config('payout.currency', 'USD')],
+                    $referredUser->name.' completed their first approved task. Your referral reward is awaiting administrator approval.',
+                    'info',
+                    ['event_key' => 'referral.qualified', 'referral_id' => $referral->id, 'reward_amount' => $referral->reward_amount, 'currency' => config('payout.currency', 'USD')],
                 ), $referral->getAttribute('demo_batch_id'));
             }
+            $this->notifications->notifyAdmins('referral.pending_approval.'.$referral->id, new EventNotification(
+                'Referral reward awaiting review',
+                sprintf('Referral reward #%d qualified after its first approved task and is awaiting administrator review.', $referral->id),
+                $sharedPayoutDetails ? 'warning' : 'info',
+                [
+                    'event_key' => 'referral.pending_approval',
+                    'referral_id' => $referral->id,
+                    'reward_amount' => $referral->reward_amount,
+                    'member' => $referral->referrer?->name,
+                    'possible_duplicate_account' => $sharedPayoutDetails,
+                    'admin_notification' => true,
+                ],
+            ), $referral->getAttribute('demo_batch_id'));
 
             return $referral->fresh();
         });
+    }
+
+    private function sharesApprovedPayoutIdentifier(Referral $referral): bool
+    {
+        if (! $referral->referrer_id || ! $referral->referred_user_id) {
+            return false;
+        }
+
+        $referrerFingerprints = $referral->referrer->payoutMethods()
+            ->where('verification_status', 'approved')
+            ->whereNotNull('account_fingerprint')
+            ->pluck('account_fingerprint');
+
+        return $referrerFingerprints->isNotEmpty() && $referral->referredUser->payoutMethods()
+            ->where('verification_status', 'approved')
+            ->whereIn('account_fingerprint', $referrerFingerprints)
+            ->exists();
     }
 }

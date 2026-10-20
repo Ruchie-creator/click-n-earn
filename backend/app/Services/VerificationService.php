@@ -71,7 +71,9 @@ class VerificationService
                 ->whereIn('status', [
                     ReservationStatus::APPROVED->value,
                     ReservationStatus::PROCESSING->value,
+                    ReservationStatus::PAYOUT_FAILED->value,
                     ReservationStatus::PAID->value,
+                    ReservationStatus::REVERSED->value,
                 ])->exists();
 
             $this->transitions->transition($reservation, ReservationStatus::APPROVED->value, $actorId, 'Proof approved.', ['proof_submission_id' => $proof->id]);
@@ -80,7 +82,7 @@ class VerificationService
             $this->ledger->updateReservationStatus($reservation, LedgerStatus::PENDING);
             $payout = $this->payouts->createApprovedForReservation($reservation);
             if (! $hasPriorApproved) {
-                $this->referrals->qualifyAfterApprovedTask($reservation->user);
+                $this->referrals->qualifyAfterApprovedTask($reservation->user, $reservation);
             }
             $this->audit->record('proof.approved', $proof, actorId: $actorId, after: $proof->toArray());
 
@@ -121,7 +123,7 @@ class VerificationService
             $this->audit->record('proof.changes_requested', $proof, actorId: $actorId, after: $proof->toArray(), reason: $reason);
             $this->notifications->notifyOnce($reservation->user, 'proof.changes_requested.'.$proof->id, new EventNotification(
                 'Changes requested',
-                sprintf('The verification team requested updates to your proof for %s. Please review the note below and submit a new proof file.', $reservation->task->title),
+                sprintf('The verification team requested a review of your proof for %s. Each task allows one proof submission; contact support if you need help with the reviewer’s note.', $reservation->task->title),
                 'warning',
                 ['reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $reservation->task->title, 'proof_submission_id' => $proof->id, 'reviewer_note' => $reason],
             ), $reservation->getAttribute('demo_batch_id'));

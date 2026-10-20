@@ -80,9 +80,11 @@ export type AppPage =
   | 'admin-tasks'
   | 'admin-submissions'
   | 'admin-verification'
+  | 'admin-payout-verification'
   | 'admin-payouts'
   | 'admin-users'
   | 'admin-referrals'
+  | 'admin-faqs'
   | 'admin-transactions'
   | 'admin-notifications'
   | 'admin-settings'
@@ -288,9 +290,11 @@ function navIcon(page: string): LucideIcon {
     'admin-tasks': ListChecks,
     'admin-submissions': FileClock,
     'admin-verification': ClipboardCheck,
+    'admin-payout-verification': Landmark,
     'admin-payouts': Landmark,
     'admin-users': UsersRound,
     'admin-referrals': Network,
+    'admin-faqs': HelpCircle,
     'admin-transactions': ReceiptText,
     'admin-notifications': Bell,
     'admin-settings': Settings2,
@@ -301,8 +305,8 @@ function navIcon(page: string): LucideIcon {
 
 export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onOpenAdmin, canAccessAdmin, onLogout, unreadCount = 0, reviewCount = 0 }: { admin: boolean; page: AppPage; onNavigate: (page: AppPage) => void; mobileOpen: boolean; onClose: () => void; onOpenAdmin: () => void; canAccessAdmin: boolean; onLogout: () => void; unreadCount?: number; reviewCount?: number }) {
   const groups = admin ? [
-    { label: 'Command center', items: [['admin-dashboard', 'Dashboard'], ['admin-tasks', 'Tasks'], ['admin-submissions', 'Submissions'], ['admin-verification', 'Verification queue'], ['admin-payouts', 'Payouts']] },
-    { label: 'Manage', items: [['admin-users', 'Users'], ['admin-referrals', 'Referrals'], ['admin-transactions', 'Transactions']] },
+    { label: 'Command center', items: [['admin-dashboard', 'Dashboard'], ['admin-tasks', 'Tasks'], ['admin-submissions', 'Submissions'], ['admin-payout-verification', 'Bank accounts'], ['admin-payouts', 'Payouts']] },
+    { label: 'Manage', items: [['admin-users', 'Users'], ['admin-referrals', 'Referrals'], ['admin-faqs', 'FAQs'], ['admin-transactions', 'Transactions']] },
     { label: 'System', items: [['admin-notifications', 'Notifications'], ['admin-settings', 'Settings'], ['admin-profile', 'Profile']] },
   ] : [
     { label: 'Overview', items: [['dashboard', 'Dashboard'], ['tasks', 'Available tasks'], ['my-tasks', 'My tasks']] },
@@ -314,7 +318,7 @@ export function Sidebar({ admin, page, onNavigate, mobileOpen, onClose, onOpenAd
     <aside className={`sidebar-scroll dark-scroll fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col overflow-y-auto bg-navy text-white transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex h-[96px] shrink-0 items-center justify-between border-b border-white/10 px-4"><Logo light size="sidebar" /><button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-lg text-white/50 transition-[background-color,color,transform] hover:bg-white/10 hover:text-white active:scale-[0.96] md:hidden" aria-label="Close navigation"><X size={18} /></button></div>
       <div className="flex flex-1 flex-col px-3 py-5">
-        <nav className="space-y-6">{groups.map((group) => <div key={group.label}><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">{group.label}</p><div className="mt-2 space-y-1">{group.items.map(([itemPage, label]) => { const Icon = navIcon(itemPage); const active = page === itemPage; const count = itemPage === 'notifications' ? unreadCount : itemPage === 'admin-verification' ? reviewCount : 0; return <button key={itemPage} onClick={() => { onNavigate(itemPage as AppPage); onClose() }} className={`sidebar-link flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition-[background-color,color] duration-200 ${active ? 'bg-white text-navy shadow-sm' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.8} /><span className="flex-1">{label}</span>{count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-soft-blue text-navy' : 'bg-white/10 text-white/65'}`}>{count}</span>}</button> })}</div></div>)}</nav>
+        <nav className="space-y-6">{groups.map((group) => <div key={group.label}><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">{group.label}</p><div className="mt-2 space-y-1">{group.items.map(([itemPage, label]) => { const Icon = navIcon(itemPage); const active = page === itemPage || (itemPage === 'admin-submissions' && page === 'admin-verification'); const count = itemPage === 'notifications' ? unreadCount : itemPage === 'admin-submissions' ? reviewCount : 0; return <button key={itemPage} onClick={() => { onNavigate(itemPage as AppPage); onClose() }} className={`sidebar-link flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition-[background-color,color] duration-200 ${active ? 'bg-white text-navy shadow-sm' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.8} /><span className="flex-1">{label}</span>{count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-soft-blue text-navy' : 'bg-white/10 text-white/65'}`}>{count}</span>}</button> })}</div></div>)}</nav>
         <div className="mt-auto pt-6">{canAccessAdmin && !admin && <button onClick={onOpenAdmin} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"><ShieldCheck size={15} />Open admin workspace</button>}<button onClick={onLogout} className={`${canAccessAdmin && !admin ? 'mt-1' : ''} flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white`}><LogOut size={15} />Sign out</button></div>
       </div>
     </aside>

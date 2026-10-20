@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class TaskReservation extends Model
 {
@@ -39,6 +40,7 @@ class TaskReservation extends Model
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'completed_at' => 'datetime',
+            'participation_claimed_at' => 'datetime',
         ];
     }
 
@@ -72,7 +74,7 @@ class TaskReservation extends Model
         return $this->hasOne(Payout::class);
     }
 
-    public function statusHistories(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    public function statusHistories(): MorphMany
     {
         return $this->morphMany(StatusHistory::class, 'subject');
     }

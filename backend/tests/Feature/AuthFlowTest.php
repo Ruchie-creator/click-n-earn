@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Jobs\SendNotificationEmailJob;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -86,15 +87,25 @@ class AuthFlowTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
-    public function test_unverified_members_are_blocked_until_their_signed_email_verification_link_is_used(): void
+    public function test_unverified_members_can_browse_but_cannot_reserve_until_their_signed_link_is_used(): void
     {
         Queue::fake();
         $user = User::factory()->unverified()->create([
             'account_status' => AccountStatus::ACTIVE,
         ]);
 
-        $this->actingAs($user, 'sanctum')->getJson('/api/me')->assertOk();
-        $this->actingAs($user, 'sanctum')->getJson('/api/dashboard')->assertForbidden();
+        $task = Task::create([
+            'title' => 'Email verification task', 'slug' => 'email-verification-task', 'description' => 'A test task.',
+            'category' => 'testing', 'external_checkout_url' => 'https://example.invalid/checkout',
+            'reimbursement_amount' => '10.00', 'incentive_amount' => '2.00', 'expected_payout' => '12.00',
+            'available_slots' => 1, 'instructions' => [], 'proof_requirements' => [], 'status' => 'available',
+            'starts_at' => now()->subMinute(), 'expires_at' => now()->addDay(), 'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/me')->assertOk()->assertJsonPath('data.email_verified', false);
+        $this->actingAs($user, 'sanctum')->getJson('/api/dashboard')->assertOk();
+        $this->actingAs($user, 'sanctum')->getJson('/api/tasks')->assertOk();
+        $this->actingAs($user, 'sanctum')->postJson('/api/tasks/'.$task->id.'/reserve')->assertUnprocessable()->assertJsonValidationErrors('eligibility');
         $this->actingAs($user, 'sanctum')->postJson('/api/email/verify')->assertAccepted();
         Queue::assertPushed(SendNotificationEmailJob::class);
 
@@ -109,6 +120,34 @@ class AuthFlowTest extends TestCase
         $this->assertNotNull($user->fresh()->email_verified_at);
         $this->actingAs($user->fresh(), 'sanctum')->getJson('/api/dashboard')->assertOk();
         $this->assertDatabaseHas('notification_outbox', ['user_id' => $user->id, 'event_key' => 'welcome.'.$user->id]);
+    }
+
+    public function test_invalid_and_expired_verification_links_do_not_verify_a_member(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $parameters = ['id' => $user->id, 'hash' => sha1($user->email)];
+        $validUrl = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), $parameters);
+        $invalidUrl = $validUrl.'&tampered=1';
+        $expiredUrl = URL::temporarySignedRoute('verification.verify', now()->subMinute(), $parameters);
+
+        $this->get($invalidUrl)->assertForbidden();
+        $this->get($expiredUrl)->assertForbidden();
+
+        $this->assertNull($user->fresh()->email_verified_at);
+    }
+
+    public function test_verification_email_resend_is_rate_limited(): void
+    {
+        Queue::fake();
+        $user = User::factory()->unverified()->create();
+
+        for ($attempt = 0; $attempt < 6; $attempt++) {
+            $this->actingAs($user, 'sanctum')->postJson('/api/email/verify')->assertAccepted();
+        }
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/email/verify')->assertTooManyRequests();
+        Queue::assertPushed(SendNotificationEmailJob::class, 6);
+        $this->assertNull($user->fresh()->email_verified_at);
     }
 
     public function test_members_cannot_access_admin_routes(): void

@@ -17,6 +17,7 @@ class Task extends Model
         'slug',
         'description',
         'category',
+        'category_id',
         'image_path',
         'external_checkout_url',
         'reimbursement_amount',
@@ -53,6 +54,11 @@ class Task extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(TaskReservation::class);
+    }
+
+    public function taskCategory(): BelongsTo
+    {
+        return $this->belongsTo(TaskCategory::class, 'category_id');
     }
 
     public function isAcceptable(): bool

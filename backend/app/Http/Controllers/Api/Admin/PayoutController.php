@@ -60,6 +60,17 @@ class PayoutController extends ApiController
         return $this->ok($this->payoutPayload($payout->fresh()));
     }
 
+    public function markPaidManually(Request $request, Payout $payout, PayoutService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'reference' => ['required', 'string', 'max:160'],
+            'note' => [$payout->referral_id ? 'required' : 'nullable', 'string', 'max:2000'],
+        ]);
+        $result = $service->manualMarkPaid($payout, trim($data['reference']), isset($data['note']) ? trim($data['note']) : null, $request->user()->id);
+
+        return $this->ok($this->payoutPayload($result));
+    }
+
     private function adminPayload(Payout $payout): array
     {
         return array_merge($this->payoutPayload($payout), [

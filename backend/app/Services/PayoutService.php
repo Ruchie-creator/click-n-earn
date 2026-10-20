@@ -8,6 +8,7 @@ use App\Enums\ReservationStatus;
 use App\Enums\UserRole;
 use App\Exceptions\AirwallexReconciliationRequired;
 use App\Models\Payout;
+use App\Models\Referral;
 use App\Models\TaskReservation;
 use App\Models\User;
 use App\Notifications\EventNotification;
@@ -60,6 +61,53 @@ class PayoutService
             $reservation->ledgerEntries()->update(['payout_id' => $payout->id]);
 
             return $payout->fresh(['reservation', 'payoutMethod']);
+        });
+    }
+
+    public function createApprovedForReferral(Referral $referral): Payout
+    {
+        return DB::transaction(function () use ($referral): Payout {
+            $locked = Referral::query()->with('referrer')->lockForUpdate()->findOrFail($referral->id);
+            if (! $locked->qualified_at || ! in_array($locked->reward_status, ['pending_approval', 'approved'], true)) {
+                throw ValidationException::withMessages(['status' => 'Only a qualified and approved referral reward can enter payout processing.']);
+            }
+            if ($locked->self_abuse_flagged_at && ! $locked->self_abuse_resolved_at) {
+                throw ValidationException::withMessages(['status' => 'Resolve the referral review before approving its payout.']);
+            }
+            $user = $locked->referrer;
+            if (! $user) {
+                throw ValidationException::withMessages(['status' => 'The referrer account is unavailable.']);
+            }
+            $methodQuery = $user->payoutMethods()
+                ->where('status', 'active')
+                ->where('verification_status', 'approved')
+                ->where(fn ($query) => $query->whereNull('duplicate_flagged_at')->orWhereNotNull('duplicate_resolved_at'));
+            $method = (clone $methodQuery)->where('is_default', true)->first() ?: $methodQuery->latest()->first();
+            if (! $method) {
+                throw ValidationException::withMessages(['payout_method' => 'The referrer must have an approved bank account before this reward can be queued for payout.']);
+            }
+
+            $payout = Payout::query()->firstOrCreate(
+                ['idempotency_key' => 'referral-'.$locked->id],
+                [
+                    'user_id' => $user->id,
+                    'referral_id' => $locked->id,
+                    'payout_method_id' => $method->id,
+                    'provider' => 'airwallex',
+                    'provider_environment' => $this->environments->active(),
+                    'amount' => $locked->reward_amount,
+                    'currency' => config('payout.currency', 'USD'),
+                    'status' => PayoutStatus::APPROVED,
+                    'requested_at' => now(),
+                    'provider_request_id' => 'click-earn-'.$this->environments->active().'-referral-'.$locked->id,
+                ],
+            );
+            if ($batchId = $locked->getAttribute('demo_batch_id')) {
+                $payout->forceFill(['demo_batch_id' => $batchId, 'demo_key' => 'payout-referral-'.$locked->id])->save();
+            }
+            $locked->ledgerEntries()->update(['payout_id' => $payout->id, 'status' => LedgerStatus::PENDING->value]);
+
+            return $payout->fresh(['user', 'payoutMethod', 'referral']);
         });
     }
 
@@ -244,6 +292,10 @@ class PayoutService
                 }
                 $this->ledger->updateReservationStatus($reservation, LedgerStatus::PENDING);
             }
+            if ($model->referral_id) {
+                $model->ledgerEntries()->update(['status' => LedgerStatus::PENDING->value]);
+                $model->referral()->update(['reward_status' => 'approved']);
+            }
 
             $this->audit->record('payout.retry_requested', $model, actorId: $actorId, before: $before, after: $model->toArray());
 
@@ -270,6 +322,10 @@ class PayoutService
         if ($payout->reservation) {
             $this->ledger->updateReservationStatus($payout->reservation, LedgerStatus::PROCESSING);
         }
+        if ($payout->referral_id) {
+            $payout->ledgerEntries()->update(['status' => LedgerStatus::PROCESSING->value]);
+            $payout->referral()->where('reward_status', 'approved')->update(['reward_status' => 'processing']);
+        }
         if ($changed && $payout->user) {
             $this->notifications->notifyOnce($payout->user, 'payout.processing.'.$payout->id.'.'.($payout->processing_at?->getTimestamp() ?? now()->getTimestamp()), new EventNotification(
                 'Your payout is processing',
@@ -293,6 +349,10 @@ class PayoutService
         if ($payout->reservation && $payout->reservation->status === ReservationStatus::APPROVED) {
             $this->transitions->transition($payout->reservation, ReservationStatus::PROCESSING->value, reason: $message);
             $this->ledger->updateReservationStatus($payout->reservation, LedgerStatus::PROCESSING);
+        }
+        if ($payout->referral_id) {
+            $payout->ledgerEntries()->update(['status' => LedgerStatus::PROCESSING->value]);
+            $payout->referral()->whereIn('reward_status', ['approved', 'processing'])->update(['reward_status' => 'processing']);
         }
         if ($changed && $payout->user) {
             $this->notifications->notifyOnce($payout->user, 'payout.sent.'.$payout->id, new EventNotification(
@@ -358,7 +418,7 @@ class PayoutService
         }
         if ($payout->referral_id) {
             $payout->ledgerEntries()->update(['status' => LedgerStatus::PAID->value]);
-            $payout->referral()->update(['reward_status' => 'paid']);
+            $payout->referral()->update(['reward_status' => 'paid', 'paid_at' => now()]);
         }
         if ($payout->user) {
             $this->notifications->notifyOnce($payout->user, 'payout.paid.'.$payout->id, new EventNotification(
@@ -388,6 +448,10 @@ class PayoutService
         if ($reservation && in_array($reservation->status, [ReservationStatus::APPROVED, ReservationStatus::PROCESSING], true)) {
             $this->transitions->transition($reservation, ReservationStatus::PAYOUT_FAILED->value, reason: $reason);
             $this->ledger->updateReservationStatus($reservation, LedgerStatus::FAILED);
+        }
+        if ($payout->referral_id) {
+            $payout->ledgerEntries()->update(['status' => LedgerStatus::FAILED->value]);
+            $payout->referral()->update(['reward_status' => 'payout_failed']);
         }
         $failureEventKey = 'payout.failed.'.$payout->id.'.'.hash('sha256', mb_strtolower(trim($reason)));
         if ($payout->user) {

@@ -8,6 +8,7 @@ use App\Models\Payout;
 use App\Models\Task;
 use App\Models\TaskReservation;
 use App\Models\User;
+use App\Services\TaskEligibilityService;
 use Illuminate\Http\JsonResponse;
 
 abstract class ApiController extends Controller
@@ -24,6 +25,8 @@ abstract class ApiController extends Controller
 
     protected function userPayload(User $user): array
     {
+        $eligibility = app(TaskEligibilityService::class)->for($user);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -34,6 +37,7 @@ abstract class ApiController extends Controller
             'account_status' => $this->enumValue($user->account_status),
             'referral_code' => $user->referral_code,
             'email_verified_at' => $user->email_verified_at?->toISOString(),
+            ...$eligibility,
             'avatar_url' => $user->avatar_path
                 ? route('profile-photos.show', ['user' => $user->id, 'v' => basename($user->avatar_path)])
                 : null,

@@ -4,12 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\LedgerStatus;
 use App\Jobs\ExpireReservationsJob;
+use App\Models\PayoutMethod;
 use App\Models\Task;
-use App\Models\TaskReservation;
 use App\Models\User;
 use App\Services\EventNotificationService;
-use App\Services\TaskReservationService;
 use App\Services\StatusTransitionService;
+use App\Services\TaskReservationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,6 +22,8 @@ class ReservationFinancialSafetyTest extends TestCase
         $owner = User::factory()->create();
         $firstMember = User::factory()->create();
         $secondMember = User::factory()->create();
+        $this->approveBankAccount($firstMember);
+        $this->approveBankAccount($secondMember);
         $task = $this->makeTask($owner, 1);
 
         $this->actingAs($firstMember, 'sanctum')
@@ -62,6 +64,7 @@ class ReservationFinancialSafetyTest extends TestCase
     {
         $owner = User::factory()->create();
         $member = User::factory()->create();
+        $this->approveBankAccount($member);
         $task = $this->makeTask($owner, 2);
 
         $this->actingAs($member, 'sanctum')->postJson('/api/tasks/'.$task->id.'/reserve')->assertCreated();
@@ -77,6 +80,8 @@ class ReservationFinancialSafetyTest extends TestCase
         $owner = User::factory()->create();
         $member = User::factory()->create();
         $otherMember = User::factory()->create();
+        $this->approveBankAccount($member);
+        $this->approveBankAccount($otherMember);
         $task = $this->makeTask($owner, 1);
         $reservation = app(TaskReservationService::class)->reserve($member, $task);
 
@@ -96,10 +101,11 @@ class ReservationFinancialSafetyTest extends TestCase
     {
         $owner = User::factory()->create();
         $member = User::factory()->create();
+        $this->approveBankAccount($member);
         $task = $this->makeTask($owner, 1);
         $reservation = app(TaskReservationService::class)->reserve($member, $task);
         $reservation->forceFill(['expires_at' => now()->subMinute()])->save();
-        $job = new ExpireReservationsJob();
+        $job = new ExpireReservationsJob;
 
         $job->handle(app(TaskReservationService::class), app(EventNotificationService::class));
         $job->handle(app(TaskReservationService::class), app(EventNotificationService::class));
@@ -116,10 +122,46 @@ class ReservationFinancialSafetyTest extends TestCase
         ]);
     }
 
+    public function test_an_expired_unsubmitted_reservation_can_be_reserved_again(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $this->approveBankAccount($member);
+        $task = $this->makeTask($owner, 2);
+        $first = app(TaskReservationService::class)->reserve($member, $task);
+        $first->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        (new ExpireReservationsJob)->handle(app(TaskReservationService::class), app(EventNotificationService::class));
+        $second = app(TaskReservationService::class)->reserve($member->fresh(), $task->fresh());
+
+        $this->assertSame('expired', $first->fresh()->status->value);
+        $this->assertSame('reserved', $second->fresh()->status->value);
+        $this->assertDatabaseCount('task_reservations', 2);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'reserved_slots' => 1]);
+    }
+
+    public function test_a_member_cannot_reserve_a_task_again_after_proof_was_submitted(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $this->approveBankAccount($member);
+        $task = $this->makeTask($owner, 2);
+        $reservation = app(TaskReservationService::class)->reserve($member, $task);
+        $reservation->forceFill(['participation_claimed_at' => now()])->save();
+
+        $this->actingAs($member, 'sanctum')->postJson('/api/tasks/'.$task->id.'/reserve')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('task');
+
+        $this->assertDatabaseCount('task_reservations', 1);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'reserved_slots' => 1]);
+    }
+
     public function test_expiration_can_release_a_reservation_after_changes_were_requested(): void
     {
         $owner = User::factory()->create();
         $member = User::factory()->create();
+        $this->approveBankAccount($member);
         $task = $this->makeTask($owner, 1);
         $reservation = app(TaskReservationService::class)->reserve($member, $task);
         $transitions = app(StatusTransitionService::class);
@@ -128,7 +170,7 @@ class ReservationFinancialSafetyTest extends TestCase
         $transitions->transition($reservation, 'changes_requested', reason: 'Resubmit before expiry.');
         $reservation->forceFill(['expires_at' => now()->subMinute()])->save();
 
-        (new ExpireReservationsJob())->handle(app(TaskReservationService::class), app(EventNotificationService::class));
+        (new ExpireReservationsJob)->handle(app(TaskReservationService::class), app(EventNotificationService::class));
 
         $this->assertSame('expired', $reservation->fresh()->status->value);
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'reserved_slots' => 0]);
@@ -160,6 +202,29 @@ class ReservationFinancialSafetyTest extends TestCase
             'starts_at' => now()->subMinute(),
             'expires_at' => now()->addDay(),
             'created_by' => $creator->id,
+        ]);
+    }
+
+    private function approveBankAccount(User $user): void
+    {
+        PayoutMethod::create([
+            'user_id' => $user->id,
+            'provider' => 'airwallex',
+            'entity_type' => 'PERSONAL',
+            'account_holder_name' => $user->name,
+            'account_type' => 'bank',
+            'country' => 'US',
+            'currency' => 'USD',
+            'transfer_method' => 'LOCAL',
+            'routing_details' => ['account_routing_value1' => '0000000'.str_pad((string) $user->id, 3, '0', STR_PAD_LEFT)],
+            'account_details' => ['account_number' => '00000000'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT)],
+            'beneficiary_address' => [],
+            'account_last4' => str_pad((string) ($user->id % 10000), 4, '0', STR_PAD_LEFT),
+            'status' => 'active',
+            'is_default' => true,
+            'verification_status' => 'approved',
+            'verification_submitted_at' => now()->subDay(),
+            'verification_reviewed_at' => now(),
         ]);
     }
 }

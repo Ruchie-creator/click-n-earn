@@ -28,6 +28,16 @@ class PayoutMethod extends Model
         'provider_beneficiaries',
         'status',
         'is_default',
+        'verification_status',
+        'verification_submitted_at',
+        'verification_reviewed_at',
+        'verification_reviewed_by',
+        'verification_reason',
+        'account_fingerprint',
+        'duplicate_flagged_at',
+        'duplicate_resolved_at',
+        'duplicate_resolved_by',
+        'duplicate_resolution_note',
     ];
 
     protected $hidden = [
@@ -45,6 +55,10 @@ class PayoutMethod extends Model
             'beneficiary_address' => 'encrypted:array',
             'provider_beneficiaries' => 'encrypted:array',
             'is_default' => 'boolean',
+            'verification_submitted_at' => 'datetime',
+            'verification_reviewed_at' => 'datetime',
+            'duplicate_flagged_at' => 'datetime',
+            'duplicate_resolved_at' => 'datetime',
         ];
     }
 
@@ -56,6 +70,16 @@ class PayoutMethod extends Model
     public function payouts(): HasMany
     {
         return $this->hasMany(Payout::class);
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verification_reviewed_by');
+    }
+
+    public function duplicateResolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'duplicate_resolved_by');
     }
 
     public function maskedAccount(): string

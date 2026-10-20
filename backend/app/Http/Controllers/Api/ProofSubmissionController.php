@@ -141,8 +141,11 @@ class ProofSubmissionController extends ApiController
                 if ($locked->expires_at?->isPast()) {
                     throw ValidationException::withMessages(['status' => 'This reservation has expired.']);
                 }
-                if (! in_array($locked->status, [ReservationStatus::RESERVED, ReservationStatus::CHANGES_REQUESTED], true)) {
-                    throw ValidationException::withMessages(['status' => 'Proof cannot be submitted for this reservation right now.']);
+                if ($locked->status !== ReservationStatus::RESERVED) {
+                    throw ValidationException::withMessages(['status' => 'Proof cannot be submitted for this reservation right now. Each task allows one proof submission.']);
+                }
+                if ($locked->participation_claimed_at !== null || $locked->proofSubmissions()->exists()) {
+                    throw ValidationException::withMessages(['status' => 'A proof has already been submitted for this task. A second upload is not allowed.']);
                 }
                 if (ProofSubmission::query()->where('file_sha256', strtolower($sha256))->exists()) {
                     throw ValidationException::withMessages(['proof' => 'This proof file has already been submitted.']);
@@ -154,8 +157,7 @@ class ProofSubmissionController extends ApiController
                     throw ValidationException::withMessages(['transaction_reference' => 'This transaction reference has already been used.']);
                 }
 
-                $previous = $locked->latestProofSubmission()->lockForUpdate()->first();
-                $version = ((int) $locked->proofSubmissions()->max('version')) + 1;
+                $version = 1;
                 $extension = $this->verifiedExtension($file);
                 $storedPath = $file->storeAs(
                     'proofs/'.$locked->user_id.'/'.$locked->id,
@@ -166,14 +168,10 @@ class ProofSubmissionController extends ApiController
                     throw new RuntimeException('The proof file could not be stored.');
                 }
 
-                if ($previous) {
-                    $previous->forceFill(['is_current' => false])->save();
-                }
-
                 $proof = ProofSubmission::create([
                     'task_reservation_id' => $locked->id,
                     'user_id' => $locked->user_id,
-                    'previous_submission_id' => $previous?->id,
+                    'previous_submission_id' => null,
                     'version' => $version,
                     'file_disk' => $disk,
                     'file_path' => $storedPath,
@@ -201,7 +199,7 @@ class ProofSubmissionController extends ApiController
                 }
 
                 $transitions->transition($locked, ReservationStatus::PROOF_SUBMITTED->value, $request->user()->id, 'Proof submitted.', ['proof_submission_id' => $proof->id]);
-                $locked->forceFill(['submitted_at' => now()])->save();
+                $locked->forceFill(['submitted_at' => now(), 'participation_claimed_at' => now()])->save();
                 $audit->record('proof.submitted', $proof, $request, after: $proof->toArray(), actorId: $request->user()->id);
 
                 return $proof;
@@ -242,8 +240,8 @@ class ProofSubmissionController extends ApiController
                 ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle],
             ), $proof->getAttribute('demo_batch_id'));
             $notifications->notifyAdmins('proof.submitted.'.$proof->id, new EventNotification(
-                $proof->version > 1 ? 'Updated proof submitted' : 'New proof submitted',
-                sprintf('%s submitted%s proof for %s and it is ready for review.', $request->user()->name, $proof->version > 1 ? ' updated' : '', $taskTitle),
+                'New proof submitted',
+                sprintf('%s submitted proof for %s and it is ready for review.', $request->user()->name, $taskTitle),
                 'processing',
                 ['proof_submission_id' => $proof->id, 'reservation_id' => $reservation->id, 'task_id' => $reservation->task_id, 'task' => $taskTitle, 'member' => $request->user()->name, 'submitted_at' => $proof->created_at?->format('M j, Y g:i A'), 'admin_notification' => true],
             ), $proof->getAttribute('demo_batch_id'));

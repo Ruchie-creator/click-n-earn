@@ -1,5 +1,5 @@
 import { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken } from './client'
-import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiPayout, ApiPayoutMethod, ApiReservation, ApiTask, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, PublicTask, PublicTaskListData, ReferralListData, TaskListData } from './contracts'
+import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiFaq, ApiPayout, ApiPayoutMethod, ApiPayoutVerification, ApiReservation, ApiTask, ApiTaskCategory, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, PublicTask, PublicTaskListData, ReferralListData, TaskListData } from './contracts'
 
 export { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken }
 export type { ApiError } from './client'
@@ -50,6 +50,9 @@ export const api = {
   },
   publicTask(slug: string, options: RequestInit = {}) {
     return apiFetch<ApiEnvelope<PublicTask>>('/public/tasks/' + encodeURIComponent(slug), options)
+  },
+  publicFaqs(options: RequestInit = {}) {
+    return apiFetch<ApiEnvelope<ApiFaq[]>>('/public/faqs', options)
   },
   reservations() {
     return apiFetch<ApiEnvelope<{ items: ApiReservation[] }>>('/reservations')
@@ -122,6 +125,31 @@ export const api = {
   adminTasks() {
     return apiFetch<ApiEnvelope<ApiTask[]>>('/admin/tasks')
   },
+  adminTaskCategories() {
+    return apiFetch<ApiEnvelope<ApiTaskCategory[]>>('/admin/task-categories')
+  },
+  adminCreateTaskCategory(name: string) {
+    return apiFetch<ApiEnvelope<ApiTaskCategory>>('/admin/task-categories', { method: 'POST', body: JSON.stringify({ name }) })
+  },
+  adminUpdateTaskCategory(id: number, payload: { name?: string; is_active?: boolean; archived?: boolean }) {
+    return apiFetch<ApiEnvelope<ApiTaskCategory>>('/admin/task-categories/' + id, { method: 'PATCH', body: JSON.stringify(payload) })
+  },
+  adminDeleteTaskCategory(id: number) {
+    return apiFetch<ApiEnvelope<{ archived: boolean; task_count: number }>>('/admin/task-categories/' + id, { method: 'DELETE' })
+  },
+  adminFaqs(params: Record<string, string> = {}) {
+    const query = new URLSearchParams(params).toString()
+    return apiFetch<ApiEnvelope<ApiFaq[]>>('/admin/faqs' + (query ? '?' + query : ''))
+  },
+  adminCreateFaq(payload: Partial<ApiFaq>) {
+    return apiFetch<ApiEnvelope<ApiFaq>>('/admin/faqs', { method: 'POST', body: JSON.stringify(payload) })
+  },
+  adminUpdateFaq(id: number, payload: Partial<ApiFaq>) {
+    return apiFetch<ApiEnvelope<ApiFaq>>('/admin/faqs/' + id, { method: 'PUT', body: JSON.stringify(payload) })
+  },
+  adminDeleteFaq(id: number) {
+    return apiFetch<ApiEnvelope<{ deleted: boolean }>>('/admin/faqs/' + id, { method: 'DELETE' })
+  },
   adminCreateTask(payload: Record<string, unknown>) {
     return apiFetch<ApiEnvelope<ApiTask>>('/admin/tasks', { method: 'POST', body: JSON.stringify(payload) })
   },
@@ -167,8 +195,9 @@ export const api = {
   adminSendTestEmail() {
     return apiFetch('/admin/email/test', { method: 'POST' })
   },
-  adminSubmissions() {
-    return apiFetch<ApiEnvelope<{ items: ApiAdminSubmission[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/submissions')
+  adminSubmissions(params: Record<string, string> = {}) {
+    const query = new URLSearchParams(params).toString()
+    return apiFetch<ApiEnvelope<{ items: ApiAdminSubmission[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/submissions' + (query ? '?' + query : ''))
   },
   adminSubmission(id: string | number) {
     return apiFetch<ApiEnvelope<ApiAdminSubmission>>('/admin/submissions/' + id)
@@ -182,8 +211,40 @@ export const api = {
   adminUsers() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminUser[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/users')
   },
-  adminReferrals() {
-    return apiFetch<ApiEnvelope<{ items: ApiAdminReferral[]; summary: { total: number; qualified: number; rewards_paid: number }; meta: { current_page: number; last_page: number; total: number } }>>('/admin/referrals')
+  adminReferrals(params: Record<string, string> = {}) {
+    const query = new URLSearchParams(params).toString()
+    return apiFetch<ApiEnvelope<{ items: ApiAdminReferral[]; summary: Record<string, number>; meta: { current_page: number; last_page: number; total: number } }>>('/admin/referrals' + (query ? '?' + query : ''))
+  },
+  adminReferral(id: number) {
+    return apiFetch<ApiEnvelope<ApiAdminReferral & { qualifying_purchase?: { reservation_id: number; task?: string | null; purchase_amount: number; approved_at?: string | null }; payout?: { id: number; status: string; amount: number; currency: string; provider_reference?: string | null; manual_reference?: string | null; masked_account?: string | null; requested_at?: string | null; paid_at?: string | null } | null; history?: Array<{ id: number; action: string; actor?: string | null; created_at?: string | null }> }>>('/admin/referrals/' + id)
+  },
+  adminApproveReferral(id: number, note?: string) {
+    return apiFetch<ApiEnvelope<{ referral: ApiAdminReferral; payout_id: number }>>('/admin/referrals/' + id + '/approve', { method: 'POST', body: JSON.stringify({ note }) })
+  },
+  adminHoldReferral(id: number, reason: string) {
+    return apiFetch<ApiEnvelope<ApiAdminReferral>>('/admin/referrals/' + id + '/hold', { method: 'POST', body: JSON.stringify({ reason }) })
+  },
+  adminResolveReferralReview(id: number, reason: string) {
+    return apiFetch<ApiEnvelope<ApiAdminReferral>>('/admin/referrals/' + id + '/resolve-review', { method: 'POST', body: JSON.stringify({ reason }) })
+  },
+  adminPayoutVerifications(params: Record<string, string> = {}) {
+    const query = new URLSearchParams(params).toString()
+    return apiFetch<ApiEnvelope<{ items: ApiPayoutVerification[]; summary: Record<string, number>; meta: { current_page: number; last_page: number; total: number } }>>('/admin/payout-verifications' + (query ? '?' + query : ''))
+  },
+  adminPayoutVerification(id: number) {
+    return apiFetch<ApiEnvelope<ApiPayoutVerification>>('/admin/payout-verifications/' + id)
+  },
+  approvePayoutVerification(id: number) {
+    return apiFetch<ApiEnvelope<ApiPayoutVerification>>('/admin/payout-verifications/' + id + '/approve', { method: 'POST' })
+  },
+  rejectPayoutVerification(id: number, reason: string) {
+    return apiFetch<ApiEnvelope<ApiPayoutVerification>>('/admin/payout-verifications/' + id + '/reject', { method: 'POST', body: JSON.stringify({ reason }) })
+  },
+  requestPayoutVerificationChanges(id: number, reason: string) {
+    return apiFetch<ApiEnvelope<ApiPayoutVerification>>('/admin/payout-verifications/' + id + '/request-changes', { method: 'POST', body: JSON.stringify({ reason }) })
+  },
+  resolveDuplicatePayoutVerification(id: number, reason: string) {
+    return apiFetch<ApiEnvelope<{ resolved_method_ids: number[]; count: number }>>('/admin/payout-verifications/' + id + '/resolve-duplicate', { method: 'POST', body: JSON.stringify({ reason }) })
   },
   adminTransactions() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminTransaction[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/transactions')
@@ -211,6 +272,9 @@ export const api = {
   },
   syncPayout(id: string | number) {
     return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/sync', { method: 'POST' })
+  },
+  adminMarkPayoutPaid(id: number, reference: string, note: string) {
+    return apiFetch<ApiEnvelope<ApiPayout>>('/admin/payouts/' + id + '/mark-paid', { method: 'POST', body: JSON.stringify({ reference, note }) })
   },
 }
 
@@ -250,6 +314,12 @@ export type ApiAdminSubmission = {
 
 export type ApiAdminPayout = ApiPayout & { member?: string | null; email?: string | null; task?: string | null; masked_account?: string | null }
 export type ApiAdminUser = ApiUser & { tasks_completed: number; earned: number }
-export type ApiAdminReferral = { id: number; referrer?: string | null; referred_user?: string | null; status: string; reward: number; reward_status: string; registered_at?: string | null }
+export type ApiAdminReferral = {
+  id: number; referrer?: string | null; referrer_email?: string | null; referred_user?: string | null; referred_email?: string | null;
+  status: string; qualification_status?: string; reward: number; reward_status: string; reward_hold_reason?: string | null;
+  registered_at?: string | null; qualified_at?: string | null; paid_at?: string | null; qualifying_reservation_id?: number | null;
+  qualifying_task?: string | null; possible_duplicate_account?: boolean; review_unresolved?: boolean; review_note?: string | null;
+  decided_by?: string | null; payout_id?: number | null; payout_status?: string | null; payout_reference?: string | null;
+}
 export type ApiAdminTransaction = { id: number; member?: string | null; type: string; status: string; amount: number; created_at?: string | null }
 export type ApiAdminNotification = { id: number; title: string; body: string; recipient?: string | null; email_status: string; email_attempts: number; email_last_error?: string | null; created_at?: string | null }

@@ -34,6 +34,13 @@ export type ApiUser = {
   email_verified_at?: string | null
   referral_code?: string | null
   avatar_url?: string | null
+  email_verified: boolean
+  payout_verification_status: 'not_submitted' | 'pending_review' | 'approved' | 'changes_requested' | 'rejected' | string
+  payout_masked_account?: string | null
+  duplicate_review_required: boolean
+  eligible_to_reserve: boolean
+  eligibility_next_step?: string | null
+  eligibility_message?: string | null
 }
 
 export type ApiTask = {
@@ -92,7 +99,7 @@ export type DashboardData = {
 
 export type TaskListData = {
   items: ApiTask[]
-  meta: { current_page: number; last_page: number; total: number }
+  meta: { current_page: number; last_page: number; total: number; categories?: string[] }
 }
 
 export type PublicTask = {
@@ -168,7 +175,6 @@ export type ApiPayout = {
 
 export type ApiPayoutMethod = {
   id: number
-  provider: string
   account_holder_name: string
   account_type: string
   entity_type: 'PERSONAL' | 'COMPANY'
@@ -178,6 +184,46 @@ export type ApiPayoutMethod = {
   masked_account: string
   is_default: boolean
   status: string
+  verification_status: string
+  verification_reason?: string | null
+  verification_submitted_at?: string | null
+  verification_reviewed_at?: string | null
+  duplicate_review_required: boolean
+}
+
+export type ApiFaq = { id: number; category?: string | null; question: string; answer: string; is_published?: boolean; sort_order?: number; updated_at?: string }
+export type ApiTaskCategory = { id: number; name: string; slug: string; is_active: boolean; archived_at?: string | null; task_count: number }
+export type ApiPayoutVerification = {
+  id: number
+  member?: string | null
+  email?: string | null
+  user_id: number
+  account_holder_name: string
+  entity_type: string
+  transfer_method: string
+  country: string
+  currency: string
+  masked_account: string
+  status: string
+  verification_reason?: string | null
+  submitted_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+  duplicate_review_required: boolean
+  duplicate_resolution_note?: string | null
+  bank_details?: {
+    account_holder_name: string
+    account_type?: string | null
+    entity_type: string
+    transfer_method: string
+    country: string
+    currency: string
+    account_details: Record<string, unknown>
+    routing_details: Record<string, unknown>
+    beneficiary_address: Record<string, unknown>
+  }
+  duplicate_matches?: Array<{ id: number; member?: string | null; email?: string | null; masked_account: string; status: string; submitted_at?: string | null }>
+  history?: Array<{ id: number; action: string; from_status?: string | null; to_status: string; reason?: string | null; actor?: string | null; created_at: string }>
 }
 
 export type ApiBeneficiarySchema = {
@@ -204,5 +250,7 @@ export type ApiBeneficiaryCountries = { countries: string[] }
 
 export type ReferralListData = {
   code: string
-  items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status: string }>
+    items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status: string; qualification_status?: string; task?: string | null; qualifying_purchase?: { task?: string | null; purchase_amount: number; approved_at?: string | null } | null; payout_status?: string | null; paid_at?: string | null }>
+  qualified_count?: number
+  pending_count?: number
 }

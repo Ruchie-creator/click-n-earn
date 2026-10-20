@@ -8,7 +8,7 @@ const POINTS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'shield', title: 'Structured verification', text: 'Every submission is checked against the task’s requirements.' },
   { icon: 'chart', title: 'Payout status tracking', text: 'See where each payout is, from approval through to payment.' },
   { icon: 'bank', title: 'Secured bank details handling', text: 'Bank details are handled through secured backend processes.' },
-  { icon: 'wallet', title: 'Established payment infrastructure', text: 'Eligible payouts are sent through Airwallex. You don’t need an Airwallex account.' },
+  { icon: 'wallet', title: 'Established payment infrastructure', text: 'Eligible payouts are sent securely to your registered bank account. You don’t need a separate payment account.' },
 ];
 
 export function Trust() {

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\PayoutMethod;
 use App\Models\Task;
 use App\Models\TaskReservation;
 use App\Models\User;
@@ -22,6 +23,27 @@ class ZZReservationConcurrencyTest extends TestCase
         $owner = User::factory()->create();
         $firstMember = User::factory()->create();
         $secondMember = User::factory()->create();
+        foreach ([$firstMember, $secondMember] as $member) {
+            PayoutMethod::create([
+                'user_id' => $member->id,
+                'provider' => 'airwallex',
+                'entity_type' => 'PERSONAL',
+                'account_holder_name' => $member->name,
+                'account_type' => 'bank',
+                'country' => 'US',
+                'currency' => 'USD',
+                'transfer_method' => 'LOCAL',
+                'routing_details' => ['account_routing_value1' => '0000000'.str_pad((string) $member->id, 3, '0', STR_PAD_LEFT)],
+                'account_details' => ['account_number' => '00000000'.str_pad((string) $member->id, 4, '0', STR_PAD_LEFT)],
+                'beneficiary_address' => [],
+                'account_last4' => str_pad((string) ($member->id % 10000), 4, '0', STR_PAD_LEFT),
+                'status' => 'active',
+                'is_default' => true,
+                'verification_status' => 'approved',
+                'verification_submitted_at' => now()->subDay(),
+                'verification_reviewed_at' => now(),
+            ]);
+        }
         $task = Task::create([
             'title' => 'Concurrent reservation test',
             'slug' => 'concurrent-reservation-test',

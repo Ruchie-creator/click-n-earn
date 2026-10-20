@@ -229,7 +229,7 @@ class AuthController extends ApiController
 
         $notifications->notifyOnce($user, $eventKey, new EventNotification(
             'Verify your email address',
-            'Verify your email address to activate your Click & Earn account. You will not be able to use platform features until verification is complete.',
+            'Verify your email address to secure your account. You can browse available tasks while you complete your account setup.',
             'warning',
             ['event_key' => 'email.verification', 'cta_label' => 'Verify Email Address', 'cta_url' => $url],
         ));

@@ -2,11 +2,14 @@
 
 use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\Admin\DemoDataController;
+use App\Http\Controllers\Api\Admin\FaqController as AdminFaqController;
 use App\Http\Controllers\Api\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PayoutController as AdminPayoutController;
+use App\Http\Controllers\Api\Admin\PayoutVerificationController as AdminPayoutVerificationController;
 use App\Http\Controllers\Api\Admin\ReferralController as AdminReferralController;
 use App\Http\Controllers\Api\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\Api\Admin\SubmissionController as AdminSubmissionController;
+use App\Http\Controllers\Api\Admin\TaskCategoryController as AdminTaskCategoryController;
 use App\Http\Controllers\Api\Admin\TaskController as AdminTaskController;
 use App\Http\Controllers\Api\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
@@ -14,6 +17,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientErrorController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EarningsController;
+use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\PayoutMethodController;
@@ -42,11 +46,29 @@ Route::get('profile-photos/{user}', [AuthController::class, 'showProfilePhoto'])
     ->name('profile-photos.show');
 Route::get('public/tasks', [PublicTaskController::class, 'index'])->middleware('throttle:api');
 Route::get('public/tasks/{task}', [PublicTaskController::class, 'show'])->middleware('throttle:api');
+Route::get('public/faqs', [FaqController::class, 'index'])->middleware('throttle:api');
 
 Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function (): void {
     Route::get('me', [AuthController::class, 'me']);
     Route::post('email/verify', [AuthController::class, 'verifyEmail'])->middleware('throttle:6,1');
     Route::post('logout', [AuthController::class, 'logout']);
+
+    Route::get('dashboard', DashboardController::class);
+    Route::get('tasks', [TaskController::class, 'index']);
+    Route::get('tasks/{task}', [TaskController::class, 'show']);
+    Route::post('tasks/{task}/reserve', [ReservationController::class, 'reserve']);
+    Route::get('reservations', [ReservationController::class, 'index']);
+    Route::get('my-tasks', [ReservationController::class, 'index']);
+    Route::get('reservations/{reservation}', [ReservationController::class, 'show']);
+    Route::get('my-tasks/{reservation}', [ReservationController::class, 'show']);
+    Route::get('earnings', [EarningsController::class, 'index']);
+    Route::get('referrals', [ReferralController::class, 'index']);
+    Route::get('payout-methods', [PayoutMethodController::class, 'index']);
+    Route::get('payout-methods/countries', [PayoutMethodController::class, 'countries']);
+    Route::get('payout-methods/schema', [PayoutMethodController::class, 'schema']);
+    Route::get('payouts', [PayoutController::class, 'index']);
+    Route::get('payouts/{payout}', [PayoutController::class, 'show']);
+    Route::get('notifications', [NotificationController::class, 'index']);
 
     Route::middleware('verified_email')->group(function (): void {
         Route::post('client-errors', [ClientErrorController::class, 'store']);
@@ -54,30 +76,13 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
         Route::put('me', [AuthController::class, 'updateProfile']);
         Route::post('profile/photo', [AuthController::class, 'updateProfilePhoto']);
         Route::post('password', [AuthController::class, 'updatePassword']);
-
-        Route::get('dashboard', DashboardController::class);
-        Route::get('tasks', [TaskController::class, 'index']);
-        Route::get('tasks/{task}', [TaskController::class, 'show']);
-        Route::post('tasks/{task}/reserve', [ReservationController::class, 'reserve']);
-        Route::get('reservations', [ReservationController::class, 'index']);
-        Route::get('my-tasks', [ReservationController::class, 'index']);
-        Route::get('reservations/{reservation}', [ReservationController::class, 'show']);
-        Route::get('my-tasks/{reservation}', [ReservationController::class, 'show']);
         Route::post('reservations/{reservation}/cancel', [ReservationController::class, 'cancel']);
         Route::post('reservations/{reservation}/proof', [ProofSubmissionController::class, 'store']);
         Route::post('my-tasks/{reservation}/proof', [ProofSubmissionController::class, 'store']);
         Route::get('proof/{proof}/download', [ProofSubmissionController::class, 'download']);
-        Route::get('earnings', [EarningsController::class, 'index']);
-        Route::get('referrals', [ReferralController::class, 'index']);
-        Route::get('payout-methods', [PayoutMethodController::class, 'index']);
-        Route::get('payout-methods/countries', [PayoutMethodController::class, 'countries']);
-        Route::get('payout-methods/schema', [PayoutMethodController::class, 'schema']);
         Route::post('payout-methods', [PayoutMethodController::class, 'store']);
         Route::put('payout-methods/{payoutMethod}', [PayoutMethodController::class, 'update']);
         Route::delete('payout-methods/{payoutMethod}', [PayoutMethodController::class, 'destroy']);
-        Route::get('payouts', [PayoutController::class, 'index']);
-        Route::get('payouts/{payout}', [PayoutController::class, 'show']);
-        Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'read']);
 
@@ -89,6 +94,10 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::post('tasks/{task}/status', [AdminTaskController::class, 'changeStatus']);
             Route::post('tasks/{task}/publish', [AdminTaskController::class, 'publish']);
             Route::post('tasks/{task}/pause', [AdminTaskController::class, 'pause']);
+            Route::get('task-categories', [AdminTaskCategoryController::class, 'index']);
+            Route::post('task-categories', [AdminTaskCategoryController::class, 'store']);
+            Route::patch('task-categories/{category}', [AdminTaskCategoryController::class, 'update']);
+            Route::delete('task-categories/{category}', [AdminTaskCategoryController::class, 'destroy']);
             Route::get('submissions', [AdminSubmissionController::class, 'index']);
             Route::get('submissions/{submission}', [AdminSubmissionController::class, 'show']);
             Route::post('submissions/{submission}/review', [AdminSubmissionController::class, 'review']);
@@ -100,12 +109,27 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::post('payouts/{payout}/process', [AdminPayoutController::class, 'process']);
             Route::post('payouts/{payout}/retry', [AdminPayoutController::class, 'retry']);
             Route::post('payouts/{payout}/sync', [AdminPayoutController::class, 'sync']);
+            Route::post('payouts/{payout}/mark-paid', [AdminPayoutController::class, 'markPaidManually']);
+            Route::get('payout-verifications', [AdminPayoutVerificationController::class, 'index']);
+            Route::get('payout-verifications/{payoutMethod}', [AdminPayoutVerificationController::class, 'show']);
+            Route::post('payout-verifications/{payoutMethod}/approve', [AdminPayoutVerificationController::class, 'approve']);
+            Route::post('payout-verifications/{payoutMethod}/reject', [AdminPayoutVerificationController::class, 'reject']);
+            Route::post('payout-verifications/{payoutMethod}/request-changes', [AdminPayoutVerificationController::class, 'requestChanges']);
+            Route::post('payout-verifications/{payoutMethod}/resolve-duplicate', [AdminPayoutVerificationController::class, 'resolveDuplicate']);
             Route::get('users', [AdminUserController::class, 'index']);
             Route::get('users/{user}', [AdminUserController::class, 'show']);
             Route::patch('users/{user}', [AdminUserController::class, 'update']);
             Route::post('users/{user}/suspend', [AdminUserController::class, 'suspend']);
             Route::post('users/{user}/activate', [AdminUserController::class, 'activate']);
             Route::get('referrals', [AdminReferralController::class, 'index']);
+            Route::get('referrals/{referral}', [AdminReferralController::class, 'show']);
+            Route::post('referrals/{referral}/approve', [AdminReferralController::class, 'approve']);
+            Route::post('referrals/{referral}/hold', [AdminReferralController::class, 'hold']);
+            Route::post('referrals/{referral}/resolve-review', [AdminReferralController::class, 'resolveReview']);
+            Route::get('faqs', [AdminFaqController::class, 'index']);
+            Route::post('faqs', [AdminFaqController::class, 'store']);
+            Route::put('faqs/{faq}', [AdminFaqController::class, 'update']);
+            Route::delete('faqs/{faq}', [AdminFaqController::class, 'destroy']);
             Route::get('transactions', [AdminTransactionController::class, 'index']);
             Route::get('audit-logs', [AdminTransactionController::class, 'audit']);
             Route::get('notifications', [AdminNotificationController::class, 'index']);

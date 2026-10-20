@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Task;
+use App\Models\TaskCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -42,6 +43,7 @@ class TaskController extends ApiController
                 'last_page' => $tasks->lastPage(),
                 'per_page' => $tasks->perPage(),
                 'total' => $tasks->total(),
+                'categories' => TaskCategory::query()->where('is_active', true)->orderBy('name')->pluck('name')->values(),
             ],
         ]);
     }

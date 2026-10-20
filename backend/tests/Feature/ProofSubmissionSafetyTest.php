@@ -58,6 +58,9 @@ class ProofSubmissionSafetyTest extends TestCase
         $this->submitProof($owner, $reservation, $file, $key)
             ->assertOk()
             ->assertJsonPath('data.id', $proofId);
+        $this->submitProof($owner, $reservation, $this->pdf(), 'proof-retry-request-0002')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
 
         $this->assertDatabaseCount('proof_submissions', 1);
         $this->assertDatabaseCount('notification_outbox', 1);
@@ -112,7 +115,7 @@ class ProofSubmissionSafetyTest extends TestCase
         Storage::disk('proofs')->assertDirectoryEmpty('proofs/'.$user->id.'/'.$reservation->id);
     }
 
-    public function test_changes_requested_proof_can_be_resubmitted_as_a_new_current_version(): void
+    public function test_changes_requested_proof_cannot_be_replaced_by_a_second_submission(): void
     {
         Queue::fake();
         Storage::fake('proofs');
@@ -155,7 +158,7 @@ class ProofSubmissionSafetyTest extends TestCase
             'event_key' => 'proof.changes_requested.'.$previous->id.'.admin.'.$admin->id,
         ]);
 
-        $resubmission = $this->actingAs($user, 'sanctum')
+        $this->actingAs($user, 'sanctum')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Idempotency-Key' => 'proof-resubmit-request-0001',
@@ -167,25 +170,13 @@ class ProofSubmissionSafetyTest extends TestCase
                 'transaction_reference' => $reference,
                 'user_note' => 'Updated clear receipt.',
             ])
-            ->assertCreated()
-            ->assertJsonPath('data.version', 2);
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
 
-        $current = ProofSubmission::findOrFail($resubmission->json('data.id'));
-        $this->assertSame($previous->id, $current->previous_submission_id);
-        $this->assertTrue($current->is_current);
-        $this->assertFalse($previous->fresh()->is_current);
-        $this->assertSame('proof_submitted', $reservation->fresh()->status->value);
-        $this->assertDatabaseCount('proof_submissions', 2);
+        $this->assertTrue($previous->fresh()->is_current);
+        $this->assertSame('changes_requested', $reservation->fresh()->status->value);
+        $this->assertDatabaseCount('proof_submissions', 1);
         $this->assertDatabaseCount('ledger_entries', 2);
-        $this->assertDatabaseHas('notification_outbox', [
-            'user_id' => $user->id,
-            'event_key' => 'proof.submitted.member.'.$current->id,
-        ]);
-        $this->assertDatabaseHas('notification_outbox', [
-            'user_id' => $admin->id,
-            'event_key' => 'proof.submitted.'.$current->id.'.admin.'.$admin->id,
-        ]);
-        $this->assertDatabaseHas('proof_submissions', ['id' => $current->id, 'version' => 2, 'is_current' => true]);
     }
 
     /** @return array{User, Task, TaskReservation} */
