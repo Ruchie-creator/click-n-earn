@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'enabled' => env('PAYOUTS_ENABLED', true),
     'currency' => env('PAYOUT_CURRENCY', 'USD'),
     'timeout' => (int) env('PAYOUT_TIMEOUT', 15),
     'airwallex' => [

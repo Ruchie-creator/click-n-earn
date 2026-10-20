@@ -27,6 +27,7 @@ class PayoutService
         private readonly ReservationCapacityService $capacity,
         private readonly EventNotificationService $notifications,
         private readonly AirwallexEnvironment $environments,
+        private readonly PayoutAvailability $availability,
     ) {}
 
     public function createApprovedForReservation(TaskReservation $reservation): Payout
@@ -113,6 +114,8 @@ class PayoutService
 
     public function process(int|Payout $payout): Payout
     {
+        $this->availability->ensureEnabled();
+
         return DB::transaction(function () use ($payout): Payout {
             $model = Payout::query()->lockForUpdate()->with(['reservation', 'user', 'payoutMethod'])->findOrFail(
                 $payout instanceof Payout ? $payout->id : $payout,
@@ -175,6 +178,8 @@ class PayoutService
 
     public function sync(int|Payout $payout): Payout
     {
+        $this->availability->ensureEnabled();
+
         return DB::transaction(function () use ($payout): Payout {
             $model = Payout::query()->lockForUpdate()->with(['reservation', 'user'])->findOrFail(
                 $payout instanceof Payout ? $payout->id : $payout,
@@ -236,6 +241,8 @@ class PayoutService
 
     public function manualMarkPaid(Payout $payout, string $reference, ?string $note, ?int $actorId = null): Payout
     {
+        $this->availability->ensureEnabled();
+
         if (blank(trim($reference))) {
             throw ValidationException::withMessages(['reference' => 'A manual payout reference is required.']);
         }
@@ -263,6 +270,8 @@ class PayoutService
 
     public function retryFailed(Payout $payout, ?int $actorId = null): Payout
     {
+        $this->availability->ensureEnabled();
+
         return DB::transaction(function () use ($payout, $actorId): Payout {
             $model = Payout::query()->lockForUpdate()->with(['reservation', 'user', 'payoutMethod'])->findOrFail($payout->id);
             if ($model->status === PayoutStatus::APPROVED) {

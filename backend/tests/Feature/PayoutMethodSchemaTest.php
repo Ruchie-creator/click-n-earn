@@ -56,6 +56,21 @@ class PayoutMethodSchemaTest extends TestCase
         });
     }
 
+    public function test_provider_endpoints_are_unavailable_without_making_requests_when_payouts_are_disabled(): void
+    {
+        config(['payout.enabled' => false]);
+        Http::preventStrayRequests();
+
+        $member = User::factory()->create();
+
+        $this->actingAs($member, 'sanctum')
+            ->getJson('/api/payout-methods/countries')
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Payout services are temporarily unavailable while payment processing is being configured.');
+
+        Http::assertNothingSent();
+    }
+
     public function test_member_receives_the_airwallex_supported_destination_country_list(): void
     {
         Http::fake([

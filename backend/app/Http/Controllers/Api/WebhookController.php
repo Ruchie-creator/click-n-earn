@@ -5,14 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Jobs\ProcessAirwallexWebhookJob;
 use App\Models\WebhookEvent;
 use App\Services\AirwallexEnvironment;
+use App\Services\PayoutAvailability;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use JsonException;
 
 class WebhookController extends ApiController
 {
-    public function airwallex(Request $request, AirwallexEnvironment $environments, ?string $environment = null): JsonResponse
+    public function airwallex(Request $request, AirwallexEnvironment $environments, PayoutAvailability $availability, ?string $environment = null): JsonResponse
     {
+        $availability->ensureEnabled();
+
         $environment ??= $environments->active();
         abort_unless(in_array($environment, ['sandbox', 'live'], true), 404);
         $raw = $request->getContent();

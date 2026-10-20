@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Notifications\EventNotification;
 use App\Services\AirwallexEnvironment;
 use App\Services\AuditLogService;
+use App\Services\PayoutAvailability;
 use App\Services\PayoutProviderInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,11 +17,12 @@ use Throwable;
 
 class SettingController extends ApiController
 {
-    public function airwallexStatus(AirwallexEnvironment $environments, PayoutProviderInterface $provider): JsonResponse
+    public function airwallexStatus(AirwallexEnvironment $environments, PayoutProviderInterface $provider, PayoutAvailability $availability): JsonResponse
     {
         $active = $environments->active();
 
         return $this->ok([
+            'payouts_enabled' => $availability->isEnabled(),
             'active_environment' => $active,
             'sandbox' => $this->airwallexEnvironmentPayload('sandbox', $environments, $provider),
             'live' => $this->airwallexEnvironmentPayload('live', $environments, $provider),
@@ -28,8 +30,10 @@ class SettingController extends ApiController
         ]);
     }
 
-    public function testAirwallexConnection(Request $request, AirwallexEnvironment $environments, PayoutProviderInterface $provider): JsonResponse
+    public function testAirwallexConnection(Request $request, AirwallexEnvironment $environments, PayoutProviderInterface $provider, PayoutAvailability $availability): JsonResponse
     {
+        $availability->ensureEnabled();
+
         $data = $request->validate(['environment' => ['required', 'in:sandbox,live']]);
         $environment = $data['environment'];
         if (! $environments->isConfigured($environment)) {
@@ -39,8 +43,10 @@ class SettingController extends ApiController
         return $this->ok(['status' => $provider->connectionStatus($environment)]);
     }
 
-    public function activateAirwallexEnvironment(Request $request, AirwallexEnvironment $environments, PayoutProviderInterface $provider, AuditLogService $audit): JsonResponse
+    public function activateAirwallexEnvironment(Request $request, AirwallexEnvironment $environments, PayoutProviderInterface $provider, AuditLogService $audit, PayoutAvailability $availability): JsonResponse
     {
+        $availability->ensureEnabled();
+
         $data = $request->validate(['environment' => ['required', 'in:sandbox,live'], 'confirmation' => ['nullable', 'string']]);
         $target = $data['environment'];
         if ($target === 'live') {

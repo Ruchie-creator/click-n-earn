@@ -86,10 +86,12 @@ class AppServiceProvider extends ServiceProvider
         if (config('payout.airwallex.environment') !== 'live') {
             $errors[] = 'AIRWALLEX_ENVIRONMENT must be live';
         }
-        foreach (['client_id', 'api_key', 'webhook_secret'] as $credential) {
-            if (blank(config('payout.airwallex.live.'.$credential))) {
-                $errors[] = 'Airwallex production credentials and webhook secret are required';
-                break;
+        if (config('payout.enabled')) {
+            foreach (['client_id', 'api_key', 'webhook_secret'] as $credential) {
+                if (blank(config('payout.airwallex.live.'.$credential))) {
+                    $errors[] = 'Airwallex production credentials and webhook secret are required when payouts are enabled';
+                    break;
+                }
             }
         }
         if (in_array(config('mail.default'), ['log', 'array', 'null'], true)) {

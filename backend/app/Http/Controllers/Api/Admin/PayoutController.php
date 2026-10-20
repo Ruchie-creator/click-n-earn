@@ -8,12 +8,15 @@ use App\Jobs\SyncPayoutJob;
 use App\Models\Payout;
 use App\Services\AirwallexEnvironment;
 use App\Services\AuditLogService;
+use App\Services\PayoutAvailability;
 use App\Services\PayoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PayoutController extends ApiController
 {
+    public function __construct(private readonly PayoutAvailability $availability) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Payout::with(['user', 'reservation.task', 'payoutMethod'])->latest();
@@ -24,12 +27,14 @@ class PayoutController extends ApiController
 
         return $this->ok([
             'items' => $payouts->getCollection()->map(fn (Payout $payout): array => $this->adminPayload($payout))->values(),
-            'meta' => ['current_page' => $payouts->currentPage(), 'last_page' => $payouts->lastPage(), 'total' => $payouts->total()],
+            'meta' => ['current_page' => $payouts->currentPage(), 'last_page' => $payouts->lastPage(), 'total' => $payouts->total(), 'payouts_enabled' => $this->availability->isEnabled()],
         ]);
     }
 
     public function process(Request $request, Payout $payout, AuditLogService $audit, AirwallexEnvironment $environments): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         abort_unless($payout->status->value === 'approved', 422, 'Only approved payouts can be released.');
         if ($payout->provider_environment === 'live') {
             $data = $request->validate(['confirmation' => ['required', 'in:LIVE']]);
@@ -48,6 +53,8 @@ class PayoutController extends ApiController
 
     public function retry(Request $request, Payout $payout, PayoutService $service): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         $service->retryFailed($payout, $request->user()->id);
 
         return $this->message('Payout queued for retry.');
@@ -55,6 +62,8 @@ class PayoutController extends ApiController
 
     public function sync(Payout $payout): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         SyncPayoutJob::dispatchSync($payout->id);
 
         return $this->ok($this->payoutPayload($payout->fresh()));
@@ -62,6 +71,8 @@ class PayoutController extends ApiController
 
     public function markPaidManually(Request $request, Payout $payout, PayoutService $service): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         $data = $request->validate([
             'reference' => ['required', 'string', 'max:160'],
             'note' => [$payout->referral_id ? 'required' : 'nullable', 'string', 'max:2000'],

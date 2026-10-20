@@ -16,10 +16,17 @@ use Throwable;
 
 class AirwallexPayoutProvider implements PayoutProviderInterface
 {
-    public function __construct(private readonly AirwallexEnvironment $environments) {}
+    public function __construct(
+        private readonly AirwallexEnvironment $environments,
+        private readonly PayoutAvailability $availability,
+    ) {}
 
     public function connectionStatus(string $environment): string
     {
+        if (! $this->availability->isEnabled()) {
+            return 'disabled';
+        }
+
         try {
             $this->accessToken($environment);
 
@@ -200,6 +207,8 @@ class AirwallexPayoutProvider implements PayoutProviderInterface
 
     private function http(string $environment): PendingRequest
     {
+        $this->availability->ensureEnabled();
+
         return Http::acceptJson()->asJson()->timeout((int) config('payout.timeout', 15))->withToken($this->accessToken($environment));
     }
 

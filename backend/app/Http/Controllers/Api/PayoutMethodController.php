@@ -8,6 +8,7 @@ use App\Notifications\EventNotification;
 use App\Services\AirwallexEnvironment;
 use App\Services\AuditLogService;
 use App\Services\EventNotificationService;
+use App\Services\PayoutAvailability;
 use App\Services\PayoutIdentifierFingerprintService;
 use App\Services\PayoutProviderInterface;
 use Illuminate\Http\Client\ConnectionException;
@@ -22,6 +23,8 @@ use Illuminate\Validation\ValidationException;
 
 class PayoutMethodController extends ApiController
 {
+    public function __construct(private readonly PayoutAvailability $availability) {}
+
     public function index(Request $request): JsonResponse
     {
         return $this->ok($request->user()->payoutMethods()->where('status', '!=', 'deleted')->latest()->get()->map(fn (PayoutMethod $method): array => $this->methodPayload($method)));
@@ -29,6 +32,8 @@ class PayoutMethodController extends ApiController
 
     public function schema(Request $request, PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         $criteria = $request->validate([
             'country' => ['required', 'string', 'size:2'],
             'currency' => ['required', 'string', 'size:3'],
@@ -68,6 +73,8 @@ class PayoutMethodController extends ApiController
 
     public function countries(PayoutProviderInterface $provider, AirwallexEnvironment $environments): JsonResponse
     {
+        $this->availability->ensureEnabled();
+
         try {
             return $this->ok(['countries' => $provider->beneficiaryCountries($environments->active())]);
         } catch (RequestException $exception) {
@@ -91,6 +98,8 @@ class PayoutMethodController extends ApiController
         EventNotificationService $notifications,
         AuditLogService $audit,
     ): JsonResponse {
+        $this->availability->ensureEnabled();
+
         $data = $this->validatedMethodData($request);
         $this->validateBeneficiaryWithProvider($data, $provider, $environments);
         $result = $this->createPendingMethod($request, $data, $fingerprints);
@@ -127,6 +136,8 @@ class PayoutMethodController extends ApiController
 
             return $this->ok($this->methodPayload($payoutMethod->fresh()));
         }
+
+        $this->availability->ensureEnabled();
 
         $data = $this->validatedMethodData($request, $payoutMethod);
         $this->validateBeneficiaryWithProvider($data, $provider, $environments);

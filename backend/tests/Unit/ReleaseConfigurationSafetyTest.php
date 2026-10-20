@@ -44,6 +44,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'app.debug' => config('app.debug'),
             'app.key' => config('app.key'),
             'app.url' => config('app.url'),
+            'payout.enabled' => config('payout.enabled'),
             'payout.airwallex.environment' => config('payout.airwallex.environment'),
             'payout.airwallex.live.client_id' => config('payout.airwallex.live.client_id'),
             'payout.airwallex.live.api_key' => config('payout.airwallex.live.api_key'),
@@ -58,6 +59,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'app.debug' => false,
             'app.key' => 'configured-test-key',
             'app.url' => 'https://app.example.com',
+            'payout.enabled' => true,
             'payout.airwallex.environment' => 'sandbox',
             'payout.airwallex.live.client_id' => 'configured-test-value',
             'payout.airwallex.live.api_key' => 'configured-test-value',
@@ -75,6 +77,55 @@ class ReleaseConfigurationSafetyTest extends TestCase
             $this->fail('Production configuration must reject sandbox as the configured live payout mode.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('AIRWALLEX_ENVIRONMENT must be live', $exception->getMessage());
+        } finally {
+            config($previousConfig);
+            $app->instance('env', $previousEnvironment);
+        }
+    }
+
+    public function test_production_can_boot_without_airwallex_credentials_when_payouts_are_disabled(): void
+    {
+        $app = app();
+        $previousEnvironment = $app['env'];
+        $previousConfig = [
+            'app.debug' => config('app.debug'),
+            'app.key' => config('app.key'),
+            'app.url' => config('app.url'),
+            'demo.enabled' => config('demo.enabled'),
+            'demo.client_preview' => config('demo.client_preview'),
+            'payout.enabled' => config('payout.enabled'),
+            'payout.airwallex.environment' => config('payout.airwallex.environment'),
+            'payout.airwallex.live.client_id' => config('payout.airwallex.live.client_id'),
+            'payout.airwallex.live.api_key' => config('payout.airwallex.live.api_key'),
+            'payout.airwallex.live.webhook_secret' => config('payout.airwallex.live.webhook_secret'),
+            'payout.airwallex.live.base_url' => config('payout.airwallex.live.base_url'),
+            'mail.default' => config('mail.default'),
+            'filesystems.proof_disk' => config('filesystems.proof_disk'),
+            'cors.allowed_origins' => config('cors.allowed_origins'),
+        ];
+        $app->instance('env', 'production');
+        config([
+            'app.debug' => false,
+            'app.key' => 'configured-test-key',
+            'app.url' => 'https://app.example.com',
+            'demo.enabled' => false,
+            'demo.client_preview' => false,
+            'payout.enabled' => false,
+            'payout.airwallex.environment' => 'live',
+            'payout.airwallex.live.client_id' => null,
+            'payout.airwallex.live.api_key' => null,
+            'payout.airwallex.live.webhook_secret' => null,
+            'payout.airwallex.live.base_url' => 'https://api.airwallex.com/api/v1',
+            'mail.default' => 'smtp',
+            'filesystems.proof_disk' => 'proofs',
+            'cors.allowed_origins' => ['https://app.example.com'],
+        ]);
+
+        try {
+            $guard = new ReflectionMethod(AppServiceProvider::class, 'assertProductionConfiguration');
+            $guard->setAccessible(true);
+            $guard->invoke(new AppServiceProvider($app));
+            $this->addToAssertionCount(1);
         } finally {
             config($previousConfig);
             $app->instance('env', $previousEnvironment);
