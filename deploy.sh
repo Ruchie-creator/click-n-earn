@@ -232,6 +232,12 @@ as_app_user npm --prefix "$APP_DIR" ci
 as_app_user env VITE_API_URL=/api VITE_CLIENT_PREVIEW="$CLIENT_PREVIEW" \
     npm --prefix "$APP_DIR" run build
 
+# The deploy runs from a root shell, whose restrictive umask can be inherited
+# by the service user. Nginx must be able to traverse and read the generated
+# static build, while ownership remains with the environment's service user.
+find "$APP_DIR/dist" -type d -exec chmod 755 {} +
+find "$APP_DIR/dist" -type f -exec chmod 644 {} +
+
 as_app_user php "$ARTISAN" config:clear
 as_app_user php "$ARTISAN" route:clear
 as_app_user php "$ARTISAN" view:clear
