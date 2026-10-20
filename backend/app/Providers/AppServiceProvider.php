@@ -83,13 +83,14 @@ class AppServiceProvider extends ServiceProvider
             $errors[] = 'APP_URL must use the public HTTPS application hostname';
         }
 
-        if (config('payout.airwallex.environment') !== 'live') {
-            $errors[] = 'AIRWALLEX_ENVIRONMENT must be live';
+        $airwallexEnvironment = (string) config('payout.airwallex.environment');
+        if (! in_array($airwallexEnvironment, ['sandbox', 'live'], true)) {
+            $errors[] = 'AIRWALLEX_ENVIRONMENT must be sandbox or live';
         }
         if (config('payout.enabled')) {
             foreach (['client_id', 'api_key', 'webhook_secret'] as $credential) {
-                if (blank(config('payout.airwallex.live.'.$credential))) {
-                    $errors[] = 'Airwallex production credentials and webhook secret are required when payouts are enabled';
+                if (blank(config('payout.airwallex.'.$airwallexEnvironment.'.'.$credential))) {
+                    $errors[] = 'Airwallex credentials and webhook secret are required for the active environment when payouts are enabled';
                     break;
                 }
             }
@@ -104,9 +105,11 @@ class AppServiceProvider extends ServiceProvider
             $errors[] = 'Proof storage must use a configured private disk';
         }
 
-        $airwallexBaseUrl = (string) config('payout.airwallex.live.base_url');
-        if ($airwallexBaseUrl !== 'https://api.airwallex.com/api/v1') {
+        if ($airwallexEnvironment === 'live' && (string) config('payout.airwallex.live.base_url') !== 'https://api.airwallex.com/api/v1') {
             $errors[] = 'AIRWALLEX_LIVE_BASE_URL must be https://api.airwallex.com/api/v1';
+        }
+        if ($airwallexEnvironment === 'sandbox' && (string) config('payout.airwallex.sandbox.base_url') !== 'https://api.sandbox.airwallex.com/api/v1') {
+            $errors[] = 'AIRWALLEX_SANDBOX_BASE_URL must be https://api.sandbox.airwallex.com/api/v1';
         }
 
         $origins = (array) config('cors.allowed_origins', []);

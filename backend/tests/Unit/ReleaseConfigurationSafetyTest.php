@@ -36,7 +36,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
         }
     }
 
-    public function test_production_configuration_requires_live_airwallex_configuration(): void
+    public function test_production_can_use_configured_airwallex_sandbox_when_payouts_are_enabled(): void
     {
         $app = app();
         $previousEnvironment = $app['env'];
@@ -50,6 +50,10 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'payout.airwallex.live.api_key' => config('payout.airwallex.live.api_key'),
             'payout.airwallex.live.webhook_secret' => config('payout.airwallex.live.webhook_secret'),
             'payout.airwallex.live.base_url' => config('payout.airwallex.live.base_url'),
+            'payout.airwallex.sandbox.client_id' => config('payout.airwallex.sandbox.client_id'),
+            'payout.airwallex.sandbox.api_key' => config('payout.airwallex.sandbox.api_key'),
+            'payout.airwallex.sandbox.webhook_secret' => config('payout.airwallex.sandbox.webhook_secret'),
+            'payout.airwallex.sandbox.base_url' => config('payout.airwallex.sandbox.base_url'),
             'mail.default' => config('mail.default'),
             'filesystems.proof_disk' => config('filesystems.proof_disk'),
             'cors.allowed_origins' => config('cors.allowed_origins'),
@@ -61,10 +65,14 @@ class ReleaseConfigurationSafetyTest extends TestCase
             'app.url' => 'https://app.example.com',
             'payout.enabled' => true,
             'payout.airwallex.environment' => 'sandbox',
-            'payout.airwallex.live.client_id' => 'configured-test-value',
-            'payout.airwallex.live.api_key' => 'configured-test-value',
-            'payout.airwallex.live.webhook_secret' => 'configured-test-value',
+            'payout.airwallex.live.client_id' => null,
+            'payout.airwallex.live.api_key' => null,
+            'payout.airwallex.live.webhook_secret' => null,
             'payout.airwallex.live.base_url' => 'https://api.airwallex.com/api/v1',
+            'payout.airwallex.sandbox.client_id' => 'configured-test-value',
+            'payout.airwallex.sandbox.api_key' => 'configured-test-value',
+            'payout.airwallex.sandbox.webhook_secret' => 'configured-test-value',
+            'payout.airwallex.sandbox.base_url' => 'https://api.sandbox.airwallex.com/api/v1',
             'mail.default' => 'smtp',
             'filesystems.proof_disk' => 'proofs',
             'cors.allowed_origins' => ['https://app.example.com'],
@@ -74,9 +82,7 @@ class ReleaseConfigurationSafetyTest extends TestCase
             $guard = new ReflectionMethod(AppServiceProvider::class, 'assertProductionConfiguration');
             $guard->setAccessible(true);
             $guard->invoke(new AppServiceProvider($app));
-            $this->fail('Production configuration must reject sandbox as the configured live payout mode.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('AIRWALLEX_ENVIRONMENT must be live', $exception->getMessage());
+            $this->addToAssertionCount(1);
         } finally {
             config($previousConfig);
             $app->instance('env', $previousEnvironment);

@@ -137,20 +137,33 @@ if [[ "$ENVIRONMENT" == "staging" ]]; then
 else
     require_env_value CLIENT_PREVIEW false
     require_env_value DEMO_DATA_ENABLED false
-    require_env_value AIRWALLEX_ENVIRONMENT live
-    require_env_value AIRWALLEX_LIVE_BASE_URL https://api.airwallex.com/api/v1
     require_nonempty_env APP_KEY
     require_nonempty_env PAYOUTS_ENABLED
+    require_nonempty_env AIRWALLEX_ENVIRONMENT
     require_nonempty_env MAIL_MAILER
     require_nonempty_env PROOF_STORAGE_DISK
 
     PAYOUTS_ENABLED="$(env_value PAYOUTS_ENABLED)"
+    AIRWALLEX_ENVIRONMENT="$(env_value AIRWALLEX_ENVIRONMENT)"
     [[ "$PAYOUTS_ENABLED" == "true" || "$PAYOUTS_ENABLED" == "false" ]] \
         || die "Production PAYOUTS_ENABLED must be true or false."
+    [[ "$AIRWALLEX_ENVIRONMENT" == "sandbox" || "$AIRWALLEX_ENVIRONMENT" == "live" ]] \
+        || die "Production AIRWALLEX_ENVIRONMENT must be sandbox or live."
+    if [[ "$AIRWALLEX_ENVIRONMENT" == "sandbox" ]]; then
+        require_env_value AIRWALLEX_SANDBOX_BASE_URL https://api.sandbox.airwallex.com/api/v1
+    else
+        require_env_value AIRWALLEX_LIVE_BASE_URL https://api.airwallex.com/api/v1
+    fi
     if [[ "$PAYOUTS_ENABLED" == "true" ]]; then
-        require_nonempty_env AIRWALLEX_LIVE_CLIENT_ID
-        require_nonempty_env AIRWALLEX_LIVE_API_KEY
-        require_nonempty_env AIRWALLEX_LIVE_WEBHOOK_SECRET
+        if [[ "$AIRWALLEX_ENVIRONMENT" == "sandbox" ]]; then
+            require_nonempty_env AIRWALLEX_SANDBOX_CLIENT_ID
+            require_nonempty_env AIRWALLEX_SANDBOX_API_KEY
+            require_nonempty_env AIRWALLEX_SANDBOX_WEBHOOK_SECRET
+        else
+            require_nonempty_env AIRWALLEX_LIVE_CLIENT_ID
+            require_nonempty_env AIRWALLEX_LIVE_API_KEY
+            require_nonempty_env AIRWALLEX_LIVE_WEBHOOK_SECRET
+        fi
     fi
 
     case "$(env_value MAIL_MAILER)" in
