@@ -568,7 +568,6 @@ function AccountEligibilityPanel({ user, onNavigate, onResendEmail, compact = fa
     { label: 'Email verified', complete: emailVerified, status: emailVerified ? 'Verified' : 'Action needed' },
     { label: 'Bank account submitted', complete: payoutStatus !== 'not_submitted', status: payoutStatus === 'not_submitted' ? 'Not submitted' : 'Submitted' },
     { label: 'Bank account approved', complete: payoutApproved, status: payoutApproved ? 'Approved' : payoutLabel },
-    { label: 'Eligible to reserve tasks', complete: Boolean(user?.eligible_to_reserve), status: user?.eligible_to_reserve ? 'Ready' : 'Complete the steps above' },
   ]
   return <section className={`card ${compact ? 'p-4 sm:p-5' : 'p-5 sm:p-6'}`} aria-label="Account verification status">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -576,14 +575,14 @@ function AccountEligibilityPanel({ user, onNavigate, onResendEmail, compact = fa
         <div className="flex items-center gap-2"><ShieldCheck size={17} className="shrink-0 text-navy" /><p className="eyebrow">Account setup</p></div>
         <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-ink">{user?.eligible_to_reserve ? 'You’re ready to reserve tasks' : 'Complete these steps to reserve tasks'}</h2>
         {!user?.eligible_to_reserve && user?.eligibility_message && <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">{user.eligibility_message}</p>}
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {checks.map((check) => <div key={check.label} className="flex min-w-0 items-start gap-2 rounded-lg bg-canvas px-3 py-2.5">
             {check.complete ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-success" /> : <Clock3 size={15} className="mt-0.5 shrink-0 text-warning" />}
             <div className="min-w-0"><p className="text-[11px] font-semibold text-ink">{check.label}</p><p className="mt-0.5 truncate text-[10px] text-muted">{check.status}</p></div>
           </div>)}
         </div>
       </div>
-      {!user?.eligible_to_reserve && <div className="flex shrink-0 flex-col gap-2 sm:min-w-[190px]">
+      {!user?.eligible_to_reserve && <div className="flex shrink-0 flex-col gap-2 sm:min-w-[190px] sm:self-center">
         {!emailVerified
           ? <button onClick={() => void onResendEmail()} className="btn-primary min-h-10 text-xs"><Mail size={15} /> Resend verification email</button>
           : <button onClick={() => onNavigate('payouts')} className="btn-primary min-h-10 text-xs"><Landmark size={15} /> {payoutStatus === 'not_submitted' || payoutStatus === 'rejected' || payoutStatus === 'changes_requested' ? 'Add Bank Account' : 'View Bank Account'}</button>}
