@@ -557,6 +557,8 @@ function MemberRoutes({ page, userName, currentUser, onUserUpdated, selectedTask
 }
 
 function AccountEligibilityPanel({ user, onNavigate, onResendEmail, compact = false }: { user: ApiUser | null; onNavigate: (page: AppPage) => void; onResendEmail: () => Promise<void>; compact?: boolean }) {
+  if (user?.eligible_to_reserve) return null
+
   const emailVerified = Boolean(user?.email_verified)
   const payoutStatus = user?.payout_verification_status || 'not_submitted'
   const payoutApproved = payoutStatus === 'approved' && !user?.duplicate_review_required
