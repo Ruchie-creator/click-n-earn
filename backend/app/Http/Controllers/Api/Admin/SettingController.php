@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Notifications\EventNotification;
 use App\Services\AirwallexEnvironment;
 use App\Services\AuditLogService;
+use App\Services\BankAccountRequirement;
 use App\Services\PayoutAvailability;
 use App\Services\PayoutProviderInterface;
 use Illuminate\Http\JsonResponse;
@@ -43,24 +44,16 @@ class SettingController extends ApiController
         return $this->ok(['status' => $provider->connectionStatus($environment)]);
     }
 
-    public function activateAirwallexEnvironment(Request $request, AirwallexEnvironment $environments, PayoutProviderInterface $provider, AuditLogService $audit, PayoutAvailability $availability): JsonResponse
+    public function activateAirwallexEnvironment(Request $request, AirwallexEnvironment $environments, PayoutAvailability $availability): JsonResponse
     {
         $availability->ensureEnabled();
 
-        $data = $request->validate(['environment' => ['required', 'in:sandbox,live'], 'confirmation' => ['nullable', 'string']]);
+        $data = $request->validate(['environment' => ['required', 'in:sandbox,live']]);
         $target = $data['environment'];
-        if ($target === 'live') {
-            abort_unless(($data['confirmation'] ?? null) === 'LIVE', 422, 'Type LIVE to confirm real-money payouts.');
-            $readiness = $this->liveReadiness($environments, $provider);
-            abort_unless($readiness['ready'], 422, 'Live activation is blocked: '.implode('; ', $readiness['failed_checks']));
-        }
+        $active = $environments->active();
+        abort_unless($target === $active, 422, 'Airwallex environment is controlled by AIRWALLEX_ENVIRONMENT on the server.');
 
-        $previous = $environments->active();
-        $environments->setActive($target);
-        $setting = Setting::firstOrFail(['key' => 'airwallex.environment']);
-        $audit->record('airwallex.environment_changed', $setting, $request, before: ['environment' => $previous], after: ['environment' => $target], actorId: $request->user()->id);
-
-        return $this->ok(['active_environment' => $target]);
+        return $this->ok(['active_environment' => $active]);
     }
 
     public function index(): JsonResponse
@@ -74,7 +67,10 @@ class SettingController extends ApiController
 
     public function update(Request $request, string $key, AuditLogService $audit): JsonResponse
     {
-        $data = $request->validate(['value' => ['required', 'array']]);
+        $data = $request->validate([
+            'value' => ['required', 'array'],
+            'value.enabled' => [$key === BankAccountRequirement::SETTING_KEY ? 'required' : 'nullable', 'boolean'],
+        ]);
         $setting = Setting::firstOrNew(['key' => $key]);
         $before = $setting->exists ? $setting->toArray() : null;
         $setting->value = $data['value'];

@@ -3,12 +3,43 @@
 namespace Tests\Unit;
 
 use App\Providers\AppServiceProvider;
+use App\Services\AirwallexEnvironment;
 use ReflectionMethod;
 use RuntimeException;
 use Tests\TestCase;
 
 class ReleaseConfigurationSafetyTest extends TestCase
 {
+    public function test_airwallex_active_environment_comes_from_server_configuration(): void
+    {
+        $previousEnvironment = config('payout.airwallex.environment');
+        $environments = app(AirwallexEnvironment::class);
+
+        try {
+            config(['payout.airwallex.environment' => 'live']);
+            $this->assertSame('live', $environments->active());
+
+            config(['payout.airwallex.environment' => 'sandbox']);
+            $this->assertSame('sandbox', $environments->active());
+        } finally {
+            config(['payout.airwallex.environment' => $previousEnvironment]);
+        }
+    }
+
+    public function test_airwallex_environment_cannot_be_changed_away_from_server_configuration(): void
+    {
+        $previousEnvironment = config('payout.airwallex.environment');
+        config(['payout.airwallex.environment' => 'live']);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('AIRWALLEX_ENVIRONMENT');
+            app(AirwallexEnvironment::class)->setActive('sandbox');
+        } finally {
+            config(['payout.airwallex.environment' => $previousEnvironment]);
+        }
+    }
+
     public function test_testing_environment_rejects_an_application_database(): void
     {
         $oldDefault = config('database.default');

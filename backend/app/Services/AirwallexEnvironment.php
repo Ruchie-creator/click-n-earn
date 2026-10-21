@@ -2,17 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\Setting;
-use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 class AirwallexEnvironment
 {
     public function active(): string
     {
-        $configured = Cache::remember('airwallex:active-environment', now()->addMinutes(1), function (): string {
-            return (string) data_get(Setting::query()->where('key', 'airwallex.environment')->value('value'), 'environment', config('payout.airwallex.environment', 'sandbox'));
-        });
+        $configured = (string) config('payout.airwallex.environment', 'sandbox');
 
         return in_array($configured, ['sandbox', 'live'], true) ? $configured : 'sandbox';
     }
@@ -23,8 +19,9 @@ class AirwallexEnvironment
             throw new RuntimeException('Airwallex environment must be sandbox or live.');
         }
 
-        Setting::updateOrCreate(['key' => 'airwallex.environment'], ['value' => ['environment' => $environment]]);
-        Cache::forget('airwallex:active-environment');
+        if ($environment !== $this->active()) {
+            throw new RuntimeException('Airwallex environment is controlled by AIRWALLEX_ENVIRONMENT on the server.');
+        }
     }
 
     public function configuration(string $environment): array

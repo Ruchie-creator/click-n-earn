@@ -38,6 +38,7 @@ export type ApiUser = {
   payout_verification_status: 'not_submitted' | 'pending_review' | 'approved' | 'changes_requested' | 'rejected' | string
   payout_masked_account?: string | null
   duplicate_review_required: boolean
+  bank_account_required_for_tasks: boolean
   eligible_to_reserve: boolean
   eligibility_next_step?: string | null
   eligibility_message?: string | null

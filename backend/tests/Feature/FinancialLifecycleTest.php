@@ -108,6 +108,7 @@ class FinancialLifecycleTest extends TestCase
             'account_details' => ['account_number' => '1234'],
             'account_last4' => '1234',
             'status' => 'active',
+            'verification_status' => 'approved',
             'is_default' => true,
         ]);
 

@@ -42,9 +42,12 @@ class PayoutController extends ApiController
         }
         abort_if($payout->getAttribute('demo_batch_id') && $payout->provider_environment === 'live', 422, 'Demo payouts cannot be released in Live Airwallex mode.');
         abort_unless($payout->provider_environment === $environments->active(), 422, 'This payout belongs to a different Airwallex environment and cannot be released from the active queue.');
-        $hasActiveMethod = $payout->payoutMethod?->status === 'active'
-            || $payout->user?->payoutMethods()->where('status', 'active')->exists();
-        abort_unless($hasActiveMethod, 422, 'The member must add an active payout method before this payout can be released.');
+        $eligibleMethod = $payout->user?->payoutMethods()
+            ->where('status', 'active')
+            ->where('verification_status', 'approved')
+            ->where(fn ($query) => $query->whereNull('duplicate_flagged_at')->orWhereNotNull('duplicate_resolved_at'))
+            ->exists();
+        abort_unless($eligibleMethod, 422, 'The member must add and have an approved bank account before this payout can be released.');
         ProcessPayoutJob::dispatch($payout->id)->afterCommit();
         $audit->record('payout.release_requested', $payout, $request, after: ['provider' => 'airwallex', 'provider_environment' => $payout->provider_environment], actorId: $request->user()->id);
 

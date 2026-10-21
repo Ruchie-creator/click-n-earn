@@ -129,9 +129,11 @@ class PayoutService
             }
 
             $method = $model->payoutMethod?->status === 'active'
+                && $model->payoutMethod?->verification_status === 'approved'
+                && (! $model->payoutMethod?->duplicate_flagged_at || $model->payoutMethod?->duplicate_resolved_at)
                 ? $model->payoutMethod
-                : ($model->user->payoutMethods()->where('status', 'active')->where('is_default', true)->first()
-                    ?: $model->user->payoutMethods()->where('status', 'active')->latest()->first());
+                : ($model->user->payoutMethods()->where('status', 'active')->where('verification_status', 'approved')->where(fn ($query) => $query->whereNull('duplicate_flagged_at')->orWhereNotNull('duplicate_resolved_at'))->where('is_default', true)->first()
+                    ?: $model->user->payoutMethods()->where('status', 'active')->where('verification_status', 'approved')->where(fn ($query) => $query->whereNull('duplicate_flagged_at')->orWhereNotNull('duplicate_resolved_at'))->latest()->first());
             if (! $method) {
                 Log::info('Payout release deferred because no active payout method is available.', ['payout_id' => $model->id]);
 
