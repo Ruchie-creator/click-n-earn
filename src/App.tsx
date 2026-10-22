@@ -5194,6 +5194,27 @@ function AdminTasksPage({
       },
     );
   };
+  const editTask = async (task: Task) => {
+    const title = window.prompt("Task title", task.title);
+    if (!title?.trim()) return;
+    try {
+      await api.adminUpdateTask(task.id, { title: title.trim() });
+      await onRefresh();
+      onToast("Task updated.");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "The task could not be updated.");
+    }
+  };
+  const deleteTask = async (task: Task) => {
+    if (!window.confirm(`Delete “${task.title}”? Tasks with reservations cannot be deleted.`)) return;
+    try {
+      await api.adminDeleteTask(task.id);
+      await onRefresh();
+      onToast("Task deleted.");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "The task could not be deleted.");
+    }
+  };
   return (
     <div className="space-y-7">
       <PageHeader
@@ -5330,7 +5351,7 @@ function AdminTasksPage({
                         </StatusBadge>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
+                        <div className="flex justify-end gap-2"><button
                           disabled={processing}
                           onClick={() => void changeTaskStatus(task)}
                           className="btn-secondary min-h-9 px-2.5 text-xs disabled:opacity-60"
@@ -5339,6 +5360,7 @@ function AdminTasksPage({
                             ? "Pause task"
                             : "Make available"}
                         </button>
+                        <button disabled={processing} onClick={() => void editTask(task)} className="btn-secondary min-h-9 px-2.5 text-xs disabled:opacity-60">Edit</button><button disabled={processing} onClick={() => void deleteTask(task)} className="btn-secondary min-h-9 px-2.5 text-xs text-error disabled:opacity-60">Delete</button></div>
                       </td>
                     </tr>
                   ))}
@@ -7416,6 +7438,23 @@ function AdminGenericPage({
 
 function AdminUsersPage() {
   const [search, setSearch] = useState("");
+  const exportUsers = async () => {
+    const blob = await api.downloadAdminUsersExport();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "click-and-earn-users.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const updateMember = async (member: (typeof members)[number], payload: { account_status?: string; role?: "member" | "admin" }) => {
+    try {
+      await api.adminUpdateUser(member.id, payload);
+      window.location.reload();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "The member could not be updated.");
+    }
+  };
   const filtered = members.filter((member) =>
     `${member.name} ${member.email}`
       .toLowerCase()
@@ -7430,6 +7469,7 @@ function AdminUsersPage() {
         eyebrow="Member management"
         title="Users"
         description="Review member accounts and the task and earnings information returned by the admin API."
+        actions={<button onClick={() => void exportUsers()} className="btn-secondary">Export users</button>}
       />
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -7483,7 +7523,9 @@ function AdminUsersPage() {
                   <th className="px-6 py-3 font-semibold">Member</th>
                   <th className="px-4 py-3 font-semibold">Tasks completed</th>
                   <th className="px-4 py-3 font-semibold">Total earned</th>
-                  <th className="px-6 py-3 text-right font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Role</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-6 py-3 text-right font-semibold">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -7515,11 +7557,13 @@ function AdminUsersPage() {
                     <td className="number px-4 py-4 text-xs font-semibold text-navy">
                       {formatCurrency(member.earned)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-4 text-xs text-muted">{member.role}</td>
+                    <td className="px-4 py-4">
                       <StatusBadge tone={getTone(member.status)} dot>
                         {member.status}
                       </StatusBadge>
                     </td>
+                    <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={() => void updateMember(member, { account_status: member.status.toLowerCase() === "active" ? "suspended" : "active" })} className="btn-secondary min-h-8 px-2 text-[11px]">{member.status.toLowerCase() === "active" ? "Suspend" : "Activate"}</button><button onClick={() => void updateMember(member, { role: member.role.toLowerCase() === "admin" ? "member" : "admin" })} className="btn-secondary min-h-8 px-2 text-[11px]">{member.role.toLowerCase() === "admin" ? "Make member" : "Make admin"}</button></div></td>
                   </tr>
                 ))}
               </tbody>

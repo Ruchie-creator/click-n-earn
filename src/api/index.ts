@@ -156,6 +156,9 @@ export const api = {
   adminUpdateTask(id: string | number, payload: Record<string, unknown>) {
     return apiFetch<ApiEnvelope<ApiTask>>('/admin/tasks/' + id, { method: 'PATCH', body: JSON.stringify(payload) })
   },
+  adminDeleteTask(id: string | number) {
+    return apiFetch<ApiEnvelope<{ deleted: boolean }>>('/admin/tasks/' + id, { method: 'DELETE' })
+  },
   adminChangeTaskStatus(id: string | number, status: string) {
     return apiFetch<ApiEnvelope<ApiTask>>('/admin/tasks/' + id + '/status', { method: 'POST', body: JSON.stringify({ status }) })
   },
@@ -211,6 +214,12 @@ export const api = {
   adminUsers() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminUser[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/users')
   },
+  downloadAdminUsersExport() {
+    return apiDownload('/admin/users/export')
+  },
+  adminUpdateUser(id: number, payload: { account_status?: string; role?: 'member' | 'admin' | 'super_admin' }) {
+    return apiFetch<ApiEnvelope<ApiAdminUser>>('/admin/users/' + id, { method: 'PATCH', body: JSON.stringify(payload) })
+  },
   adminReferrals(params: Record<string, string> = {}) {
     const query = new URLSearchParams(params).toString()
     return apiFetch<ApiEnvelope<{ items: ApiAdminReferral[]; summary: Record<string, number>; meta: { current_page: number; last_page: number; total: number } }>>('/admin/referrals' + (query ? '?' + query : ''))
@@ -248,6 +257,9 @@ export const api = {
   },
   adminTransactions() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminTransaction[]; meta: { current_page: number; last_page: number; total: number } }>>('/admin/transactions')
+  },
+  downloadAdminTransactionInvoice(id: string | number) {
+    return apiDownload('/admin/transactions/' + id + '/invoice')
   },
   adminNotifications() {
     return apiFetch<ApiEnvelope<{ items: ApiAdminNotification[]; summary: { sent_this_month: number; pending_email: number; failed_email: number; unread_in_app: number }; meta: { current_page: number; last_page: number; total: number } }>>('/admin/notifications')

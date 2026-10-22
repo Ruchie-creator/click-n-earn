@@ -134,12 +134,14 @@ export type AdminPayoutRow = {
 };
 
 export type MemberRow = {
+  id: number;
   initials: string;
   name: string;
   email: string;
   tasks: number;
   earned: number;
   status: string;
+  role: string;
 };
 export type AdminReferralRow = {
   id: number;
@@ -809,13 +811,16 @@ export function hydrateFinanceData(payload: {
 export function hydrateAdminMembers(
   items: Array<{
     name: string;
+    id: number;
     email: string;
     tasks_completed: number;
     earned: number;
     account_status: string;
+    role: string;
   }>,
 ): void {
   members = items.map((item) => ({
+    id: item.id,
     initials: item.name
       .split(/\s+/)
       .map((part) => part[0] || "")
@@ -827,6 +832,7 @@ export function hydrateAdminMembers(
     tasks: item.tasks_completed,
     earned: item.earned,
     status: readableStatus(item.account_status),
+    role: readableStatus(item.role),
   }));
 }
 
