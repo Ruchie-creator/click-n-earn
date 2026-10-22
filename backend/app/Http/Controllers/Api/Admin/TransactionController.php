@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\LedgerEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class TransactionController extends ApiController
 {
@@ -46,5 +47,13 @@ class TransactionController extends ApiController
             ])->values(),
             'meta' => ['current_page' => $logs->currentPage(), 'last_page' => $logs->lastPage(), 'total' => $logs->total()],
         ]);
+    }
+
+    public function invoice(LedgerEntry $entry): Response
+    {
+        $entry->loadMissing(['user', 'reservation.task', 'payout']);
+
+        return response()->view('invoices.transaction', ['entry' => $entry])
+            ->header('Content-Disposition', 'attachment; filename="click-and-earn-invoice-'.$entry->id.'.html"');
     }
 }

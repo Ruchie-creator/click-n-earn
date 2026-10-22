@@ -91,6 +91,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::get('tasks', [AdminTaskController::class, 'index']);
             Route::post('tasks', [AdminTaskController::class, 'store']);
             Route::patch('tasks/{task}', [AdminTaskController::class, 'update']);
+            Route::delete('tasks/{task}', [AdminTaskController::class, 'destroy']);
             Route::post('tasks/{task}/status', [AdminTaskController::class, 'changeStatus']);
             Route::post('tasks/{task}/publish', [AdminTaskController::class, 'publish']);
             Route::post('tasks/{task}/pause', [AdminTaskController::class, 'pause']);
@@ -117,6 +118,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::post('payout-verifications/{payoutMethod}/request-changes', [AdminPayoutVerificationController::class, 'requestChanges']);
             Route::post('payout-verifications/{payoutMethod}/resolve-duplicate', [AdminPayoutVerificationController::class, 'resolveDuplicate']);
             Route::get('users', [AdminUserController::class, 'index']);
+            Route::get('users/export', [AdminUserController::class, 'export']);
             Route::get('users/{user}', [AdminUserController::class, 'show']);
             Route::patch('users/{user}', [AdminUserController::class, 'update']);
             Route::post('users/{user}/suspend', [AdminUserController::class, 'suspend']);
@@ -131,6 +133,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::put('faqs/{faq}', [AdminFaqController::class, 'update']);
             Route::delete('faqs/{faq}', [AdminFaqController::class, 'destroy']);
             Route::get('transactions', [AdminTransactionController::class, 'index']);
+            Route::get('transactions/{entry}/invoice', [AdminTransactionController::class, 'invoice']);
             Route::get('audit-logs', [AdminTransactionController::class, 'audit']);
             Route::get('notifications', [AdminNotificationController::class, 'index']);
             Route::get('settings', [AdminSettingController::class, 'index']);

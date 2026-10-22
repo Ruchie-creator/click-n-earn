@@ -102,6 +102,21 @@ class TaskController extends ApiController
         return $this->ok($this->taskPayload($task->fresh()));
     }
 
+    public function destroy(Request $request, Task $task, AuditLogService $audit): JsonResponse
+    {
+        DB::transaction(function () use ($request, $task, $audit): void {
+            $locked = Task::query()->lockForUpdate()->withCount('reservations')->findOrFail($task->id);
+            if ($locked->reservations_count > 0) {
+                throw ValidationException::withMessages(['task' => 'Tasks with reservations cannot be deleted. Pause or archive the task instead to preserve financial records.']);
+            }
+            $before = $locked->toArray();
+            $audit->record('task.deleted', $locked, $request, before: $before, actorId: $request->user()->id);
+            $locked->delete();
+        });
+
+        return $this->ok(['deleted' => true]);
+    }
+
     private function validated(Request $request, bool $required = true): array
     {
         return $request->validate([

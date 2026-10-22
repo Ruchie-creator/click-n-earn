@@ -12,7 +12,7 @@ class AdminAuthorizationSafetyTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_regular_admin_cannot_change_roles_or_manage_admin_accounts(): void
+    public function test_regular_admin_can_manage_member_and_admin_accounts_but_not_super_admin_accounts(): void
     {
         $admin = User::factory()->create([
             'role' => UserRole::ADMIN,
@@ -26,16 +26,17 @@ class AdminAuthorizationSafetyTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->patchJson('/api/admin/users/'.$member->id, ['role' => UserRole::ADMIN->value])
-            ->assertForbidden();
+            ->assertOk()
+            ->assertJsonPath('data.role', UserRole::ADMIN->value);
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/admin/users/'.$otherAdmin->id.'/suspend')
-            ->assertForbidden();
+            ->assertOk();
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/admin/users/'.$admin->id.'/suspend')
             ->assertForbidden();
 
-        $this->assertDatabaseHas('users', ['id' => $member->id, 'role' => UserRole::MEMBER->value]);
-        $this->assertDatabaseHas('users', ['id' => $otherAdmin->id, 'account_status' => AccountStatus::ACTIVE->value]);
+        $this->assertDatabaseHas('users', ['id' => $member->id, 'role' => UserRole::ADMIN->value]);
+        $this->assertDatabaseHas('users', ['id' => $otherAdmin->id, 'account_status' => AccountStatus::SUSPENDED->value]);
     }
 
     public function test_super_admin_can_change_a_member_role_and_the_change_is_audited(): void
