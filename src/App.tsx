@@ -5071,6 +5071,8 @@ function AdminTasksPage({
 }) {
   const { runOperation, processing, notify } = useFeedback();
   const [showModal, setShowModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [categories, setCategories] = useState<ApiTaskCategory[]>([]);
   const [categoryQuery, setCategoryQuery] = useState("");
@@ -5078,10 +5080,42 @@ function AdminTasksPage({
     category.name.toLowerCase().includes(categoryQuery.trim().toLowerCase()),
   );
   const [query, setQuery] = useState("");
-  const filtered = adminTasks.filter((task) =>
-    `${task.title} ${task.category}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const filtered = adminTasks
+    .filter((task) =>
+      `${task.title} ${task.category} ${task.sponsor}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+    )
+    .filter(
+      (task) =>
+        statusFilter === "all" ||
+        task.status.toLowerCase() === statusFilter,
+    )
+    .filter(
+      (task) => categoryFilter === "all" || task.category === categoryFilter,
+    )
+    .sort((a, b) => {
+      if (sortBy === "reward")
+        return b.productPrice + b.incentive - (a.productPrice + a.incentive);
+      if (sortBy === "capacity") return b.slots - a.slots;
+      return Number(b.id) - Number(a.id);
+    });
+  const taskCategoryNames = Array.from(
+    new Set(adminTasks.map((task) => task.category)),
+  ).sort();
+  const liveTaskCount = adminTasks.filter(
+    (task) => task.status.toLowerCase() === "available",
+  ).length;
+  const pausedTaskCount = adminTasks.filter(
+    (task) => task.status.toLowerCase() === "paused",
+  ).length;
+  const totalOpenSlots = adminTasks.reduce((sum, task) => sum + task.slots, 0);
+  const totalExposure = adminTasks.reduce(
+    (sum, task) => sum + task.slots * (task.productPrice + task.incentive),
+    0,
   );
   const loadCategories = async () => {
     try {
@@ -5194,21 +5228,24 @@ function AdminTasksPage({
       },
     );
   };
-  const editTask = async (task: Task) => {
-    const title = window.prompt("Task title", task.title);
-    if (!title?.trim()) return;
-    try {
-      await api.adminUpdateTask(task.id, { title: title.trim() });
-      await onRefresh();
-      onToast("Task updated.");
-    } catch (error) {
-      onToast(error instanceof Error ? error.message : "The task could not be updated.");
-    }
+  const editTask = async (task: Task, payload: Record<string, unknown>) => {
+    await runOperation(
+      {
+        title: "Updating task",
+        description: "Saving the new configuration and refreshing the catalog.",
+        successMessage: "Task updated.",
+      },
+      async () => {
+        await api.adminUpdateTask(task.id, payload);
+        setEditingTask(null);
+        await onRefresh();
+      },
+    );
   };
   const deleteTask = async (task: Task) => {
-    if (!window.confirm(`Delete “${task.title}”? Tasks with reservations cannot be deleted.`)) return;
     try {
       await api.adminDeleteTask(task.id);
+      setPendingDelete(null);
       await onRefresh();
       onToast("Task deleted.");
     } catch (error) {
@@ -5216,11 +5253,11 @@ function AdminTasksPage({
     }
   };
   return (
-    <div className="space-y-7">
+    <div className="admin-workspace space-y-6">
       <PageHeader
-        eyebrow="Marketplace configuration"
-        title="Task management"
-        description="Fund new purchase opportunities, shape the member experience, and keep reward economics clear."
+        eyebrow="Operations / Catalog"
+        title="Task control"
+        description="Launch, monitor, and tune every marketplace opportunity from one operating view."
         actions={
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
@@ -5228,7 +5265,7 @@ function AdminTasksPage({
               onClick={() => setShowCategoryManager(true)}
               className="btn-secondary disabled:opacity-60"
             >
-              <Settings2 size={15} /> Manage categories
+              <Settings2 size={15} /> Categories
             </button>
             <button
               disabled={processing}
@@ -5240,38 +5277,31 @@ function AdminTasksPage({
           </div>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Available tasks"
-          value={adminStats.activeTasks}
-          helper="Current catalog"
-          icon={Tag}
-          tone="navy"
-        />
-        <StatCard
-          label="Reserved slots"
-          value={adminStats.reservedSlots}
-          helper="Current capacity in use"
-          icon={Bookmark}
-          tone="blue"
-        />
-        <StatCard
-          label="Reserved rewards"
-          value={adminStats.reservedRewards}
-          helper="Current ledger total"
-          icon={Banknote}
-          tone="green"
-        />
-      </div>
-      <section className="card overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">All opportunities</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">
-              Task catalog
-            </h2>
+      <div className="admin-signal-grid fade-up">
+        {[
+          ["Live", liveTaskCount, "Accepting members"],
+          ["Paused", pausedTaskCount, "Awaiting action"],
+          ["Open capacity", totalOpenSlots, "Slots remaining"],
+          ["Potential exposure", formatCurrency(totalExposure), "At full uptake"],
+        ].map(([label, value, helper]) => (
+          <div key={String(label)} className="admin-signal">
+            <p>{label}</p>
+            <strong className="number">{value}</strong>
+            <span>{helper}</span>
           </div>
-          <div className="relative w-full sm:max-w-[260px]">
+        ))}
+      </div>
+      <section className="admin-panel overflow-hidden fade-up stagger-1">
+        <div className="admin-panel-header">
+          <div className="min-w-0">
+            <p className="eyebrow">Catalog index</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-ink">All tasks</h2>
+              <span className="number text-xs text-subtle">{filtered.length}/{adminTasks.length}</span>
+            </div>
+          </div>
+          <div className="grid w-full gap-2 sm:grid-cols-[minmax(190px,1fr)_140px_150px_130px] lg:w-auto">
+            <div className="relative min-w-0">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle"
               size={15}
@@ -5279,32 +5309,47 @@ function AdminTasksPage({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="form-field h-9 pl-9 text-xs"
-              placeholder="Search tasks"
+              className="form-field h-10 pl-9 text-xs"
+              placeholder="Search title, category, sponsor"
             />
+          </div>
+            <select className="form-field h-10 text-xs" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status">
+              <option value="all">All statuses</option>
+              <option value="available">Available</option>
+              <option value="paused">Paused</option>
+              <option value="expired">Expired</option>
+              <option value="archived">Archived</option>
+            </select>
+            <select className="form-field h-10 text-xs" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter by category">
+              <option value="all">All categories</option>
+              {taskCategoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+            <select className="form-field h-10 text-xs" value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort tasks">
+              <option value="newest">Newest</option>
+              <option value="reward">Highest payout</option>
+              <option value="capacity">Most capacity</option>
+            </select>
           </div>
         </div>
         {filtered.length ? (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[900px] text-left">
-                <thead className="bg-canvas text-[11px] uppercase tracking-[0.1em] text-subtle">
+              <table className="admin-table w-full min-w-[980px] text-left">
+                <thead>
                   <tr>
-                    <th className="px-6 py-3 font-semibold">Task</th>
-                    <th className="px-4 py-3 font-semibold">Category</th>
-                    <th className="px-4 py-3 font-semibold">Economics</th>
-                    <th className="px-4 py-3 font-semibold">Slots</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-6 py-3 text-right font-semibold">
-                      Action
-                    </th>
+                    <th className="px-6 py-3">Task</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Unit economics</th>
+                    <th className="px-4 py-3">Capacity</th>
+                    <th className="px-4 py-3">State</th>
+                    <th className="px-6 py-3 text-right">Controls</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   {filtered.map((task) => (
                     <tr
                       key={task.id}
-                      className="transition-colors hover:bg-canvas"
+                      className="transition-colors duration-150 hover:bg-[#F5F7FA]"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -5312,7 +5357,7 @@ function AdminTasksPage({
                             <img
                               src={task.image}
                               alt=""
-                              className="task-image h-10 w-10 rounded-lg object-cover"
+                              className="task-image h-11 w-11 rounded-md object-cover"
                             />
                           )}
                           <div>
@@ -5320,30 +5365,23 @@ function AdminTasksPage({
                               {task.title}
                             </p>
                             <p className="mt-0.5 text-[11px] text-muted">
-                              {task.sponsor}
+                              ID {task.id.padStart(4, "0")} · {task.sponsor}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="rounded-full bg-soft-blue px-2.5 py-1 text-[11px] font-semibold text-navy">
-                          {task.category}
-                        </span>
+                        <span className="text-xs font-medium text-muted">{task.category}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <p className="number text-xs font-semibold text-ink">
-                          {formatCurrency(task.productPrice)}{" "}
-                          <span className="font-normal text-muted">
-                            + {formatCurrency(task.incentive)}
-                          </span>
-                        </p>
-                        <p className="mt-1 text-[10px] text-subtle">
-                          {formatCurrency(task.productPrice + task.incentive)}{" "}
-                          total
-                        </p>
+                        <p className="number text-sm font-semibold text-ink">{formatCurrency(task.productPrice + task.incentive)}</p>
+                        <p className="mt-0.5 text-[10px] text-subtle">{formatCurrency(task.productPrice)} base · {formatCurrency(task.incentive)} reward</p>
                       </td>
-                      <td className="px-4 py-4 text-xs font-semibold text-ink">
-                        {task.slots}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center justify-between gap-3 text-[11px]"><span className="number font-semibold text-ink">{task.slots} open</span><span className="number text-subtle">{task.reservedSlots ?? 0} held</span></div>
+                        <div className="mt-2 h-1.5 w-32 overflow-hidden bg-[#E8EDF3]">
+                          <span className="block h-full bg-accent" style={{ width: `${Math.min(100, ((task.reservedSlots ?? 0) + (task.completedSlots ?? 0)) / Math.max(1, task.availableSlots ?? task.slots) * 100)}%` }} />
+                        </div>
                       </td>
                       <td className="px-4 py-4">
                         <StatusBadge tone={getTone(task.status)} dot>
@@ -5351,16 +5389,11 @@ function AdminTasksPage({
                         </StatusBadge>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2"><button
-                          disabled={processing}
-                          onClick={() => void changeTaskStatus(task)}
-                          className="btn-secondary min-h-9 px-2.5 text-xs disabled:opacity-60"
-                        >
-                          {task.status.toLowerCase() === "available"
-                            ? "Pause task"
-                            : "Make available"}
-                        </button>
-                        <button disabled={processing} onClick={() => void editTask(task)} className="btn-secondary min-h-9 px-2.5 text-xs disabled:opacity-60">Edit</button><button disabled={processing} onClick={() => void deleteTask(task)} className="btn-secondary min-h-9 px-2.5 text-xs text-error disabled:opacity-60">Delete</button></div>
+                        <div className="flex justify-end gap-1">
+                          <button disabled={processing} onClick={() => void changeTaskStatus(task)} className="admin-icon-button" aria-label={task.status.toLowerCase() === "available" ? "Pause task" : "Make task available"} title={task.status.toLowerCase() === "available" ? "Pause task" : "Make task available"}>{task.status.toLowerCase() === "available" ? <Minus size={15} /> : <ArrowUp size={15} />}</button>
+                          <button disabled={processing} onClick={() => setEditingTask(task)} className="admin-icon-button" aria-label="Edit task" title="Edit task"><Pencil size={15} /></button>
+                          <button disabled={processing} onClick={() => setPendingDelete(task)} className="admin-icon-button text-error hover:bg-red-50" aria-label="Delete task" title="Delete task"><Trash2 size={15} /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -5369,7 +5402,8 @@ function AdminTasksPage({
             </div>
             <div className="divide-y divide-line md:hidden">
               {filtered.map((task) => (
-                <div key={task.id} className="flex items-start gap-3 px-5 py-4">
+                <div key={task.id} className="px-5 py-4">
+                  <div className="flex items-start gap-3">
                   {task.image && (
                     <img
                       src={task.image}
@@ -5393,15 +5427,9 @@ function AdminTasksPage({
                       </span>
                     </p>
                   </div>
-                  <button
-                    disabled={processing}
-                    onClick={() => void changeTaskStatus(task)}
-                    className="btn-secondary min-h-8 px-2 text-[11px] disabled:opacity-60"
-                  >
-                    {task.status.toLowerCase() === "available"
-                      ? "Pause"
-                      : "Make available"}
-                  </button>
+                    <button onClick={() => setEditingTask(task)} className="admin-icon-button" aria-label="Edit task"><Pencil size={15} /></button>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[11px] text-muted"><span className="number">{task.slots} open · {task.reservedSlots ?? 0} held</span><button disabled={processing} onClick={() => void changeTaskStatus(task)} className="font-semibold text-navy">{task.status.toLowerCase() === "available" ? "Pause" : "Make live"}</button></div>
                 </div>
               ))}
             </div>
@@ -5433,6 +5461,46 @@ function AdminTasksPage({
           onCreate={createTask}
           processing={processing}
         />
+      </Modal>
+      <Modal
+        open={Boolean(editingTask)}
+        title="Edit task configuration"
+        description="Update the member experience, capacity, and unit economics."
+        onClose={() => {
+          if (!processing) setEditingTask(null);
+        }}
+        size="lg"
+      >
+        {editingTask && (
+          <EditTaskForm
+            key={editingTask.id}
+            task={editingTask}
+            categories={categories.filter((category) => category.is_active)}
+            processing={processing}
+            onCancel={() => setEditingTask(null)}
+            onSave={(payload) => editTask(editingTask, payload)}
+          />
+        )}
+      </Modal>
+      <Modal
+        open={Boolean(pendingDelete)}
+        title="Delete task?"
+        description="This action is only allowed when the task has no reservations."
+        onClose={() => setPendingDelete(null)}
+        size="sm"
+      >
+        {pendingDelete && (
+          <div>
+            <div className="border-l-2 border-error bg-red-50 px-4 py-3">
+              <p className="text-sm font-semibold text-ink">{pendingDelete.title}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Pause or archive tasks with financial history so their records remain intact.</p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setPendingDelete(null)} className="btn-secondary">Cancel</button>
+              <button disabled={processing} onClick={() => void deleteTask(pendingDelete)} className="btn-primary bg-error hover:bg-[#B42318] disabled:opacity-50">{processing ? "Deleting…" : "Delete task"}<Trash2 size={15} /></button>
+            </div>
+          </div>
+        )}
       </Modal>
       <Modal
         open={showCategoryManager}
@@ -5812,6 +5880,106 @@ function CreateTaskForm({
         </button>
       </div>
     </div>
+  );
+}
+
+function EditTaskForm({
+  task,
+  categories,
+  processing,
+  onCancel,
+  onSave,
+}: {
+  task: Task;
+  categories: ApiTaskCategory[];
+  processing: boolean;
+  onCancel: () => void;
+  onSave: (payload: Record<string, unknown>) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [category, setCategory] = useState(task.category);
+  const [slots, setSlots] = useState(String(task.availableSlots ?? task.slots));
+  const [price, setPrice] = useState(String(task.productPrice));
+  const [incentive, setIncentive] = useState(String(task.incentive));
+  const [checkoutUrl, setCheckoutUrl] = useState(task.checkoutUrl ?? "");
+  const [description, setDescription] = useState(
+    task.description || task.instructions.join("\n"),
+  );
+  const priceValue = Number(price);
+  const incentiveValue = Number(incentive);
+  const slotValue = Number(slots);
+  const valid =
+    title.trim().length > 0 &&
+    description.trim().length > 0 &&
+    priceValue > 0 &&
+    incentiveValue >= 0 &&
+    Number.isInteger(slotValue) &&
+    slotValue >= 1;
+
+  return (
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!valid) return;
+        void onSave({
+          title: title.trim(),
+          category,
+          description: description.trim(),
+          reimbursement_amount: priceValue,
+          incentive_amount: incentiveValue,
+          available_slots: slotValue,
+          external_checkout_url: checkoutUrl.trim() || null,
+          instructions: description
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        });
+      }}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-ink sm:col-span-2">
+          Task title
+          <input className="form-field mt-2" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} />
+        </label>
+        <label className="text-xs font-semibold text-ink">
+          Category
+          <select className="form-field mt-2" value={category} onChange={(event) => setCategory(event.target.value)}>
+            {!categories.some((item) => item.name === category) && <option value={category}>{category}</option>}
+            {categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-ink">
+          Total capacity
+          <input className="form-field mt-2" type="number" min={Math.max(1, (task.reservedSlots ?? 0) + (task.completedSlots ?? 0))} step="1" value={slots} onChange={(event) => setSlots(event.target.value)} />
+          <span className="mt-1.5 block text-[10px] font-normal text-subtle">Cannot be lower than reserved plus completed.</span>
+        </label>
+        <label className="text-xs font-semibold text-ink">
+          Reimbursement
+          <input className="form-field mt-2" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
+        </label>
+        <label className="text-xs font-semibold text-ink">
+          Incentive
+          <input className="form-field mt-2" type="number" min="0" step="0.01" value={incentive} onChange={(event) => setIncentive(event.target.value)} />
+        </label>
+        <div className="sm:col-span-2 grid grid-cols-2 gap-4 border-y border-line py-4">
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Member payout</p><p className="number mt-1 text-xl font-semibold text-ink">{Number.isFinite(priceValue + incentiveValue) ? formatCurrency(priceValue + incentiveValue) : "—"}</p></div>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Max exposure</p><p className="number mt-1 text-xl font-semibold text-ink">{valid ? formatCurrency((priceValue + incentiveValue) * slotValue) : "—"}</p></div>
+        </div>
+        <label className="text-xs font-semibold text-ink sm:col-span-2">
+          Checkout URL
+          <input className="form-field mt-2" type="url" value={checkoutUrl} onChange={(event) => setCheckoutUrl(event.target.value)} placeholder="https://" />
+        </label>
+        <label className="text-xs font-semibold text-ink sm:col-span-2">
+          Instructions
+          <textarea className="form-field mt-2 h-28 resize-none py-3" value={description} onChange={(event) => setDescription(event.target.value)} />
+        </label>
+      </div>
+      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button disabled={!valid || processing} className="btn-primary disabled:opacity-50">{processing ? "Saving…" : "Save changes"}<Check size={15} /></button>
+      </div>
+    </form>
   );
 }
 
@@ -7421,7 +7589,7 @@ function AdminGenericPage({
   page: AppPage;
   onToast: (message: string) => void;
 }) {
-  if (page === "admin-users") return <AdminUsersPage />;
+  if (page === "admin-users") return <AdminUsersPage onToast={onToast} />;
   if (page === "admin-transactions") return <AdminTransactionsPage />;
   if (page === "admin-notifications") return <AdminNotificationsPage />;
   return (
@@ -7436,134 +7604,112 @@ function AdminGenericPage({
   );
 }
 
-function AdminUsersPage() {
+function AdminUsersPage({ onToast }: { onToast: (message: string) => void }) {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("earned");
+  const [directory, setDirectory] = useState(() => [...members]);
+  const [selectedMember, setSelectedMember] = useState<(typeof members)[number] | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
   const exportUsers = async () => {
-    const blob = await api.downloadAdminUsersExport();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "click-and-earn-users.csv";
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-  const updateMember = async (member: (typeof members)[number], payload: { account_status?: string; role?: "member" | "admin" }) => {
     try {
-      await api.adminUpdateUser(member.id, payload);
-      window.location.reload();
+      const blob = await api.downloadAdminUsersExport();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "click-and-earn-users.csv";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      onToast("User export downloaded.");
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "The member could not be updated.");
+      onToast(error instanceof Error ? error.message : "The user export could not be downloaded.");
     }
   };
-  const filtered = members.filter((member) =>
-    `${member.name} ${member.email}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
-  const activeCount = members.filter(
+  const updateMember = async (member: (typeof members)[number], payload: { account_status?: string; role?: "member" | "admin" }) => {
+    setUpdatingId(member.id);
+    try {
+      await api.adminUpdateUser(member.id, payload);
+      const next = {
+        ...member,
+        status: payload.account_status ? (payload.account_status === "active" ? "Active" : "Suspended") : member.status,
+        role: payload.role ? (payload.role === "admin" ? "Admin" : "Member") : member.role,
+      };
+      setDirectory((current) => current.map((item) => item.id === member.id ? next : item));
+      setSelectedMember((current) => current?.id === member.id ? next : current);
+      onToast("Member access updated.");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "The member could not be updated.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+  const filtered = directory
+    .filter((member) => `${member.name} ${member.email}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .filter((member) => statusFilter === "all" || member.status.toLowerCase() === statusFilter)
+    .filter((member) => roleFilter === "all" || member.role.toLowerCase() === roleFilter)
+    .sort((a, b) => sortBy === "tasks" ? b.tasks - a.tasks : sortBy === "name" ? a.name.localeCompare(b.name) : b.earned - a.earned);
+  const activeCount = directory.filter(
     (member) => member.status.toLowerCase() === "active",
   ).length;
+  const adminCount = directory.filter((member) => member.role.toLowerCase().includes("admin")).length;
+  const totalEarned = directory.reduce((sum, member) => sum + member.earned, 0);
   return (
-    <div className="space-y-7">
+    <div className="admin-workspace space-y-6">
       <PageHeader
-        eyebrow="Member management"
-        title="Users"
-        description="Review member accounts and the task and earnings information returned by the admin API."
-        actions={<button onClick={() => void exportUsers()} className="btn-secondary">Export users</button>}
+        eyebrow="Operations / Identity"
+        title="User control"
+        description="Monitor account health, permissions, and participation without leaving the directory."
+        actions={<button onClick={() => void exportUsers()} className="btn-secondary"><Download size={15} /> Export CSV</button>}
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Loaded members"
-          value={String(members.length)}
-          helper="In the current API response"
-          icon={UsersRound}
-          tone="navy"
-        />
-        <StatCard
-          label="Active in loaded list"
-          value={String(activeCount)}
-          helper="Accounts marked active"
-          icon={UserCheck}
-          tone="green"
-        />
-        <StatCard
-          label="Tasks completed"
-          value={String(members.reduce((sum, member) => sum + member.tasks, 0))}
-          helper="Across loaded members"
-          icon={ClipboardCheck}
-          tone="blue"
-        />
+      <div className="admin-signal-grid fade-up">
+        {[
+          ["Directory", directory.length, "Loaded accounts"],
+          ["Active", activeCount, `${directory.length ? Math.round(activeCount / directory.length * 100) : 0}% of directory`],
+          ["Privileged", adminCount, "Admin access"],
+          ["Member earnings", formatCurrency(totalEarned), "Lifetime total"],
+        ].map(([label, value, helper]) => (
+          <div key={String(label)} className="admin-signal"><p>{label}</p><strong className="number">{value}</strong><span>{helper}</span></div>
+        ))}
       </div>
-      <section className="card overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <p className="eyebrow">Member directory</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">
-              Members
-            </h2>
+      <section className="admin-panel overflow-hidden fade-up stagger-1">
+        <div className="admin-panel-header">
+          <div className="min-w-0">
+            <p className="eyebrow">Identity index</p>
+            <div className="mt-1 flex items-baseline gap-2"><h2 className="text-lg font-semibold tracking-[-0.03em] text-ink">All users</h2><span className="number text-xs text-subtle">{filtered.length}/{directory.length}</span></div>
           </div>
-          <div className="relative w-full sm:max-w-[260px]">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle"
-              size={15}
-            />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="form-field h-9 pl-9 text-xs"
-              placeholder="Search loaded members"
-            />
+          <div className="grid w-full gap-2 sm:grid-cols-[minmax(190px,1fr)_130px_130px_130px] lg:w-auto">
+            <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} className="form-field h-10 pl-9 text-xs" placeholder="Search name or email" /></div>
+            <select className="form-field h-10 text-xs" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status"><option value="all">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+            <select className="form-field h-10 text-xs" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} aria-label="Filter by role"><option value="all">All roles</option><option value="member">Members</option><option value="admin">Admins</option><option value="super admin">Super admins</option></select>
+            <select className="form-field h-10 text-xs" value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort users"><option value="earned">Top earned</option><option value="tasks">Most tasks</option><option value="name">Name A–Z</option></select>
           </div>
         </div>
         {filtered.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left">
-              <thead className="bg-canvas text-[11px] uppercase tracking-[0.1em] text-subtle">
+            <table className="admin-table w-full min-w-[820px] text-left">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 font-semibold">Member</th>
-                  <th className="px-4 py-3 font-semibold">Tasks completed</th>
-                  <th className="px-4 py-3 font-semibold">Total earned</th>
-                  <th className="px-4 py-3 font-semibold">Role</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-6 py-3 text-right font-semibold">Manage</th>
+                  <th className="px-6 py-3">User</th><th className="px-4 py-3">Participation</th><th className="px-4 py-3">Lifetime earned</th><th className="px-4 py-3">Access</th><th className="px-4 py-3">State</th><th className="px-6 py-3 text-right">Inspect</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {filtered.map((member) => (
-                  <tr
-                    key={member.email}
-                    className="transition-colors hover:bg-canvas"
-                  >
+                  <tr key={member.id} className="cursor-pointer transition-colors duration-150 hover:bg-[#F5F7FA]" onClick={() => setSelectedMember(member)}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar
-                          initials={member.initials}
-                          size="sm"
-                          tone="blue"
-                        />
+                        <Avatar initials={member.initials} size="sm" tone="blue" />
                         <div>
-                          <p className="text-sm font-semibold text-ink">
-                            {member.name}
-                          </p>
-                          <p className="mt-1 text-[11px] text-muted">
-                            {member.email}
-                          </p>
+                          <p className="text-sm font-semibold text-ink">{member.name}</p>
+                          <p className="mt-0.5 text-[11px] text-muted">{member.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-xs font-semibold text-ink">
-                      {member.tasks}
-                    </td>
-                    <td className="number px-4 py-4 text-xs font-semibold text-navy">
-                      {formatCurrency(member.earned)}
-                    </td>
-                    <td className="px-4 py-4 text-xs text-muted">{member.role}</td>
-                    <td className="px-4 py-4">
-                      <StatusBadge tone={getTone(member.status)} dot>
-                        {member.status}
-                      </StatusBadge>
-                    </td>
-                    <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={() => void updateMember(member, { account_status: member.status.toLowerCase() === "active" ? "suspended" : "active" })} className="btn-secondary min-h-8 px-2 text-[11px]">{member.status.toLowerCase() === "active" ? "Suspend" : "Activate"}</button><button onClick={() => void updateMember(member, { role: member.role.toLowerCase() === "admin" ? "member" : "admin" })} className="btn-secondary min-h-8 px-2 text-[11px]">{member.role.toLowerCase() === "admin" ? "Make member" : "Make admin"}</button></div></td>
+                    <td className="px-4 py-4"><p className="number text-sm font-semibold text-ink">{member.tasks}</p><p className="mt-0.5 text-[10px] text-subtle">tasks completed</p></td>
+                    <td className="number px-4 py-4 text-sm font-semibold text-ink">{formatCurrency(member.earned)}</td>
+                    <td className="px-4 py-4 text-xs font-medium text-muted">{member.role}</td>
+                    <td className="px-4 py-4"><StatusBadge tone={getTone(member.status)} dot>{member.status}</StatusBadge></td>
+                    <td className="px-6 py-4 text-right"><button onClick={(event) => { event.stopPropagation(); setSelectedMember(member); }} className="admin-icon-button" aria-label={`Inspect ${member.name}`}><ChevronRight size={16} /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -7572,13 +7718,28 @@ function AdminUsersPage() {
         ) : (
           <TableEmpty
             message={
-              members.length
+              directory.length
                 ? "No members match your search."
                 : "No member records were returned."
             }
           />
         )}
       </section>
+      <Modal open={Boolean(selectedMember)} title={selectedMember?.name ?? "User details"} description={selectedMember?.email} onClose={() => setSelectedMember(null)} size="sm">
+        {selectedMember && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-4 border-b border-line pb-5"><Avatar initials={selectedMember.initials} size="lg" tone="navy" /><div><div className="flex items-center gap-2"><StatusBadge tone={getTone(selectedMember.status)} dot>{selectedMember.status}</StatusBadge><span className="text-xs font-medium text-muted">{selectedMember.role}</span></div><p className="number mt-2 text-[11px] text-subtle">USER-{String(selectedMember.id).padStart(5, "0")}</p></div></div>
+            <div className="grid grid-cols-2 gap-px overflow-hidden border border-line bg-line">
+              <div className="bg-white p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Completed</p><p className="number mt-1 text-2xl font-semibold text-ink">{selectedMember.tasks}</p></div>
+              <div className="bg-white p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Earned</p><p className="number mt-1 text-2xl font-semibold text-ink">{formatCurrency(selectedMember.earned)}</p></div>
+            </div>
+            <div><p className="eyebrow">Account controls</p><div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button disabled={updatingId === selectedMember.id} onClick={() => void updateMember(selectedMember, { account_status: selectedMember.status.toLowerCase() === "active" ? "suspended" : "active" })} className="btn-secondary justify-start disabled:opacity-50"><ShieldAlert size={16} />{selectedMember.status.toLowerCase() === "active" ? "Suspend access" : "Restore access"}</button>
+              <button disabled={updatingId === selectedMember.id || selectedMember.role.toLowerCase() === "super admin"} onClick={() => void updateMember(selectedMember, { role: selectedMember.role.toLowerCase() === "admin" ? "member" : "admin" })} className="btn-secondary justify-start disabled:opacity-50"><ShieldCheck size={16} />{selectedMember.role.toLowerCase() === "admin" ? "Remove admin" : "Grant admin"}</button>
+            </div><p className="mt-3 text-[11px] leading-5 text-subtle">Permission and status changes take effect immediately and are recorded by the admin API.</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
