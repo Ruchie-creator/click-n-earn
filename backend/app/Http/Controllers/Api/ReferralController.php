@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -31,6 +32,7 @@ class ReferralController extends ApiController
 
         return $this->ok([
             'code' => $user->referral_code,
+            'page_description' => data_get(Setting::query()->where('key', 'referrals.page_description')->value('value'), 'description'),
             'items' => $items,
             'qualified_count' => $items->where('status', 'Successful')->count(),
             'pending_count' => $items->where('status', '!=', 'Successful')->count(),

@@ -1,285 +1,375 @@
 export type Task = {
-  id: string
-  title: string
-  shortDescription: string
-  description: string
-  category: string
-  image: string
-  productPrice: number
-  incentive: number
-  slots: number
-  availableSlots?: number
-  reservedSlots?: number
-  completedSlots?: number
-  status: string
-  sponsor: string
-  instructions: string[]
-  requirements: string[]
-  checkoutUrl?: string
-}
+  id: string;
+  title: string;
+  shortDescription: string;
+  description: string;
+  category: string;
+  image: string;
+  productPrice: number;
+  incentive: number;
+  slots: number;
+  availableSlots?: number;
+  reservedSlots?: number;
+  completedSlots?: number;
+  status: string;
+  availabilityStatus?: string;
+  sponsor: string;
+  instructions: string[];
+  requirements: string[];
+  checkoutUrl?: string;
+};
 
-export let taskCategories: string[] = []
+export let taskCategories: string[] = [];
 
 export type ActivityItem = {
-  title: string
-  meta: string
-  amount: string
-  status: string
-  tone: string
-}
+  title: string;
+  meta: string;
+  amount: string;
+  status: string;
+  tone: string;
+};
 
 export type NotificationItem = {
-  id: string
-  title: string
-  body: string
-  time: string
-  icon: string
-  unread: boolean
-  tone: string
-  eventType?: string
-  eventKey?: string
-  taskId?: number
-  reservationId?: number
-  proofSubmissionId?: number
-  payoutId?: number
-  referralId?: number
-}
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  icon: string;
+  unread: boolean;
+  tone: string;
+  eventType?: string;
+  eventKey?: string;
+  taskId?: number;
+  reservationId?: number;
+  proofSubmissionId?: number;
+  payoutId?: number;
+  referralId?: number;
+};
 
-export type ReferralItem = { id: number; name: string; joined: string; status: string; reward: number; rewardStatus?: string; qualificationStatus?: string; task?: string | null; purchaseAmount?: number; approvedAt?: string | null; payoutStatus?: string | null; paidAt?: string | null }
+export type ReferralItem = {
+  id: number;
+  name: string;
+  joined: string;
+  status: string;
+  reward: number;
+  rewardStatus?: string;
+  qualificationStatus?: string;
+  task?: string | null;
+  purchaseAmount?: number;
+  approvedAt?: string | null;
+  payoutStatus?: string | null;
+  paidAt?: string | null;
+};
+export let referralPageDescription = "";
 
 export type ReservationItem = {
-  id: number
-  task: Task
-  reimbursement: number
-  incentive: number
-  expectedPayout: number
-  status: string
-  statusLabel: string
-  reservedAt?: string | null
-  expiresAt?: string | null
-  submittedAt?: string | null
+  id: number;
+  task: Task;
+  reimbursement: number;
+  incentive: number;
+  expectedPayout: number;
+  status: string;
+  statusLabel: string;
+  reservedAt?: string | null;
+  expiresAt?: string | null;
+  submittedAt?: string | null;
   latestProof?: {
-    id: number
-    version?: number
-    originalFileName: string
-    purchaseAmount?: number
-    purchaseDate?: string
-    purchaseTime?: string | null
-    transactionReference?: string | null
-    status: string
-    downloadUrl: string
-    userNote?: string | null
+    id: number;
+    version?: number;
+    originalFileName: string;
+    purchaseAmount?: number;
+    purchaseDate?: string;
+    purchaseTime?: string | null;
+    transactionReference?: string | null;
+    status: string;
+    downloadUrl: string;
+    userNote?: string | null;
     verification?: {
-      confidenceScore: number
-      detectedAmount: number | null
-      warnings: string[]
-    } | null
-  } | null
-}
+      confidenceScore: number;
+      detectedAmount: number | null;
+      warnings: string[];
+    } | null;
+  } | null;
+};
 
 export type VerificationQueueItem = {
-  id: string
-  backendId?: number
-  status?: string
-  member: string
-  task: string
-  submitted: string
-  amount: number
-  reimbursement: number
-  incentive: number
-  expectedPayout: number
-  confidence: string
-  proof: string
-  downloadUrl?: string
-  purchaseDate?: string | null
-  purchaseTime?: string | null
-  transactionReference?: string | null
-  userNote?: string | null
-  detectedAmount?: number | null
-  detectedDate?: string | null
-  detectedTime?: string | null
-  detectedReference?: string | null
-  amountMatches?: boolean | null
-  dateValid?: boolean | null
-  referencePresent?: boolean | null
-  warnings: string[]
-}
+  id: string;
+  backendId?: number;
+  status?: string;
+  member: string;
+  task: string;
+  submitted: string;
+  amount: number;
+  reimbursement: number;
+  incentive: number;
+  expectedPayout: number;
+  confidence: string;
+  proof: string;
+  downloadUrl?: string;
+  purchaseDate?: string | null;
+  purchaseTime?: string | null;
+  transactionReference?: string | null;
+  userNote?: string | null;
+  detectedAmount?: number | null;
+  detectedDate?: string | null;
+  detectedTime?: string | null;
+  detectedReference?: string | null;
+  amountMatches?: boolean | null;
+  dateValid?: boolean | null;
+  referencePresent?: boolean | null;
+  warnings: string[];
+};
 
 export type AdminPayoutRow = {
-  id: string
-  backendId?: number
-  member: string
-  task: string
-  reimbursement: number
-  incentive: number
-  total: number
-  status: string
-  reference: string
-  date: string
-}
+  id: string;
+  backendId?: number;
+  member: string;
+  task: string;
+  reimbursement: number;
+  incentive: number;
+  total: number;
+  status: string;
+  reference: string;
+  date: string;
+};
 
-export type MemberRow = { initials: string; name: string; email: string; tasks: number; earned: number; status: string }
-export type AdminReferralRow = { id: number; referrer: string; referredUser: string; status: string; reward: number; rewardStatus: string; registeredAt: string }
-export type AdminTransactionRow = { id: string; member: string; type: string; status: string; amount: number; createdAt: string }
-export type AdminNotificationRow = { id: number; title: string; body: string; recipient: string; emailStatus: string; createdAt: string }
+export type MemberRow = {
+  initials: string;
+  name: string;
+  email: string;
+  tasks: number;
+  earned: number;
+  status: string;
+};
+export type AdminReferralRow = {
+  id: number;
+  referrer: string;
+  referredUser: string;
+  status: string;
+  reward: number;
+  rewardStatus: string;
+  registeredAt: string;
+};
+export type AdminTransactionRow = {
+  id: string;
+  member: string;
+  type: string;
+  status: string;
+  amount: number;
+  createdAt: string;
+};
+export type AdminNotificationRow = {
+  id: number;
+  title: string;
+  body: string;
+  recipient: string;
+  emailStatus: string;
+  createdAt: string;
+};
 
-const money = (value: unknown) => '$' + Number(value || 0).toFixed(2)
-const dateLabel = (value?: string | null) => value ? new Date(value).toLocaleString() : '—'
-const readableStatus = (value?: string | null) => value ? value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : '—'
-const payoutProviderLabel = (provider?: string | null) => provider === 'airwallex' || provider === 'fake'
-  ? 'Bank Transfer'
-  : readableStatus(provider)
-const confidenceLabel = (value?: number | null) => value === null || value === undefined
-  ? 'Not checked'
-  : value >= 0.85 ? 'High' : value >= 0.6 ? 'Medium' : 'Review'
+const money = (value: unknown) => "$" + Number(value || 0).toFixed(2);
+const dateLabel = (value?: string | null) =>
+  value ? new Date(value).toLocaleString() : "—";
+const readableStatus = (value?: string | null) =>
+  value
+    ? value
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : "—";
+const payoutProviderLabel = (provider?: string | null) =>
+  provider === "airwallex" || provider === "fake"
+    ? "Bank Transfer"
+    : readableStatus(provider);
+const confidenceLabel = (value?: number | null) =>
+  value === null || value === undefined
+    ? "Not checked"
+    : value >= 0.85
+      ? "High"
+      : value >= 0.6
+        ? "Medium"
+        : "Review";
 
-export let tasks: Task[] = []
-export let adminTasks: Task[] = []
-export let reservations: ReservationItem[] = []
-export let activity: ActivityItem[] = []
-export let notifications: NotificationItem[] = []
-export let notificationUnreadCount = 0
-export let payouts: Array<{ id: string; date: string; method: string; amount: number; status: string; reference: string }> = []
-export let referrals: ReferralItem[] = []
-export let verificationQueue: VerificationQueueItem[] = []
-export let adminPayouts: AdminPayoutRow[] = []
-export let members: MemberRow[] = []
-export let adminReferrals: AdminReferralRow[] = []
-export let adminTransactions: AdminTransactionRow[] = []
-export let adminNotifications: AdminNotificationRow[] = []
+export let tasks: Task[] = [];
+export let adminTasks: Task[] = [];
+export let reservations: ReservationItem[] = [];
+export let activity: ActivityItem[] = [];
+export let notifications: NotificationItem[] = [];
+export let notificationUnreadCount = 0;
+export let payouts: Array<{
+  id: string;
+  date: string;
+  method: string;
+  amount: number;
+  status: string;
+  reference: string;
+}> = [];
+export let referrals: ReferralItem[] = [];
+export let verificationQueue: VerificationQueueItem[] = [];
+export let adminPayouts: AdminPayoutRow[] = [];
+export let members: MemberRow[] = [];
+export let adminReferrals: AdminReferralRow[] = [];
+export let adminTransactions: AdminTransactionRow[] = [];
+export let adminNotifications: AdminNotificationRow[] = [];
 
 export let dashboardStats = {
-  pendingEarnings: '—',
-  processingPayouts: '—',
-  paidEarnings: '—',
-  referralEarnings: '—',
-  tasksInProgress: '—',
-  completedTasks: '—',
-  successfulReferrals: '—',
-  totalReferrals: '—',
-  referralCode: '',
-}
+  pendingEarnings: "—",
+  processingPayouts: "—",
+  paidEarnings: "—",
+  referralEarnings: "—",
+  tasksInProgress: "—",
+  completedTasks: "—",
+  successfulReferrals: "—",
+  totalReferrals: "—",
+  referralCode: "",
+};
 
 export let adminStats = {
-  activeTasks: '—',
-  pendingVerification: '—',
-  approvedPayouts: '—',
-  reservedRewards: '—',
-  totalPaid: '—',
-  activeUsers: '—',
-  reservedSlots: '—',
-  processingPayouts: '—',
-  referralTotals: '—',
-  qualifiedReferrals: '—',
-  referralConversion: '—',
-  referralRewardsPaid: '—',
-  pendingBankVerifications: '—',
-  approvedBankVerifications: '—',
-  changesRequestedBankVerifications: '—',
-  duplicatePayoutDetails: '—',
-  pendingReferralApprovals: '—',
-  referralRewardsAwaitingPayout: '—',
-}
+  activeTasks: "—",
+  pendingVerification: "—",
+  approvedPayouts: "—",
+  reservedRewards: "—",
+  totalPaid: "—",
+  activeUsers: "—",
+  reservedSlots: "—",
+  processingPayouts: "—",
+  referralTotals: "—",
+  qualifiedReferrals: "—",
+  referralConversion: "—",
+  referralRewardsPaid: "—",
+  pendingBankVerifications: "—",
+  approvedBankVerifications: "—",
+  changesRequestedBankVerifications: "—",
+  duplicatePayoutDetails: "—",
+  pendingReferralApprovals: "—",
+  referralRewardsAwaitingPayout: "—",
+};
 
 export let adminNotificationStats = {
-  sentThisMonth: '—',
-  pendingEmail: '—',
-  failedEmail: '—',
-  unreadInApp: '—',
-}
+  sentThisMonth: "—",
+  pendingEmail: "—",
+  failedEmail: "—",
+  unreadInApp: "—",
+};
 
 type BackendTask = {
-  id: number
-  title: string
-  short_description?: string
-  description: string
-  category: string
-  image?: string | null
-  product_price?: number
-  reimbursement_amount?: number
-  incentive?: number
-  expected_payout?: number
-  slots?: number
-  available_slots?: number
-  reserved_slots?: number
-  completed_slots?: number
-  status: string
-  sponsor?: string
-  instructions?: string[]
-  requirements?: string[]
-  checkout_url?: string | null
-}
+  id: number;
+  title: string;
+  short_description?: string;
+  description: string;
+  category: string;
+  image?: string | null;
+  product_price?: number;
+  reimbursement_amount?: number;
+  incentive?: number;
+  expected_payout?: number;
+  slots?: number;
+  available_slots?: number;
+  reserved_slots?: number;
+  completed_slots?: number;
+  status: string;
+  availability_status?: "available" | "purchased" | "unavailable";
+  sponsor?: string;
+  instructions?: string[];
+  requirements?: string[];
+  checkout_url?: string | null;
+};
 
 type BackendReservation = {
-  id: number
-  task_id: number
-  task: BackendTask
-  reimbursement_amount: number
-  incentive_amount: number
-  expected_payout: number
-  status: string
-  status_label: string
-  reserved_at?: string | null
-  expires_at?: string | null
-  submitted_at?: string | null
+  id: number;
+  task_id: number;
+  task: BackendTask;
+  reimbursement_amount: number;
+  incentive_amount: number;
+  expected_payout: number;
+  status: string;
+  status_label: string;
+  reserved_at?: string | null;
+  expires_at?: string | null;
+  submitted_at?: string | null;
   latest_proof?: {
-    id: number
-    version?: number
-    original_file_name: string
-    purchase_amount?: number
-    purchase_date?: string
-    purchase_time?: string | null
-    transaction_reference?: string | null
-    status: string
-    user_note?: string | null
-    verification?: { confidence_score: number; detected_amount: number | null; warnings: string[] } | null
-  } | null
-}
+    id: number;
+    version?: number;
+    original_file_name: string;
+    purchase_amount?: number;
+    purchase_date?: string;
+    purchase_time?: string | null;
+    transaction_reference?: string | null;
+    status: string;
+    user_note?: string | null;
+    verification?: {
+      confidence_score: number;
+      detected_amount: number | null;
+      warnings: string[];
+    } | null;
+  } | null;
+};
 
 const taskImagesByCategory: Record<string, string> = {
-  'content tools': '/task-images/ai-writing-tool.jpg',
-  learning: '/task-images/ai-writing-tool.jpg',
-  marketing: '/task-images/digital-marketing-toolkit.jpg',
-  growth: '/task-images/digital-marketing-toolkit.jpg',
-  productivity: '/task-images/productivity-template-bundle.jpg',
-  design: '/task-images/social-design-pack.jpg',
-  research: '/task-images/seo-research-toolkit.jpg',
-  business: '/task-images/business-planning-template.jpg',
-  finance: '/task-images/analytics-dashboard-toolkit.jpg',
-  'creator tools': '/task-images/creator-resource-pack.jpg',
-  analytics: '/task-images/analytics-dashboard-toolkit.jpg',
-}
+  "content tools": "/task-images/ai-writing-tool.jpg",
+  learning: "/task-images/ai-writing-tool.jpg",
+  marketing: "/task-images/digital-marketing-toolkit.jpg",
+  growth: "/task-images/digital-marketing-toolkit.jpg",
+  productivity: "/task-images/productivity-template-bundle.jpg",
+  design: "/task-images/social-design-pack.jpg",
+  research: "/task-images/seo-research-toolkit.jpg",
+  business: "/task-images/business-planning-template.jpg",
+  finance: "/task-images/analytics-dashboard-toolkit.jpg",
+  "creator tools": "/task-images/creator-resource-pack.jpg",
+  analytics: "/task-images/analytics-dashboard-toolkit.jpg",
+};
 
-const knownTaskImagePaths = new Set(Object.values(taskImagesByCategory))
-const defaultTaskImage = '/task-images/business-planning-template.jpg'
+const knownTaskImagePaths = new Set(Object.values(taskImagesByCategory));
+const defaultTaskImage = "/task-images/business-planning-template.jpg";
 
 function taskImageFallback(category: string): string {
-  const normalized = category.trim().toLowerCase()
-  const exact = taskImagesByCategory[normalized]
-  if (exact) return exact
-  if (normalized.includes('marketing')) return taskImagesByCategory.marketing
-  if (normalized.includes('productivity') || normalized.includes('planning')) return taskImagesByCategory.productivity
-  if (normalized.includes('design') || normalized.includes('social')) return taskImagesByCategory.design
-  if (normalized.includes('research') || normalized.includes('seo')) return taskImagesByCategory.research
-  if (normalized.includes('business')) return taskImagesByCategory.business
-  if (normalized.includes('creator')) return taskImagesByCategory['creator tools']
-  if (normalized.includes('analytics') || normalized.includes('data')) return taskImagesByCategory.analytics
-  if (normalized.includes('finance') || normalized.includes('payment')) return taskImagesByCategory.finance
-  if (normalized.includes('learn') || normalized.includes('education')) return taskImagesByCategory.learning
-  if (normalized.includes('growth')) return taskImagesByCategory.growth
-  if (normalized.includes('content') || normalized.includes('writing') || normalized.includes('ai')) return taskImagesByCategory['content tools']
-  return defaultTaskImage
+  const normalized = category.trim().toLowerCase();
+  const exact = taskImagesByCategory[normalized];
+  if (exact) return exact;
+  if (normalized.includes("marketing")) return taskImagesByCategory.marketing;
+  if (normalized.includes("productivity") || normalized.includes("planning"))
+    return taskImagesByCategory.productivity;
+  if (normalized.includes("design") || normalized.includes("social"))
+    return taskImagesByCategory.design;
+  if (normalized.includes("research") || normalized.includes("seo"))
+    return taskImagesByCategory.research;
+  if (normalized.includes("business")) return taskImagesByCategory.business;
+  if (normalized.includes("creator"))
+    return taskImagesByCategory["creator tools"];
+  if (normalized.includes("analytics") || normalized.includes("data"))
+    return taskImagesByCategory.analytics;
+  if (normalized.includes("finance") || normalized.includes("payment"))
+    return taskImagesByCategory.finance;
+  if (normalized.includes("learn") || normalized.includes("education"))
+    return taskImagesByCategory.learning;
+  if (normalized.includes("growth")) return taskImagesByCategory.growth;
+  if (
+    normalized.includes("content") ||
+    normalized.includes("writing") ||
+    normalized.includes("ai")
+  )
+    return taskImagesByCategory["content tools"];
+  return defaultTaskImage;
 }
 
 function mapTask(task: BackendTask): Task {
-  const remaining = task.slots ?? Math.max(0, (task.available_slots ?? 0) - (task.reserved_slots ?? 0) - (task.completed_slots ?? 0))
+  const remaining =
+    task.slots ??
+    Math.max(
+      0,
+      (task.available_slots ?? 0) -
+        (task.reserved_slots ?? 0) -
+        (task.completed_slots ?? 0),
+    );
   return {
     id: String(task.id),
     title: task.title,
     shortDescription: task.short_description || task.description,
     description: task.description,
     category: task.category,
-    image: task.image && knownTaskImagePaths.has(task.image) ? task.image : taskImageFallback(task.category),
+    image:
+      task.image && knownTaskImagePaths.has(task.image)
+        ? task.image
+        : taskImageFallback(task.category),
     productPrice: task.product_price ?? task.reimbursement_amount ?? 0,
     incentive: task.incentive ?? 0,
     slots: remaining,
@@ -287,22 +377,40 @@ function mapTask(task: BackendTask): Task {
     reservedSlots: task.reserved_slots,
     completedSlots: task.completed_slots,
     status: readableStatus(task.status),
-    sponsor: task.sponsor || 'Click & Earn partner',
+    availabilityStatus: task.availability_status,
+    sponsor: task.sponsor || "Click & Earn partner",
     instructions: task.instructions || [],
     requirements: task.requirements || [],
     checkoutUrl: task.checkout_url || undefined,
-  }
+  };
 }
 
 export function hydrateMarketplaceData(payload: {
-  tasks?: BackendTask[]
-    categories?: string[]
-  reservations?: BackendReservation[]
-  notifications?: Array<{ id: string; title: string; body: string; type?: string; event_type?: string; event_key?: string; task_id?: number; reservation_id?: number; proof_submission_id?: number; payout_id?: number; referral_id?: number; read?: boolean; created_at?: string | null }>
-  unreadCount?: number
+  tasks?: BackendTask[];
+  categories?: string[];
+  reservations?: BackendReservation[];
+  notifications?: Array<{
+    id: string;
+    title: string;
+    body: string;
+    type?: string;
+    event_type?: string;
+    event_key?: string;
+    task_id?: number;
+    reservation_id?: number;
+    proof_submission_id?: number;
+    payout_id?: number;
+    referral_id?: number;
+    read?: boolean;
+    created_at?: string | null;
+  }>;
+  unreadCount?: number;
 }): void {
-  if (payload.tasks !== undefined) tasks = payload.tasks.map(mapTask)
-    if (payload.categories !== undefined) taskCategories = payload.categories.filter((category) => category.trim() !== '')
+  if (payload.tasks !== undefined) tasks = payload.tasks.map(mapTask);
+  if (payload.categories !== undefined)
+    taskCategories = payload.categories.filter(
+      (category) => category.trim() !== "",
+    );
   if (payload.reservations !== undefined) {
     reservations = payload.reservations.map((reservation) => ({
       id: reservation.id,
@@ -315,24 +423,32 @@ export function hydrateMarketplaceData(payload: {
       reservedAt: reservation.reserved_at,
       expiresAt: reservation.expires_at,
       submittedAt: reservation.submitted_at,
-      latestProof: reservation.latest_proof ? {
-        id: reservation.latest_proof.id,
-        version: reservation.latest_proof.version,
-        originalFileName: reservation.latest_proof.original_file_name,
-        purchaseAmount: reservation.latest_proof.purchase_amount,
-        purchaseDate: reservation.latest_proof.purchase_date,
-        purchaseTime: reservation.latest_proof.purchase_time,
-        transactionReference: reservation.latest_proof.transaction_reference,
-        status: reservation.latest_proof.status,
-        downloadUrl: `/proof/${reservation.latest_proof.id}/download`,
-        userNote: reservation.latest_proof.user_note,
-        verification: reservation.latest_proof.verification ? {
-          confidenceScore: reservation.latest_proof.verification.confidence_score,
-          detectedAmount: reservation.latest_proof.verification.detected_amount,
-          warnings: reservation.latest_proof.verification.warnings || [],
-        } : null,
-      } : null,
-    }))
+      latestProof: reservation.latest_proof
+        ? {
+            id: reservation.latest_proof.id,
+            version: reservation.latest_proof.version,
+            originalFileName: reservation.latest_proof.original_file_name,
+            purchaseAmount: reservation.latest_proof.purchase_amount,
+            purchaseDate: reservation.latest_proof.purchase_date,
+            purchaseTime: reservation.latest_proof.purchase_time,
+            transactionReference:
+              reservation.latest_proof.transaction_reference,
+            status: reservation.latest_proof.status,
+            downloadUrl: `/proof/${reservation.latest_proof.id}/download`,
+            userNote: reservation.latest_proof.user_note,
+            verification: reservation.latest_proof.verification
+              ? {
+                  confidenceScore:
+                    reservation.latest_proof.verification.confidence_score,
+                  detectedAmount:
+                    reservation.latest_proof.verification.detected_amount,
+                  warnings:
+                    reservation.latest_proof.verification.warnings || [],
+                }
+              : null,
+          }
+        : null,
+    }));
   }
   if (payload.notifications !== undefined) {
     notifications = payload.notifications.map((item) => ({
@@ -340,9 +456,23 @@ export function hydrateMarketplaceData(payload: {
       title: item.title,
       body: item.body,
       time: dateLabel(item.created_at),
-      icon: item.type === 'success' ? 'check' : item.type === 'warning' ? 'bookmark' : item.type === 'info' ? 'sparkle' : 'file',
+      icon:
+        item.type === "success"
+          ? "check"
+          : item.type === "warning"
+            ? "bookmark"
+            : item.type === "info"
+              ? "sparkle"
+              : "file",
       unread: !item.read,
-      tone: item.type === 'success' ? 'success' : item.type === 'warning' ? 'warning' : item.type === 'info' ? 'info' : 'processing',
+      tone:
+        item.type === "success"
+          ? "success"
+          : item.type === "warning"
+            ? "warning"
+            : item.type === "info"
+              ? "info"
+              : "processing",
       eventType: item.event_type,
       eventKey: item.event_key,
       taskId: item.task_id,
@@ -350,12 +480,16 @@ export function hydrateMarketplaceData(payload: {
       proofSubmissionId: item.proof_submission_id,
       payoutId: item.payout_id,
       referralId: item.referral_id,
-    }))
+    }));
   }
-  if (payload.unreadCount !== undefined) notificationUnreadCount = payload.unreadCount
+  if (payload.unreadCount !== undefined)
+    notificationUnreadCount = payload.unreadCount;
 }
 
-export function hydrateDashboardData(stats: Record<string, string | number>, referralCode?: string): void {
+export function hydrateDashboardData(
+  stats: Record<string, string | number>,
+  referralCode?: string,
+): void {
   dashboardStats = {
     ...dashboardStats,
     pendingEarnings: money(stats.pending_earnings),
@@ -366,33 +500,65 @@ export function hydrateDashboardData(stats: Record<string, string | number>, ref
     completedTasks: String(stats.completed_tasks ?? 0),
     successfulReferrals: String(stats.successful_referrals ?? 0),
     referralCode: referralCode ?? dashboardStats.referralCode,
-  }
+  };
 }
 
 type AdminQueuePayload = {
-  verification?: Array<{ id: number; reference: string; member?: string | null; task?: string | null; amount: number; reimbursement_amount?: number; incentive: number; expected_payout?: number; status?: string; submitted_at?: string | null; confidence?: number | null; file_name?: string | null; warnings?: string[] }>
-  payouts?: Array<{ id: number; member?: string | null; task?: string | null; amount: number; reimbursement_amount?: number; incentive_amount?: number; status: string; provider_reference?: string | null; requested_at?: string | null; paid_at?: string | null }>
-}
+  verification?: Array<{
+    id: number;
+    reference: string;
+    member?: string | null;
+    task?: string | null;
+    amount: number;
+    reimbursement_amount?: number;
+    incentive: number;
+    expected_payout?: number;
+    status?: string;
+    submitted_at?: string | null;
+    confidence?: number | null;
+    file_name?: string | null;
+    warnings?: string[];
+  }>;
+  payouts?: Array<{
+    id: number;
+    member?: string | null;
+    task?: string | null;
+    amount: number;
+    reimbursement_amount?: number;
+    incentive_amount?: number;
+    status: string;
+    provider_reference?: string | null;
+    requested_at?: string | null;
+    paid_at?: string | null;
+  }>;
+};
 
-function mapQueueSubmission(item: NonNullable<AdminQueuePayload['verification']>[number]): VerificationQueueItem {
+function mapQueueSubmission(
+  item: NonNullable<AdminQueuePayload["verification"]>[number],
+): VerificationQueueItem {
   return {
     id: item.reference,
     backendId: item.id,
     status: item.status,
-    member: item.member || 'Member',
-    task: item.task || 'Task',
+    member: item.member || "Member",
+    task: item.task || "Task",
     submitted: dateLabel(item.submitted_at),
     amount: item.amount,
     reimbursement: item.reimbursement_amount ?? item.amount,
     incentive: item.incentive,
-    expectedPayout: item.expected_payout ?? (item.reimbursement_amount ?? item.amount) + item.incentive,
+    expectedPayout:
+      item.expected_payout ??
+      (item.reimbursement_amount ?? item.amount) + item.incentive,
     confidence: confidenceLabel(item.confidence),
-    proof: item.file_name || 'Proof file',
+    proof: item.file_name || "Proof file",
     warnings: item.warnings || [],
-  }
+  };
 }
 
-export function hydrateAdminData(stats: Record<string, string | number>, queues?: AdminQueuePayload): void {
+export function hydrateAdminData(
+  stats: Record<string, string | number>,
+  queues?: AdminQueuePayload,
+): void {
   adminStats = {
     ...adminStats,
     activeTasks: String(stats.active_tasks ?? 0),
@@ -409,52 +575,85 @@ export function hydrateAdminData(stats: Record<string, string | number>, queues?
     referralRewardsPaid: money(stats.referral_rewards_paid),
     pendingBankVerifications: String(stats.pending_bank_verifications ?? 0),
     approvedBankVerifications: String(stats.approved_bank_verifications ?? 0),
-    changesRequestedBankVerifications: String(stats.bank_verifications_changes_requested ?? 0),
+    changesRequestedBankVerifications: String(
+      stats.bank_verifications_changes_requested ?? 0,
+    ),
     duplicatePayoutDetails: String(stats.duplicate_payout_details ?? 0),
     pendingReferralApprovals: String(stats.pending_referral_approvals ?? 0),
-    referralRewardsAwaitingPayout: String(stats.referral_rewards_awaiting_payout ?? 0),
-  }
+    referralRewardsAwaitingPayout: String(
+      stats.referral_rewards_awaiting_payout ?? 0,
+    ),
+  };
   if (queues !== undefined) {
-    verificationQueue = (queues.verification ?? []).map(mapQueueSubmission)
-    adminPayouts = (queues.payouts ?? []).map(mapAdminPayout)
+    verificationQueue = (queues.verification ?? []).map(mapQueueSubmission);
+    adminPayouts = (queues.payouts ?? []).map(mapAdminPayout);
   }
 }
 
-function mapAdminPayout(item: NonNullable<AdminQueuePayload['payouts']>[number]): AdminPayoutRow {
+function mapAdminPayout(
+  item: NonNullable<AdminQueuePayload["payouts"]>[number],
+): AdminPayoutRow {
   return {
-    id: 'PAY-'.concat(String(item.id).padStart(4, '0')),
+    id: "PAY-".concat(String(item.id).padStart(4, "0")),
     backendId: item.id,
-    member: item.member || 'Member',
-    task: item.task || 'Task',
+    member: item.member || "Member",
+    task: item.task || "Task",
     reimbursement: item.reimbursement_amount ?? item.amount,
     incentive: item.incentive_amount ?? 0,
     total: item.amount,
     status: readableStatus(item.status),
-    reference: item.provider_reference || '—',
+    reference: item.provider_reference || "—",
     date: dateLabel(item.paid_at || item.requested_at),
-  }
+  };
 }
 
-export function hydrateAdminSubmissions(items: Array<{
-  id: number; reference: string; member?: string | null; task?: string | null; purchase_amount: number;
-  reimbursement_amount?: number; incentive_amount?: number; expected_payout?: number; status: string;
-  submitted_at?: string | null; file_name?: string | null; download_url?: string; purchase_date?: string | null;
-  purchase_time?: string | null; transaction_reference?: string | null; user_note?: string | null;
-  verification?: { confidence_score?: number | null; detected_amount?: number | null; detected_date?: string | null; detected_time?: string | null; detected_reference?: string | null; amount_matches?: boolean | null; date_valid?: boolean | null; reference_present?: boolean | null; warnings?: string[] } | null
-}>): void {
+export function hydrateAdminSubmissions(
+  items: Array<{
+    id: number;
+    reference: string;
+    member?: string | null;
+    task?: string | null;
+    purchase_amount: number;
+    reimbursement_amount?: number;
+    incentive_amount?: number;
+    expected_payout?: number;
+    status: string;
+    submitted_at?: string | null;
+    file_name?: string | null;
+    download_url?: string;
+    purchase_date?: string | null;
+    purchase_time?: string | null;
+    transaction_reference?: string | null;
+    user_note?: string | null;
+    verification?: {
+      confidence_score?: number | null;
+      detected_amount?: number | null;
+      detected_date?: string | null;
+      detected_time?: string | null;
+      detected_reference?: string | null;
+      amount_matches?: boolean | null;
+      date_valid?: boolean | null;
+      reference_present?: boolean | null;
+      warnings?: string[];
+    } | null;
+  }>,
+): void {
   verificationQueue = items.map((item) => ({
     id: item.reference,
     backendId: item.id,
     status: item.status,
-    member: item.member || 'Member',
-    task: item.task || 'Task',
+    member: item.member || "Member",
+    task: item.task || "Task",
     submitted: dateLabel(item.submitted_at),
     amount: item.purchase_amount,
     reimbursement: item.reimbursement_amount ?? item.purchase_amount,
     incentive: item.incentive_amount ?? 0,
-    expectedPayout: item.expected_payout ?? (item.reimbursement_amount ?? item.purchase_amount) + (item.incentive_amount ?? 0),
+    expectedPayout:
+      item.expected_payout ??
+      (item.reimbursement_amount ?? item.purchase_amount) +
+        (item.incentive_amount ?? 0),
     confidence: confidenceLabel(item.verification?.confidence_score),
-    proof: item.file_name || 'Proof file',
+    proof: item.file_name || "Proof file",
     downloadUrl: item.download_url,
     purchaseDate: item.purchase_date,
     purchaseTime: item.purchase_time,
@@ -468,56 +667,121 @@ export function hydrateAdminSubmissions(items: Array<{
     dateValid: item.verification?.date_valid,
     referencePresent: item.verification?.reference_present,
     warnings: item.verification?.warnings || [],
-  }))
+  }));
 }
 
 export function hydrateAdminTasks(items: BackendTask[]): void {
-  adminTasks = items.map(mapTask)
+  adminTasks = items.map(mapTask);
 }
 
-export function hydrateAdminPayouts(items: Array<{ id: number; amount: number; reimbursement_amount?: number; incentive_amount?: number; status: string; provider_reference?: string | null; member?: string | null; task?: string | null; requested_at?: string | null; paid_at?: string | null }>): void {
-  adminPayouts = items.map((item) => mapAdminPayout({
-    id: item.id,
-    amount: item.amount,
-    reimbursement_amount: item.reimbursement_amount,
-    incentive_amount: item.incentive_amount,
-    status: item.status,
-    provider_reference: item.provider_reference,
-    member: item.member,
-    task: item.task,
-    requested_at: item.requested_at,
-    paid_at: item.paid_at,
-  }))
+export function hydrateAdminPayouts(
+  items: Array<{
+    id: number;
+    amount: number;
+    reimbursement_amount?: number;
+    incentive_amount?: number;
+    status: string;
+    provider_reference?: string | null;
+    member?: string | null;
+    task?: string | null;
+    requested_at?: string | null;
+    paid_at?: string | null;
+  }>,
+): void {
+  adminPayouts = items.map((item) =>
+    mapAdminPayout({
+      id: item.id,
+      amount: item.amount,
+      reimbursement_amount: item.reimbursement_amount,
+      incentive_amount: item.incentive_amount,
+      status: item.status,
+      provider_reference: item.provider_reference,
+      member: item.member,
+      task: item.task,
+      requested_at: item.requested_at,
+      paid_at: item.paid_at,
+    }),
+  );
 }
 
 export function hydrateFinanceData(payload: {
-  earnings?: { items: Array<{ id: number; amount: number; type: string; direction: string; status: string; task?: string | null; created_at?: string | null }> }
-  payouts?: { items: Array<{ id: number; amount: number; currency: string; status: string; provider?: string; provider_reference?: string | null; paid_at?: string | null; requested_at?: string | null }> }
-    referrals?: { code: string; qualified_count?: number; items: Array<{ id: number; name?: string | null; joined_at?: string | null; status: string; reward: number; reward_status?: string; qualification_status?: string; task?: string | null; qualifying_purchase?: { task?: string | null; purchase_amount: number; approved_at?: string | null } | null; payout_status?: string | null; paid_at?: string | null }> }
+  earnings?: {
+    items: Array<{
+      id: number;
+      amount: number;
+      type: string;
+      direction: string;
+      status: string;
+      task?: string | null;
+      created_at?: string | null;
+    }>;
+  };
+  payouts?: {
+    items: Array<{
+      id: number;
+      amount: number;
+      currency: string;
+      status: string;
+      provider?: string;
+      provider_reference?: string | null;
+      paid_at?: string | null;
+      requested_at?: string | null;
+    }>;
+  };
+  referrals?: {
+    code: string;
+    page_description?: string | null;
+    qualified_count?: number;
+    items: Array<{
+      id: number;
+      name?: string | null;
+      joined_at?: string | null;
+      status: string;
+      reward: number;
+      reward_status?: string;
+      qualification_status?: string;
+      task?: string | null;
+      qualifying_purchase?: {
+        task?: string | null;
+        purchase_amount: number;
+        approved_at?: string | null;
+      } | null;
+      payout_status?: string | null;
+      paid_at?: string | null;
+    }>;
+  };
 }): void {
   if (payload.earnings !== undefined) {
     activity = payload.earnings.items.map((item) => ({
       title: item.task || readableStatus(item.type),
-      meta: `${readableStatus(item.status)}${item.created_at ? ' · ' + dateLabel(item.created_at) : ''}`,
-      amount: `${item.direction === 'credit' ? '+' : '−'}$${Number(item.amount).toFixed(2)}`,
+      meta: `${readableStatus(item.status)}${item.created_at ? " · " + dateLabel(item.created_at) : ""}`,
+      amount: `${item.direction === "credit" ? "+" : "−"}$${Number(item.amount).toFixed(2)}`,
       status: readableStatus(item.status),
-      tone: item.status === 'paid' ? 'success' : item.status === 'processing' ? 'processing' : item.status === 'failed' ? 'error' : 'warning',
-    }))
+      tone:
+        item.status === "paid"
+          ? "success"
+          : item.status === "processing"
+            ? "processing"
+            : item.status === "failed"
+              ? "error"
+              : "warning",
+    }));
   }
   if (payload.payouts !== undefined) {
     payouts = payload.payouts.items.map((item) => ({
-      id: 'PO-'.concat(String(item.id).padStart(4, '0')),
+      id: "PO-".concat(String(item.id).padStart(4, "0")),
       date: dateLabel(item.paid_at || item.requested_at),
       method: payoutProviderLabel(item.provider),
       amount: item.amount,
       status: readableStatus(item.status),
-      reference: item.provider_reference || '—',
-    }))
+      reference: item.provider_reference || "—",
+    }));
   }
   if (payload.referrals !== undefined) {
+    referralPageDescription = payload.referrals.page_description?.trim() || "";
     referrals = payload.referrals.items.map((item) => ({
       id: item.id,
-      name: item.name || 'Member',
+      name: item.name || "Member",
       joined: dateLabel(item.joined_at),
       status: item.status,
       reward: item.reward,
@@ -528,125 +792,179 @@ export function hydrateFinanceData(payload: {
       approvedAt: item.qualifying_purchase?.approved_at,
       payoutStatus: item.payout_status,
       paidAt: item.paid_at,
-    }))
+    }));
     dashboardStats = {
       ...dashboardStats,
-      referralCode: payload.referrals.code || '',
+      referralCode: payload.referrals.code || "",
       totalReferrals: String(payload.referrals.items.length),
-      successfulReferrals: String(payload.referrals.qualified_count ?? payload.referrals.items.filter((item) => item.status === 'Successful').length),
-    }
+      successfulReferrals: String(
+        payload.referrals.qualified_count ??
+          payload.referrals.items.filter((item) => item.status === "Successful")
+            .length,
+      ),
+    };
   }
 }
 
-export function hydrateAdminMembers(items: Array<{ name: string; email: string; tasks_completed: number; earned: number; account_status: string }>): void {
+export function hydrateAdminMembers(
+  items: Array<{
+    name: string;
+    email: string;
+    tasks_completed: number;
+    earned: number;
+    account_status: string;
+  }>,
+): void {
   members = items.map((item) => ({
-    initials: item.name.split(/\s+/).map((part) => part[0] || '').slice(0, 2).join('').toUpperCase(),
+    initials: item.name
+      .split(/\s+/)
+      .map((part) => part[0] || "")
+      .slice(0, 2)
+      .join("")
+      .toUpperCase(),
     name: item.name,
     email: item.email,
     tasks: item.tasks_completed,
     earned: item.earned,
     status: readableStatus(item.account_status),
-  }))
+  }));
 }
 
-export function hydrateAdminReferrals(items: Array<{ id: number; referrer?: string | null; referred_user?: string | null; status: string; reward: number; reward_status: string; registered_at?: string | null }>): void {
+export function hydrateAdminReferrals(
+  items: Array<{
+    id: number;
+    referrer?: string | null;
+    referred_user?: string | null;
+    status: string;
+    reward: number;
+    reward_status: string;
+    registered_at?: string | null;
+  }>,
+): void {
   adminReferrals = items.map((item) => ({
     id: item.id,
-    referrer: item.referrer || 'Member',
-    referredUser: item.referred_user || 'Member',
+    referrer: item.referrer || "Member",
+    referredUser: item.referred_user || "Member",
     status: item.status,
     reward: item.reward,
     rewardStatus: readableStatus(item.reward_status),
     registeredAt: dateLabel(item.registered_at),
-  }))
+  }));
 }
 
-export function hydrateAdminTransactions(items: Array<{ id: number; member?: string | null; type: string; status: string; amount: number; created_at?: string | null }>): void {
+export function hydrateAdminTransactions(
+  items: Array<{
+    id: number;
+    member?: string | null;
+    type: string;
+    status: string;
+    amount: number;
+    created_at?: string | null;
+  }>,
+): void {
   adminTransactions = items.map((item) => ({
-    id: 'TX-'.concat(String(item.id).padStart(5, '0')),
-    member: item.member || 'Member',
+    id: "TX-".concat(String(item.id).padStart(5, "0")),
+    member: item.member || "Member",
     type: readableStatus(item.type),
     status: readableStatus(item.status),
     amount: item.amount,
     createdAt: dateLabel(item.created_at),
-  }))
+  }));
 }
 
-export function hydrateAdminNotifications(items: Array<{ id: number; title: string; body: string; recipient?: string | null; email_status: string; created_at?: string | null }>, summary?: { sent_this_month: number; pending_email: number; failed_email: number; unread_in_app: number }): void {
+export function hydrateAdminNotifications(
+  items: Array<{
+    id: number;
+    title: string;
+    body: string;
+    recipient?: string | null;
+    email_status: string;
+    created_at?: string | null;
+  }>,
+  summary?: {
+    sent_this_month: number;
+    pending_email: number;
+    failed_email: number;
+    unread_in_app: number;
+  },
+): void {
   adminNotifications = items.map((item) => ({
     id: item.id,
     title: item.title,
     body: item.body,
-    recipient: item.recipient || 'Member',
+    recipient: item.recipient || "Member",
     emailStatus: readableStatus(item.email_status),
     createdAt: dateLabel(item.created_at),
-  }))
+  }));
   if (summary) {
     adminNotificationStats = {
       sentThisMonth: String(summary.sent_this_month),
       pendingEmail: String(summary.pending_email),
       failedEmail: String(summary.failed_email),
       unreadInApp: String(summary.unread_in_app),
-    }
+    };
   }
 }
 
 export function markNotificationsRead(): void {
-  notifications = notifications.map((notification) => ({ ...notification, unread: false }))
-  notificationUnreadCount = 0
+  notifications = notifications.map((notification) => ({
+    ...notification,
+    unread: false,
+  }));
+  notificationUnreadCount = 0;
 }
 
 export function clearAllData(): void {
-  tasks = []
-  taskCategories = []
-  adminTasks = []
-  reservations = []
-  activity = []
-  notifications = []
-  notificationUnreadCount = 0
-  payouts = []
-  referrals = []
-  verificationQueue = []
-  adminPayouts = []
-  members = []
-  adminReferrals = []
-  adminTransactions = []
-  adminNotifications = []
+  tasks = [];
+  taskCategories = [];
+  adminTasks = [];
+  reservations = [];
+  activity = [];
+  notifications = [];
+  notificationUnreadCount = 0;
+  payouts = [];
+  referrals = [];
+  verificationQueue = [];
+  adminPayouts = [];
+  members = [];
+  adminReferrals = [];
+  adminTransactions = [];
+  adminNotifications = [];
   dashboardStats = {
-    pendingEarnings: '—',
-    processingPayouts: '—',
-    paidEarnings: '—',
-    referralEarnings: '—',
-    tasksInProgress: '—',
-    completedTasks: '—',
-    successfulReferrals: '—',
-    totalReferrals: '—',
-    referralCode: '',
-  }
+    pendingEarnings: "—",
+    processingPayouts: "—",
+    paidEarnings: "—",
+    referralEarnings: "—",
+    tasksInProgress: "—",
+    completedTasks: "—",
+    successfulReferrals: "—",
+    totalReferrals: "—",
+    referralCode: "",
+  };
   adminStats = {
-    activeTasks: '—',
-    pendingVerification: '—',
-    approvedPayouts: '—',
-    reservedRewards: '—',
-    totalPaid: '—',
-    activeUsers: '—',
-    reservedSlots: '—',
-    processingPayouts: '—',
-    referralTotals: '—',
-    qualifiedReferrals: '—',
-    referralConversion: '—',
-    referralRewardsPaid: '—',
-    pendingBankVerifications: '—',
-    approvedBankVerifications: '—',
-    changesRequestedBankVerifications: '—',
-    duplicatePayoutDetails: '—',
-    pendingReferralApprovals: '—',
-    referralRewardsAwaitingPayout: '—',
-  }
+    activeTasks: "—",
+    pendingVerification: "—",
+    approvedPayouts: "—",
+    reservedRewards: "—",
+    totalPaid: "—",
+    activeUsers: "—",
+    reservedSlots: "—",
+    processingPayouts: "—",
+    referralTotals: "—",
+    qualifiedReferrals: "—",
+    referralConversion: "—",
+    referralRewardsPaid: "—",
+    pendingBankVerifications: "—",
+    approvedBankVerifications: "—",
+    changesRequestedBankVerifications: "—",
+    duplicatePayoutDetails: "—",
+    pendingReferralApprovals: "—",
+    referralRewardsAwaitingPayout: "—",
+  };
   adminNotificationStats = {
-    sentThisMonth: '—',
-    pendingEmail: '—',
-    failedEmail: '—',
-    unreadInApp: '—',
-  }
+    sentThisMonth: "—",
+    pendingEmail: "—",
+    failedEmail: "—",
+    unreadInApp: "—",
+  };
 }

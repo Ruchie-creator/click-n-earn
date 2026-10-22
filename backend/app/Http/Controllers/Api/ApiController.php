@@ -44,7 +44,7 @@ abstract class ApiController extends Controller
         ];
     }
 
-    protected function taskPayload(Task $task): array
+    protected function taskPayload(Task $task, ?string $availabilityStatus = null): array
     {
         return [
             'id' => $task->id,
@@ -64,6 +64,7 @@ abstract class ApiController extends Controller
             'reserved_slots' => $task->reserved_slots,
             'completed_slots' => $task->completed_slots,
             'status' => $this->enumValue($task->status),
+            'availability_status' => $availabilityStatus,
             'sponsor' => data_get($task->instructions, 'sponsor', 'Click & Earn partner'),
             'instructions' => $task->instructions ?: [],
             'requirements' => $task->proof_requirements ?: [],

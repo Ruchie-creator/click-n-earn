@@ -67,11 +67,15 @@ class SettingController extends ApiController
 
     public function update(Request $request, string $key, AuditLogService $audit): JsonResponse
     {
-        $data = $request->validate([
+        $rules = [
             'value' => ['required', 'array'],
             'value.enabled' => [$key === BankAccountRequirement::SETTING_KEY ? 'required' : 'nullable', 'boolean'],
-        ]);
-        $setting = Setting::firstOrNew(['key' => $key]);
+        ];
+        if ($key === 'referrals.page_description') {
+            $rules['value.description'] = ['nullable', 'string', 'max:2000'];
+        }
+        $data = $request->validate($rules);
+        $setting = Setting::query()->where('key', $key)->first() ?? new Setting(['key' => $key]);
         $before = $setting->exists ? $setting->toArray() : null;
         $setting->value = $data['value'];
         $setting->save();
