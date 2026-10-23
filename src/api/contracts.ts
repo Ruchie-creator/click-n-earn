@@ -71,6 +71,33 @@ export type ApiTask = {
   instructions: string[];
   requirements: string[];
   checkout_url?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+};
+
+export type ApiAdminTaskDetail = {
+  task: ApiTask;
+  metrics: {
+    reservations: number;
+    submissions: number;
+    approved: number;
+    paid: number;
+    submission_rate: number;
+    approval_rate: number;
+    committed_value: number;
+    paid_value: number;
+  };
+  funnel: Array<{ label: string; value: number }>;
+  trend: Array<{ date: string; reservations: number; submissions: number }>;
+  recent_activity: Array<{
+    id: number;
+    member: string;
+    email?: string | null;
+    status: string;
+    amount: number;
+    reserved_at?: string | null;
+    submitted_at?: string | null;
+  }>;
 };
 
 export type ApiReservation = {

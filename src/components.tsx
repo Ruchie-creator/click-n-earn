@@ -85,6 +85,7 @@ export type AppPage =
   | "profile"
   | "admin-dashboard"
   | "admin-tasks"
+  | "admin-task-detail"
   | "admin-submissions"
   | "admin-verification"
   | "admin-payout-verification"

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -120,6 +121,7 @@ import {
   getToken,
   setToken,
   type ApiAdminReferral,
+  type ApiAdminTaskDetail,
   type ApiAdminSubmission,
   type ApiDemoStatus,
   type ApiError,
@@ -174,6 +176,7 @@ const memberPages: AppPage[] = [
 const adminPages: AppPage[] = [
   "admin-dashboard",
   "admin-tasks",
+  "admin-task-detail",
   "admin-submissions",
   "admin-verification",
   "admin-payout-verification",
@@ -200,6 +203,7 @@ const pageTitles: Partial<Record<AppPage, string>> = {
   profile: "Profile",
   "admin-dashboard": "Admin dashboard",
   "admin-tasks": "Task management",
+  "admin-task-detail": "Task performance",
   "admin-submissions": "Submissions",
   "admin-verification": "Submissions",
   "admin-payout-verification": "Bank account review",
@@ -713,7 +717,7 @@ function AppShell() {
   useEffect(() => {
     const changed =
       previousRoute.current.page !== page ||
-      (page === "task-detail" &&
+      ((page === "task-detail" || page === "admin-task-detail") &&
         previousRoute.current.selectedTaskId !== selectedTaskId);
     previousRoute.current = { page, selectedTaskId };
     if (changed) {
@@ -726,6 +730,8 @@ function AppShell() {
 
   const selectedTask =
     tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? emptyTask;
+  const selectedAdminTask =
+    adminTasks.find((task) => task.id === selectedTaskId) ?? null;
   const selectedReservation =
     reservations.find(
       (reservation) => reservation.id === selectedReservationId,
@@ -985,7 +991,7 @@ function AppShell() {
         />
         <main className="mx-auto max-w-[1600px] px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           <div
-            key={`${page}-${page === "task-detail" ? selectedTaskId : ""}`}
+            key={`${page}-${page === "task-detail" || page === "admin-task-detail" ? selectedTaskId : ""}`}
             className="page-transition"
           >
             {admin ? (
@@ -996,6 +1002,13 @@ function AppShell() {
                 onNavigate={navigate}
                 onToast={setToast}
                 onRefresh={refreshAdminData}
+                selectedTask={selectedAdminTask}
+                onSelectTask={(task) =>
+                  navigate("admin-task-detail", { taskId: task.id, force: true })
+                }
+                onTaskDeleted={() =>
+                  navigate("admin-tasks", { taskId: "", replace: true })
+                }
                 requestedSubmissionId={requestedSubmissionId}
                 onRequestedSubmissionHandled={() =>
                   setRequestedSubmissionId(null)
@@ -4288,6 +4301,9 @@ function AdminRoutes({
   onRefresh,
   requestedSubmissionId,
   onRequestedSubmissionHandled,
+  selectedTask,
+  onSelectTask,
+  onTaskDeleted,
 }: {
   page: AppPage;
   user: ApiUser | null;
@@ -4297,11 +4313,41 @@ function AdminRoutes({
   onRefresh: () => Promise<void>;
   requestedSubmissionId: number | null;
   onRequestedSubmissionHandled: () => void;
+  selectedTask: Task | null;
+  onSelectTask: (task: Task) => void;
+  onTaskDeleted: () => void;
 }) {
   if (page === "admin-dashboard")
     return <AdminDashboardPage onNavigate={onNavigate} />;
   if (page === "admin-tasks")
-    return <AdminTasksPage onToast={onToast} onRefresh={onRefresh} />;
+    return (
+      <AdminTasksPage
+        onToast={onToast}
+        onRefresh={onRefresh}
+        onSelectTask={onSelectTask}
+      />
+    );
+  if (page === "admin-task-detail")
+    return selectedTask ? (
+      <AdminTaskDetailPage
+        task={selectedTask}
+        onBack={() => onNavigate("admin-tasks")}
+        onRefresh={onRefresh}
+        onDeleted={onTaskDeleted}
+        onToast={onToast}
+      />
+    ) : (
+      <EmptyState
+        icon={BarChart3}
+        title="Task not found"
+        description="This task may have been removed or is no longer available in the admin catalog."
+        action={
+          <button className="btn-primary" onClick={() => onNavigate("admin-tasks")}>
+            Back to tasks
+          </button>
+        }
+      />
+    );
   if (page === "admin-verification" || page === "admin-submissions")
     return (
       <AdminVerificationPage
@@ -5065,9 +5111,11 @@ function AdminDashboardPage({
 function AdminTasksPage({
   onToast,
   onRefresh,
+  onSelectTask,
 }: {
   onToast: (message: string) => void;
   onRefresh: () => Promise<void>;
+  onSelectTask: (task: Task) => void;
 }) {
   const { runOperation, processing, notify } = useFeedback();
   const [showModal, setShowModal] = useState(false);
@@ -5361,9 +5409,13 @@ function AdminTasksPage({
                             />
                           )}
                           <div>
-                            <p className="text-sm font-semibold text-ink">
+                            <button
+                              type="button"
+                              onClick={() => onSelectTask(task)}
+                              className="text-left text-sm font-semibold text-ink transition-colors duration-200 hover:text-accent"
+                            >
                               {task.title}
-                            </p>
+                            </button>
                             <p className="mt-0.5 text-[11px] text-muted">
                               ID {task.id.padStart(4, "0")} · {task.sponsor}
                             </p>
@@ -5390,6 +5442,7 @@ function AdminTasksPage({
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
+                          <button onClick={() => onSelectTask(task)} className="admin-icon-button" aria-label="Open task analytics" title="Open task analytics"><Eye size={15} /></button>
                           <button disabled={processing} onClick={() => void changeTaskStatus(task)} className="admin-icon-button" aria-label={task.status.toLowerCase() === "available" ? "Pause task" : "Make task available"} title={task.status.toLowerCase() === "available" ? "Pause task" : "Make task available"}>{task.status.toLowerCase() === "available" ? <Minus size={15} /> : <ArrowUp size={15} />}</button>
                           <button disabled={processing} onClick={() => setEditingTask(task)} className="admin-icon-button" aria-label="Edit task" title="Edit task"><Pencil size={15} /></button>
                           <button disabled={processing} onClick={() => setPendingDelete(task)} className="admin-icon-button text-error hover:bg-red-50" aria-label="Delete task" title="Delete task"><Trash2 size={15} /></button>
@@ -5427,7 +5480,7 @@ function AdminTasksPage({
                       </span>
                     </p>
                   </div>
-                    <button onClick={() => setEditingTask(task)} className="admin-icon-button" aria-label="Edit task"><Pencil size={15} /></button>
+                    <button onClick={() => onSelectTask(task)} className="admin-icon-button" aria-label="Open task analytics"><Eye size={15} /></button>
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[11px] text-muted"><span className="number">{task.slots} open · {task.reservedSlots ?? 0} held</span><button disabled={processing} onClick={() => void changeTaskStatus(task)} className="font-semibold text-navy">{task.status.toLowerCase() === "available" ? "Pause" : "Make live"}</button></div>
                 </div>
@@ -5619,6 +5672,253 @@ function AdminTasksPage({
           {categories.length > 0 && visibleCategories.length === 0 && (
             <TableEmpty message="No categories match your search." />
           )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function AdminTaskDetailPage({
+  task,
+  onBack,
+  onRefresh,
+  onDeleted,
+  onToast,
+}: {
+  task: Task;
+  onBack: () => void;
+  onRefresh: () => Promise<void>;
+  onDeleted: () => void;
+  onToast: (message: string) => void;
+}) {
+  const { runOperation, processing } = useFeedback();
+  const [detail, setDetail] = useState<ApiAdminTaskDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [categories, setCategories] = useState<ApiTaskCategory[]>([]);
+
+  const loadDetail = async () => {
+    setLoading(true);
+    try {
+      setDetail((await api.adminTask(task.id)).data);
+    } catch (error) {
+      onToast(
+        error instanceof Error
+          ? error.message
+          : "Task performance could not be loaded.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDetail();
+    api
+      .adminTaskCategories()
+      .then((response) => setCategories(response.data))
+      .catch(() => undefined);
+  }, [task.id]);
+
+  const saveTask = async (payload: Record<string, unknown>) => {
+    await runOperation(
+      {
+        title: "Updating task",
+        description: "Applying the new configuration to the live catalog.",
+        successMessage: "Task updated.",
+      },
+      async () => {
+        await api.adminUpdateTask(task.id, payload);
+        setEditing(false);
+        await onRefresh();
+        await loadDetail();
+      },
+    );
+  };
+
+  const toggleStatus = async () => {
+    const nextStatus = task.status.toLowerCase() === "available" ? "paused" : "available";
+    await runOperation(
+      {
+        title: nextStatus === "paused" ? "Pausing task" : "Publishing task",
+        description: "Updating availability across the marketplace.",
+        successMessage: nextStatus === "paused" ? "Task paused." : "Task is live.",
+      },
+      async () => {
+        await api.adminChangeTaskStatus(task.id, nextStatus);
+        await onRefresh();
+        await loadDetail();
+      },
+    );
+  };
+
+  const forceDelete = async () => {
+    await runOperation(
+      {
+        title: "Permanently deleting task",
+        description: "Removing the task and its reservation history.",
+        successMessage: "Task permanently deleted.",
+      },
+      async () => {
+        await api.adminForceDeleteTask(task.id, deleteConfirmation);
+        setDeleting(false);
+        try {
+          await onRefresh();
+        } catch {
+          onToast(
+            "Task deleted, but the catalog could not refresh. Reload to sync the task list.",
+          );
+        }
+        onDeleted();
+      },
+    );
+  };
+
+  const metrics = detail?.metrics;
+  const trend = detail?.trend ?? [];
+  const trendPeak = Math.max(
+    1,
+    ...trend.map((point) => Math.max(point.reservations, point.submissions)),
+  );
+  const chartPoints = (key: "reservations" | "submissions") =>
+    trend
+      .map((point, index) => {
+        const x = trend.length > 1 ? (index / (trend.length - 1)) * 100 : 50;
+        const y = 92 - (point[key] / trendPeak) * 74;
+        return `${x},${y}`;
+      })
+      .join(" ");
+  const capacity = Math.max(1, task.availableSlots ?? task.slots);
+  const uptake = Math.min(
+    100,
+    (((task.reservedSlots ?? 0) + (task.completedSlots ?? 0)) / capacity) * 100,
+  );
+
+  return (
+    <div className="admin-workspace space-y-6">
+      <div className="fade-up flex flex-wrap items-center justify-between gap-3">
+        <button onClick={onBack} className="btn-ghost -ml-3">
+          <ArrowLeft size={16} /> All tasks
+        </button>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={processing} onClick={() => void toggleStatus()} className="btn-secondary">
+            {task.status.toLowerCase() === "available" ? <Minus size={15} /> : <ArrowUp size={15} />}
+            {task.status.toLowerCase() === "available" ? "Pause" : "Make live"}
+          </button>
+          <button disabled={processing} onClick={() => setEditing(true)} className="btn-primary">
+            <Pencil size={15} /> Edit task
+          </button>
+          <button disabled={processing} onClick={() => setDeleting(true)} className="admin-danger-button">
+            <Trash2 size={15} /> Force delete
+          </button>
+        </div>
+      </div>
+
+      <section className="task-command-hero fade-up stagger-1">
+        <div className="task-command-glow" />
+        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_340px] lg:items-end">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="task-command-kicker">TASK / {task.id.padStart(4, "0")}</span>
+              <StatusBadge tone={getTone(task.status)} dot>{task.status}</StatusBadge>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">{task.category}</span>
+            </div>
+            <h1 className="mt-5 max-w-3xl text-balance text-3xl font-semibold tracking-[-0.055em] text-white sm:text-4xl">{task.title}</h1>
+            <p className="mt-3 max-w-2xl text-pretty text-sm leading-6 text-white/60">{task.description}</p>
+            <div className="mt-7 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/55">
+              <span><strong className="number mr-1.5 text-white">{formatCurrency(task.productPrice + task.incentive)}</strong> per completion</span>
+              <span><strong className="number mr-1.5 text-white">{task.slots}</strong> slots open</span>
+              <span><strong className="number mr-1.5 text-white">{Math.round(uptake)}%</strong> capacity used</span>
+            </div>
+          </div>
+          <div className="task-capacity-orbit">
+            <div className="task-capacity-ring" style={{ "--progress": `${uptake * 3.6}deg` } as CSSProperties}>
+              <div><strong className="number">{Math.round(uptake)}%</strong><span>uptake</span></div>
+            </div>
+            <div className="grid flex-1 grid-cols-2 gap-3 text-center">
+              <div><strong className="number">{task.reservedSlots ?? 0}</strong><span>Reserved</span></div>
+              <div><strong className="number">{task.completedSlots ?? 0}</strong><span>Completed</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 fade-up stagger-2">
+        {[
+          { label: "Reservations", value: metrics?.reservations ?? "—", helper: "Total task uptake", icon: Bookmark },
+          { label: "Submission rate", value: metrics ? `${metrics.submission_rate}%` : "—", helper: `${metrics?.submissions ?? 0} proofs received`, icon: FileCheck2 },
+          { label: "Approval rate", value: metrics ? `${metrics.approval_rate}%` : "—", helper: `${metrics?.approved ?? 0} approved`, icon: CheckCircle2 },
+          { label: "Committed value", value: metrics ? formatCurrency(metrics.committed_value) : "—", helper: `${metrics?.paid ? formatCurrency(metrics.paid_value) : "$0.00"} paid`, icon: CircleDollarSign },
+        ].map(({ label, value, helper, icon: Icon }) => (
+          <div key={label} className="task-metric-card">
+            <div className="task-metric-icon"><Icon size={17} /></div>
+            <p>{label}</p>
+            <strong className="number">{value}</strong>
+            <span>{helper}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.75fr)]">
+        <section className="admin-panel overflow-hidden fade-up stagger-3">
+          <div className="admin-panel-header">
+            <div><p className="eyebrow">Performance signal</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.035em] text-ink">14-day activity</h2></div>
+            <div className="flex gap-4 text-[11px] font-medium text-muted"><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-accent" />Reservations</span><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#7C5CFC]" />Submissions</span></div>
+          </div>
+          <div className="px-5 pb-5 pt-3 sm:px-6">
+            {loading ? (
+              <div className="grid h-64 place-items-center text-sm text-muted">Loading performance…</div>
+            ) : (
+              <div className="task-trend-chart">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Reservations and submissions over the last 14 days" role="img">
+                  {[18, 42, 66, 92].map((y) => <line key={y} x1="0" x2="100" y1={y} y2={y} className="task-chart-grid" />)}
+                  <polyline points={chartPoints("reservations")} className="task-chart-line task-chart-line-primary" />
+                  <polyline points={chartPoints("submissions")} className="task-chart-line task-chart-line-secondary" />
+                </svg>
+                <div className="mt-3 flex justify-between text-[10px] font-medium uppercase tracking-[0.08em] text-subtle">
+                  <span>{trend[0] ? new Date(`${trend[0].date}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"}</span>
+                  <span>Today</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="admin-panel overflow-hidden fade-up stagger-4">
+          <div className="admin-panel-header"><div><p className="eyebrow">Conversion map</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.035em] text-ink">Task funnel</h2></div></div>
+          <div className="space-y-5 p-5 sm:p-6">
+            {(detail?.funnel ?? []).map((step, index) => {
+              const max = detail?.funnel[0]?.value || 1;
+              const percentage = Math.round((step.value / max) * 100);
+              return <div key={step.label}>
+                <div className="mb-2 flex items-center justify-between text-xs"><span className="font-medium text-muted"><span className="number mr-2 text-[10px] text-subtle">0{index + 1}</span>{step.label}</span><span className="number font-semibold text-ink">{step.value} <span className="text-[10px] font-medium text-subtle">/ {percentage}%</span></span></div>
+                <div className="h-2 overflow-hidden rounded-full bg-[#E9EEF5]"><span className="block h-full rounded-full bg-gradient-to-r from-navy to-accent transition-[width] duration-500" style={{ width: `${percentage}%` }} /></div>
+              </div>;
+            })}
+            {!loading && !detail?.funnel.length && <p className="py-10 text-center text-xs text-muted">No funnel activity yet.</p>}
+          </div>
+        </section>
+      </div>
+
+      <section className="admin-panel overflow-hidden fade-up stagger-4">
+        <div className="admin-panel-header"><div><p className="eyebrow">Live operations</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.035em] text-ink">Recent member activity</h2></div><span className="number text-xs text-subtle">{detail?.recent_activity.length ?? 0} latest records</span></div>
+        {detail?.recent_activity.length ? (
+          <div className="overflow-x-auto"><table className="admin-table w-full min-w-[760px] text-left"><thead><tr><th className="px-6 py-3">Member</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Value</th><th className="px-4 py-3">Reserved</th><th className="px-6 py-3 text-right">Submission</th></tr></thead><tbody className="divide-y divide-line">{detail.recent_activity.map((item) => <tr key={item.id} className="transition-colors duration-150 hover:bg-[#F7F9FC]"><td className="px-6 py-4"><p className="text-xs font-semibold text-ink">{item.member}</p><p className="mt-0.5 text-[10px] text-subtle">{item.email || `Reservation #${item.id}`}</p></td><td className="px-4 py-4"><StatusBadge tone={getTone(item.status)} dot>{item.status.replace(/_/g, " ")}</StatusBadge></td><td className="number px-4 py-4 text-xs font-semibold text-ink">{formatCurrency(item.amount)}</td><td className="px-4 py-4 text-[11px] text-muted">{item.reserved_at ? new Date(item.reserved_at).toLocaleDateString() : "—"}</td><td className="px-6 py-4 text-right text-[11px] text-muted">{item.submitted_at ? new Date(item.submitted_at).toLocaleString() : "Not submitted"}</td></tr>)}</tbody></table></div>
+        ) : (
+          <TableEmpty message={loading ? "Loading recent activity…" : "This task has no member activity yet."} />
+        )}
+      </section>
+
+      <Modal open={editing} title="Edit task configuration" description="Update the member experience, capacity, and unit economics." onClose={() => !processing && setEditing(false)} size="lg">
+        <EditTaskForm task={task} categories={categories.filter((category) => category.is_active)} processing={processing} onCancel={() => setEditing(false)} onSave={saveTask} />
+      </Modal>
+      <Modal open={deleting} title="Force delete task" description="This permanently removes the task and all reservation and proof records attached to it." onClose={() => !processing && setDeleting(false)} size="sm">
+        <div className="space-y-5">
+          <div className="rounded-xl bg-red-50 p-4 shadow-[inset_0_0_0_1px_rgba(217,45,32,0.12)]"><div className="flex gap-3"><ShieldAlert className="mt-0.5 shrink-0 text-error" size={18} /><div><p className="text-sm font-semibold text-ink">This cannot be undone</p><p className="mt-1 text-xs leading-5 text-muted">Financial ledger and payout records are retained, but their link to this task will be removed.</p></div></div></div>
+          <label className="block text-xs font-semibold text-muted">Enter <span className="text-ink">{task.title}</span> to confirm<input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className="form-field mt-2" autoComplete="off" /></label>
+          <div className="flex justify-end gap-2"><button onClick={() => setDeleting(false)} className="btn-secondary">Cancel</button><button disabled={processing || deleteConfirmation !== task.title} onClick={() => void forceDelete()} className="admin-danger-button">{processing ? "Deleting…" : "Delete permanently"}<Trash2 size={15} /></button></div>
         </div>
       </Modal>
     </div>

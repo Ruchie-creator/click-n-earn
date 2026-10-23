@@ -17,6 +17,8 @@ export type Task = {
   instructions: string[];
   requirements: string[];
   checkoutUrl?: string;
+  startsAt?: string | null;
+  expiresAt?: string | null;
 };
 
 export let taskCategories: string[] = [];
@@ -274,6 +276,8 @@ type BackendTask = {
   instructions?: string[];
   requirements?: string[];
   checkout_url?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
 };
 
 type BackendReservation = {
@@ -384,6 +388,8 @@ function mapTask(task: BackendTask): Task {
     instructions: task.instructions || [],
     requirements: task.requirements || [],
     checkoutUrl: task.checkout_url || undefined,
+    startsAt: task.starts_at,
+    expiresAt: task.expires_at,
   };
 }
 

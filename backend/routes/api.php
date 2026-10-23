@@ -90,8 +90,10 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::get('dashboard', AdminDashboardController::class);
             Route::get('tasks', [AdminTaskController::class, 'index']);
             Route::post('tasks', [AdminTaskController::class, 'store']);
+            Route::get('tasks/{task}', [AdminTaskController::class, 'show']);
             Route::patch('tasks/{task}', [AdminTaskController::class, 'update']);
             Route::delete('tasks/{task}', [AdminTaskController::class, 'destroy']);
+            Route::post('tasks/{task}/force-delete', [AdminTaskController::class, 'forceDestroy']);
             Route::post('tasks/{task}/status', [AdminTaskController::class, 'changeStatus']);
             Route::post('tasks/{task}/publish', [AdminTaskController::class, 'publish']);
             Route::post('tasks/{task}/pause', [AdminTaskController::class, 'pause']);

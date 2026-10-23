@@ -1,5 +1,5 @@
 import { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken } from './client'
-import type { AdminDashboardData, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiFaq, ApiPayout, ApiPayoutMethod, ApiPayoutVerification, ApiReservation, ApiTask, ApiTaskCategory, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, PublicTask, PublicTaskListData, ReferralListData, TaskListData } from './contracts'
+import type { AdminDashboardData, ApiAdminTaskDetail, ApiBeneficiaryCountries, ApiBeneficiarySchema, ApiDemoClearResult, ApiDemoStatus, ApiEnvelope, ApiFaq, ApiPayout, ApiPayoutMethod, ApiPayoutVerification, ApiReservation, ApiTask, ApiTaskCategory, ApiUser, DashboardData, EarningsData, NotificationData, PayoutListData, PublicTask, PublicTaskListData, ReferralListData, TaskListData } from './contracts'
 
 export { apiDownload, apiFetch, apiUpload, getToken, reportClientError, setToken }
 export type { ApiError } from './client'
@@ -125,6 +125,9 @@ export const api = {
   adminTasks() {
     return apiFetch<ApiEnvelope<ApiTask[]>>('/admin/tasks')
   },
+  adminTask(id: string | number) {
+    return apiFetch<ApiEnvelope<ApiAdminTaskDetail>>('/admin/tasks/' + id)
+  },
   adminTaskCategories() {
     return apiFetch<ApiEnvelope<ApiTaskCategory[]>>('/admin/task-categories')
   },
@@ -158,6 +161,9 @@ export const api = {
   },
   adminDeleteTask(id: string | number) {
     return apiFetch<ApiEnvelope<{ deleted: boolean }>>('/admin/tasks/' + id, { method: 'DELETE' })
+  },
+  adminForceDeleteTask(id: string | number, confirmation: string) {
+    return apiFetch<ApiEnvelope<{ deleted: boolean }>>('/admin/tasks/' + id + '/force-delete', { method: 'POST', body: JSON.stringify({ confirmation }) })
   },
   adminChangeTaskStatus(id: string | number, status: string) {
     return apiFetch<ApiEnvelope<ApiTask>>('/admin/tasks/' + id + '/status', { method: 'POST', body: JSON.stringify({ status }) })

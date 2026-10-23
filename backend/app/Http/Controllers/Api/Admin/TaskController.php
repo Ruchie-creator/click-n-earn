@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Models\TaskCategory;
 use App\Services\AuditLogService;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,59 @@ class TaskController extends ApiController
         return $this->ok(Task::withCount('reservations')->latest()->get()->map(fn (Task $task): array => array_merge($this->taskPayload($task), [
             'reservation_count' => $task->reservations_count,
         ])));
+    }
+
+    public function show(Task $task): JsonResponse
+    {
+        $task->load(['reservations' => fn ($query) => $query
+            ->with(['user:id,name,email', 'latestProofSubmission:id,task_reservation_id,status,submitted_at'])
+            ->latest('reserved_at')]);
+
+        $reservations = $task->reservations;
+        $submitted = $reservations->whereNotNull('submitted_at');
+        $approvedStatuses = ['approved', 'processing', 'paid'];
+        $approved = $reservations->filter(fn ($reservation): bool => in_array($this->enumValue($reservation->status), $approvedStatuses, true));
+        $paid = $reservations->filter(fn ($reservation): bool => $this->enumValue($reservation->status) === 'paid');
+        $start = CarbonImmutable::today()->subDays(13);
+        $trend = collect(range(0, 13))->map(function (int $offset) use ($reservations, $start): array {
+            $date = $start->addDays($offset);
+
+            return [
+                'date' => $date->toDateString(),
+                'reservations' => $reservations->filter(fn ($reservation): bool => $reservation->reserved_at?->isSameDay($date) ?? false)->count(),
+                'submissions' => $reservations->filter(fn ($reservation): bool => $reservation->submitted_at?->isSameDay($date) ?? false)->count(),
+            ];
+        })->values();
+
+        return $this->ok([
+            'task' => $this->taskPayload($task),
+            'metrics' => [
+                'reservations' => $reservations->count(),
+                'submissions' => $submitted->count(),
+                'approved' => $approved->count(),
+                'paid' => $paid->count(),
+                'submission_rate' => $reservations->count() > 0 ? round(($submitted->count() / $reservations->count()) * 100, 1) : 0,
+                'approval_rate' => $submitted->count() > 0 ? round(($approved->count() / $submitted->count()) * 100, 1) : 0,
+                'committed_value' => round((float) $reservations->sum('expected_payout'), 2),
+                'paid_value' => round((float) $paid->sum('expected_payout'), 2),
+            ],
+            'funnel' => [
+                ['label' => 'Reserved', 'value' => $reservations->count()],
+                ['label' => 'Proof submitted', 'value' => $submitted->count()],
+                ['label' => 'Approved', 'value' => $approved->count()],
+                ['label' => 'Paid', 'value' => $paid->count()],
+            ],
+            'trend' => $trend,
+            'recent_activity' => $reservations->take(8)->map(fn ($reservation): array => [
+                'id' => $reservation->id,
+                'member' => $reservation->user?->name ?? 'Member',
+                'email' => $reservation->user?->email,
+                'status' => $this->enumValue($reservation->status),
+                'amount' => (float) $reservation->expected_payout,
+                'reserved_at' => $reservation->reserved_at?->toISOString(),
+                'submitted_at' => $reservation->submitted_at?->toISOString(),
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request, AuditLogService $audit): JsonResponse
@@ -111,6 +165,28 @@ class TaskController extends ApiController
             }
             $before = $locked->toArray();
             $audit->record('task.deleted', $locked, $request, before: $before, actorId: $request->user()->id);
+            $locked->delete();
+        });
+
+        return $this->ok(['deleted' => true]);
+    }
+
+    public function forceDestroy(Request $request, Task $task, AuditLogService $audit): JsonResponse
+    {
+        $data = $request->validate([
+            'confirmation' => ['required', 'string'],
+        ]);
+        if (! hash_equals($task->title, $data['confirmation'])) {
+            throw ValidationException::withMessages([
+                'confirmation' => 'Enter the exact task title to confirm permanent deletion.',
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $task, $audit): void {
+            $locked = Task::query()->lockForUpdate()->withCount('reservations')->findOrFail($task->id);
+            $before = $locked->toArray();
+            $before['reservations_deleted'] = $locked->reservations_count;
+            $audit->record('task.force_deleted', $locked, $request, before: $before, actorId: $request->user()->id);
             $locked->delete();
         });
 
