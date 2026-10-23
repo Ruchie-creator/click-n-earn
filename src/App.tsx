@@ -5817,7 +5817,6 @@ function AdminTaskDetailPage({
       </div>
 
       <section className="task-command-hero fade-up stagger-1">
-        <div className="task-command-glow" />
         <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_340px] lg:items-end">
           <div>
             <div className="flex flex-wrap items-center gap-2">

@@ -169,18 +169,6 @@ button {
     box-shadow: 0 26px 70px rgba(17, 29, 51, 0.22), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
   }
 
-  .task-command-hero::before {
-    content: "";
-    @apply pointer-events-none absolute inset-0 opacity-[0.13];
-    background-image: linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px);
-    background-size: 36px 36px;
-    mask-image: linear-gradient(to right, black, transparent 80%);
-  }
-
-  .task-command-glow {
-    @apply pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-accent/40 blur-[90px];
-  }
-
   .task-command-kicker {
     @apply rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70;
   }
