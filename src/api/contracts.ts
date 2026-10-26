@@ -252,6 +252,7 @@ export type ApiPayout = {
   provider_reference?: string | null;
   paid_at?: string | null;
   requested_at?: string | null;
+  provider_environment?: "sandbox" | "live";
 };
 
 export type ApiPayoutMethod = {

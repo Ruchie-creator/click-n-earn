@@ -112,6 +112,7 @@ import {
   tasks,
   verificationQueue,
   type NotificationItem,
+  type AdminPayoutRow,
   type ReservationItem,
   type Task,
   type VerificationQueueItem,
@@ -7253,6 +7254,8 @@ function AdminPayoutsPage({
 }) {
   const { runOperation, processing, notify } = useFeedback();
   const [filter, setFilter] = useState("All");
+  const [livePayout, setLivePayout] = useState<AdminPayoutRow | null>(null);
+  const [liveConfirmation, setLiveConfirmation] = useState("");
   const rows = adminPayouts;
   const filtered =
     filter === "All" ? rows : rows.filter((row) => row.status === filter);
@@ -7262,6 +7265,7 @@ function AdminPayoutsPage({
   const updateStatus = async (
     id: string,
     action: "process" | "retry" | "sync",
+    confirmation?: string,
   ) => {
     const row = rows.find((item) => item.id === id);
     const backendId = row?.backendId;
@@ -7302,7 +7306,8 @@ function AdminPayoutsPage({
           }
           return;
         }
-        if (action === "process") await api.processPayout(backendId);
+        if (action === "process")
+          await api.processPayout(backendId, confirmation);
         else await api.syncPayout(backendId);
         try {
           await onRefresh();
@@ -7315,7 +7320,24 @@ function AdminPayoutsPage({
       },
     );
   };
+  const requestPayoutRelease = (row: AdminPayoutRow) => {
+    if (row.providerEnvironment === "live") {
+      setLiveConfirmation("");
+      setLivePayout(row);
+      return;
+    }
+    void updateStatus(row.id, "process");
+  };
+  const confirmLivePayout = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!livePayout || liveConfirmation !== "LIVE") return;
+    const payout = livePayout;
+    setLivePayout(null);
+    setLiveConfirmation("");
+    await updateStatus(payout.id, "process", "LIVE");
+  };
   return (
+    <>
     <div className="space-y-7">
       <PageHeader
         eyebrow="Money operations"
@@ -7425,7 +7447,7 @@ function AdminPayoutsPage({
                         {row.status === "Approved" ? (
                           <button
                             disabled={processing}
-                            onClick={() => void updateStatus(row.id, "process")}
+                            onClick={() => requestPayoutRelease(row)}
                             className="btn-primary min-h-9 px-3 text-xs disabled:opacity-60"
                           >
                             Process payout
@@ -7496,7 +7518,7 @@ function AdminPayoutsPage({
                     {row.status === "Approved" ? (
                       <button
                         disabled={processing}
-                        onClick={() => void updateStatus(row.id, "process")}
+                        onClick={() => requestPayoutRelease(row)}
                         className="btn-primary min-h-9 px-3 text-xs disabled:opacity-60"
                       >
                         Process
@@ -7546,6 +7568,51 @@ function AdminPayoutsPage({
         )}
       </section>
     </div>
+    <Modal
+      open={Boolean(livePayout)}
+      title="Confirm live payout"
+      description={`This will release ${livePayout ? formatCurrency(livePayout.total) : "the payout"} through the live Airwallex account. Type LIVE to continue.`}
+      onClose={() => {
+        if (!processing) {
+          setLivePayout(null);
+          setLiveConfirmation("");
+        }
+      }}
+      size="sm"
+    >
+      <form onSubmit={(event) => void confirmLivePayout(event)} className="space-y-4">
+        <label className="block text-xs font-semibold text-ink">
+          Type <span className="font-mono text-navy">LIVE</span> to confirm
+          <input
+            autoComplete="off"
+            autoFocus
+            className="form-field mt-2"
+            value={liveConfirmation}
+            onChange={(event) => setLiveConfirmation(event.target.value)}
+          />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setLivePayout(null);
+              setLiveConfirmation("");
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={liveConfirmation !== "LIVE"}
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Release live payout
+          </button>
+        </div>
+      </form>
+    </Modal>
+    </>
   );
 }
 function AdminFaqsPage({ onToast }: { onToast: (message: string) => void }) {

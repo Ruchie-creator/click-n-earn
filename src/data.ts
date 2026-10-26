@@ -133,6 +133,7 @@ export type AdminPayoutRow = {
   status: string;
   reference: string;
   date: string;
+  providerEnvironment: "sandbox" | "live";
 };
 
 export type MemberRow = {
@@ -538,6 +539,7 @@ type AdminQueuePayload = {
     provider_reference?: string | null;
     requested_at?: string | null;
     paid_at?: string | null;
+    provider_environment?: "sandbox" | "live";
   }>;
 };
 
@@ -612,6 +614,7 @@ function mapAdminPayout(
     status: readableStatus(item.status),
     reference: item.provider_reference || "—",
     date: dateLabel(item.paid_at || item.requested_at),
+    providerEnvironment: item.provider_environment || "sandbox",
   };
 }
 
@@ -694,6 +697,7 @@ export function hydrateAdminPayouts(
     task?: string | null;
     requested_at?: string | null;
     paid_at?: string | null;
+    provider_environment?: "sandbox" | "live";
   }>,
 ): void {
   adminPayouts = items.map((item) =>
@@ -708,6 +712,7 @@ export function hydrateAdminPayouts(
       task: item.task,
       requested_at: item.requested_at,
       paid_at: item.paid_at,
+      provider_environment: item.provider_environment,
     }),
   );
 }

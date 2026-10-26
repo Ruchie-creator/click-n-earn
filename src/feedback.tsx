@@ -218,8 +218,9 @@ function OperationDialog({ dialog, onClose }: { dialog: FeedbackDialog; onClose:
       </div>
       <p className="operation-eyebrow">{dialog.mode === 'loading' ? 'Workspace update' : dialog.phase === 'processing' ? 'Secure operation' : dialog.phase === 'success' ? 'Completed' : 'Action needed'}</p>
       <h2 id="operation-title" className="operation-title">{dialog.title}</h2>
-      <p id="operation-description" className="operation-description">{dialog.description}</p>
-      {isError && <div className="operation-error" role="alert">{dialog.errorMessage}</div>}
+      {isError
+        ? <div id="operation-description" className="operation-error" role="alert">{dialog.errorMessage}</div>
+        : <p id="operation-description" className="operation-description">{dialog.description}</p>}
       {isError && <div className="mt-5 flex flex-col-reverse justify-center gap-2 sm:flex-row">
         {dialog.retry && <button type="button" onClick={() => void dialog.retry?.()} className="btn-primary"><LoaderCircle size={15} /> Try again</button>}
         <button type="button" onClick={onClose} className="btn-secondary">Close</button>
