@@ -63,6 +63,7 @@ export type ReferralItem = {
   paidAt?: string | null;
 };
 export let referralPageDescription = "";
+export let referralRewardAmount: number | null = null;
 
 export type ReservationItem = {
   id: number;
@@ -744,6 +745,7 @@ export function hydrateFinanceData(payload: {
   referrals?: {
     code: string;
     page_description?: string | null;
+    reward_amount?: number | null;
     qualified_count?: number;
     items: Array<{
       id: number;
@@ -792,6 +794,10 @@ export function hydrateFinanceData(payload: {
   }
   if (payload.referrals !== undefined) {
     referralPageDescription = payload.referrals.page_description?.trim() || "";
+    referralRewardAmount =
+      typeof payload.referrals.reward_amount === "number"
+        ? payload.referrals.reward_amount
+        : null;
     referrals = payload.referrals.items.map((item) => ({
       id: item.id,
       name: item.name || "Member",
@@ -941,6 +947,8 @@ export function clearAllData(): void {
   notificationUnreadCount = 0;
   payouts = [];
   referrals = [];
+  referralPageDescription = "";
+  referralRewardAmount = null;
   verificationQueue = [];
   adminPayouts = [];
   members = [];

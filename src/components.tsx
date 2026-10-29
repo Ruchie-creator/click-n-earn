@@ -1233,6 +1233,7 @@ export function Modal({
   size = "md",
   headerAside,
   bodyClassName = "",
+  centered = false,
 }: {
   open: boolean;
   title: string;
@@ -1242,6 +1243,7 @@ export function Modal({
   size?: "sm" | "md" | "lg" | "xl";
   headerAside?: ReactNode;
   bodyClassName?: string;
+  centered?: boolean;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -1313,14 +1315,14 @@ export function Modal({
   const isWorkspace = size === "xl";
   const dialog = (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-[#10192B]/60 p-0 backdrop-blur-[4px] sm:items-center sm:p-4 lg:p-6"
+      className={`fixed inset-0 z-[70] flex justify-center bg-[#10192B]/60 backdrop-blur-[4px] ${centered ? "items-center p-4 sm:p-6" : "items-end p-0 sm:items-center sm:p-4 lg:p-6"}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         ref={contentRef}
-        className={`flex w-full flex-col bg-white shadow-[0_28px_90px_rgba(15,29,51,0.3),0_4px_18px_rgba(15,29,51,0.12)] outline-none ${width} ${isWorkspace ? "h-[100dvh] max-h-[100dvh] overflow-hidden sm:h-[92dvh] sm:max-h-[860px] sm:rounded-[20px]" : "max-h-[92dvh] overflow-hidden rounded-t-2xl sm:rounded-2xl"}`}
+        className={`flex w-full flex-col bg-white shadow-[0_28px_90px_rgba(15,29,51,0.3),0_4px_18px_rgba(15,29,51,0.12)] outline-none ${width} ${isWorkspace ? "h-[100dvh] max-h-[100dvh] overflow-hidden sm:h-[92dvh] sm:max-h-[860px] sm:rounded-[20px]" : centered ? "max-h-[92dvh] overflow-hidden rounded-2xl" : "max-h-[92dvh] overflow-hidden rounded-t-2xl sm:rounded-2xl"}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"

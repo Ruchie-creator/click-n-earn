@@ -58,11 +58,21 @@ class SettingController extends ApiController
 
     public function index(): JsonResponse
     {
-        return $this->ok(Setting::query()->orderBy('key')->get()->map(fn (Setting $setting): array => [
+        $settings = Setting::query()->orderBy('key')->get()->map(fn (Setting $setting): array => [
             'key' => $setting->key,
             'value' => $setting->value,
             'updated_at' => $setting->updated_at?->toISOString(),
-        ]));
+        ])->values();
+
+        if (! $settings->contains('key', 'referrals.reward_amount')) {
+            $settings->push([
+                'key' => 'referrals.reward_amount',
+                'value' => ['amount' => (float) config('referrals.reward_amount', 12)],
+                'updated_at' => null,
+            ]);
+        }
+
+        return $this->ok($settings);
     }
 
     public function update(Request $request, string $key, AuditLogService $audit): JsonResponse
@@ -74,10 +84,24 @@ class SettingController extends ApiController
         if ($key === 'referrals.page_description') {
             $rules['value.description'] = ['nullable', 'string', 'max:2000'];
         }
+        if ($key === 'referrals.reward_amount') {
+            $rules['value.amount'] = ['required', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'];
+        }
         $data = $request->validate($rules);
+        $value = $data['value'];
+
+        if ($key === 'referrals.page_description') {
+            $description = trim((string) ($value['description'] ?? ''));
+            $value['description'] = $description !== '' ? $description : null;
+        }
+
+        if ($key === 'referrals.reward_amount') {
+            $value['amount'] = number_format((float) $value['amount'], 2, '.', '');
+        }
+
         $setting = Setting::query()->where('key', $key)->first() ?? new Setting(['key' => $key]);
         $before = $setting->exists ? $setting->toArray() : null;
-        $setting->value = $data['value'];
+        $setting->value = $value;
         $setting->save();
         $audit->record('setting.updated', $setting, $request, before: $before, after: $setting->toArray(), actorId: $request->user()->id);
 

@@ -364,6 +364,7 @@ export type ApiBeneficiaryCountries = { countries: string[] };
 export type ReferralListData = {
   code: string;
   page_description?: string | null;
+  reward_amount?: number | null;
   items: Array<{
     id: number;
     name?: string | null;

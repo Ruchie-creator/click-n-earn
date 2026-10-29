@@ -11,6 +11,11 @@ class ReferralController extends ApiController
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $configuredReward = Setting::query()->where('key', 'referrals.reward_amount')->value('value');
+        $rewardAmount = data_get($configuredReward, 'amount', config('referrals.reward_amount', 12));
+        $rewardAmount = is_numeric($rewardAmount) && (float) $rewardAmount >= 0
+            ? (float) $rewardAmount
+            : (float) config('referrals.reward_amount', 12);
         $items = $user->referralsSent()->with(['referredUser', 'qualifyingReservation.task', 'qualifyingReservation.latestProofSubmission', 'payout'])->latest()->get()->map(fn ($referral): array => [
             'id' => $referral->id,
             'name' => $referral->referredUser?->name,
@@ -33,6 +38,7 @@ class ReferralController extends ApiController
         return $this->ok([
             'code' => $user->referral_code,
             'page_description' => data_get(Setting::query()->where('key', 'referrals.page_description')->value('value'), 'description'),
+            'reward_amount' => $rewardAmount,
             'items' => $items,
             'qualified_count' => $items->where('status', 'Successful')->count(),
             'pending_count' => $items->where('status', '!=', 'Successful')->count(),

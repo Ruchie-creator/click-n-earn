@@ -56,8 +56,13 @@ class ReferralService
     private function rewardAmount(): string
     {
         $configured = Setting::query()->where('key', 'referrals.reward_amount')->first()?->value;
+        $amount = data_get($configured, 'amount', config('referrals.reward_amount', 12));
 
-        return (string) data_get($configured, 'amount', config('referrals.reward_amount', 12));
+        if (! is_numeric($amount) || (float) $amount < 0) {
+            $amount = config('referrals.reward_amount', 12);
+        }
+
+        return number_format((float) $amount, 2, '.', '');
     }
 
     public function qualifyAfterApprovedTask(User $referredUser, TaskReservation $reservation): ?Referral

@@ -106,6 +106,7 @@ import {
   notifications,
   payouts,
   referralPageDescription,
+  referralRewardAmount,
   referrals,
   reservations,
   taskCategories,
@@ -1105,6 +1106,7 @@ function MemberRoutes({
         user={currentUser}
         onNavigate={onNavigate}
         onSelectTask={onSelectTask}
+        onToast={onToast}
         onResendEmail={onResendEmail}
       />
     );
@@ -1335,14 +1337,20 @@ function DashboardPage({
   user,
   onNavigate,
   onSelectTask,
+  onToast,
   onResendEmail,
 }: {
   userName: string;
   user: ApiUser | null;
   onNavigate: (page: AppPage) => void;
   onSelectTask: (task: Task) => void;
+  onToast: (
+    message: string,
+    kind?: "success" | "warning" | "error" | "info",
+  ) => void;
   onResendEmail: () => Promise<void>;
 }) {
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const firstName = userName.trim().split(/\s+/)[0] || "there";
   const greeting =
     new Date().getHours() < 12
@@ -1351,16 +1359,30 @@ function DashboardPage({
         ? "Good afternoon"
         : "Good evening";
   const referralCode = dashboardStats.referralCode;
-  const invite = () => {
-    if (!referralCode) {
-      onNavigate("referrals");
+  const referralLink = referralCode
+    ? new URL(
+        "/register?ref=" + encodeURIComponent(referralCode),
+        window.location.origin,
+      ).toString()
+    : "";
+  const copyReferralLink = async () => {
+    if (!referralLink) return;
+    if (!navigator.clipboard) {
+      onToast(
+        "Copy is unavailable in this browser. Select the referral link manually.",
+        "warning",
+      );
       return;
     }
-    const link = new URL(
-      `/register?ref=${encodeURIComponent(referralCode)}`,
-      window.location.origin,
-    ).toString();
-    void navigator.clipboard?.writeText(link);
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      onToast("Referral link copied to your clipboard.");
+    } catch {
+      onToast(
+        "Could not copy the referral link. Please copy it manually.",
+        "warning",
+      );
+    }
   };
   return (
     <div className="space-y-7">
@@ -1374,7 +1396,10 @@ function DashboardPage({
         description={`You currently have ${dashboardStats.tasksInProgress} tasks in progress.`}
         actions={
           <>
-            <button onClick={invite} className="btn-secondary">
+            <button
+              onClick={() => setInviteModalOpen(true)}
+              className="btn-secondary"
+            >
               <UsersRound size={16} /> Invite a friend
             </button>
             <button onClick={() => onNavigate("tasks")} className="btn-primary">
@@ -1585,6 +1610,53 @@ function DashboardPage({
           <TableEmpty message="No activity yet." />
         )}
       </section>
+      <Modal
+        open={inviteModalOpen}
+        title="Invite a friend"
+        description="Share your referral link and earn when their first approved task qualifies."
+        onClose={() => setInviteModalOpen(false)}
+        centered
+        size="sm"
+      >
+        <div className="space-y-5">
+          <div className="rounded-xl bg-navy p-4 text-white sm:p-5">
+            <p className="eyebrow text-white/50">Your referral link</p>
+            <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg border border-white/15 bg-white/10 p-2">
+              <Link2 size={15} className="ml-1 shrink-0 text-[#B9D7FF]" />
+              <span className="min-w-0 flex-1 break-all text-xs leading-5 text-white/80">
+                {referralLink || "Referral link unavailable"}
+              </span>
+              <button
+                type="button"
+                onClick={() => void copyReferralLink()}
+                disabled={!referralLink}
+                className="focus-ring inline-grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-navy transition-[background-color,transform] duration-200 hover:bg-soft-blue active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Copy referral link"
+                title="Copy referral link"
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setInviteModalOpen(false)}
+              className="btn-secondary"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyReferralLink()}
+              disabled={!referralLink}
+              className="btn-primary disabled:opacity-50"
+            >
+              <Copy size={16} /> Copy link
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2628,14 +2700,28 @@ function ReferralsPage({ onToast }: { onToast: (message: string) => void }) {
           </button>
         }
       />
-      {referralPageDescription && (
-        <section className="card p-5 sm:p-6">
-          <p className="eyebrow">About referrals</p>
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted">
-            {referralPageDescription}
-          </p>
-        </section>
-      )}
+      <section className="card p-5 sm:p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow">About referrals</p>
+            {referralPageDescription && (
+              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted">
+                {referralPageDescription}
+              </p>
+            )}
+          </div>
+          {referralRewardAmount !== null && (
+            <div className="shrink-0 rounded-xl bg-soft-blue px-4 py-3 sm:min-w-[230px]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">
+                Referral reward
+              </p>
+              <p className="number mt-1 text-sm font-semibold text-navy">
+                {formatCurrency(referralRewardAmount)} per qualified referral
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
       <section className="card overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="bg-navy p-5 text-white sm:p-7">
@@ -8160,6 +8246,22 @@ function AdminReferralsPage({
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [manualReference, setManualReference] = useState("");
   const [manualNote, setManualNote] = useState("");
+  const [referralSettings, setReferralSettings] = useState({
+    description: "",
+    rewardAmount: "",
+  });
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsLoadError, setSettingsLoadError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDescriptionDraft, setSettingsDescriptionDraft] =
+    useState("");
+  const [settingsRewardAmountDraft, setSettingsRewardAmountDraft] =
+    useState("");
+  const [settingsFormError, setSettingsFormError] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [deleteDescriptionOpen, setDeleteDescriptionOpen] = useState(false);
+  const [deleteDescriptionBusy, setDeleteDescriptionBusy] = useState(false);
 
   const load = async (status = filter, search = appliedQuery) => {
     setLoading(true);
@@ -8182,9 +8284,124 @@ function AdminReferralsPage({
     }
   };
 
+  const loadReferralSettings = async () => {
+    setSettingsLoading(true);
+    setSettingsLoadError("");
+    try {
+      const response = await api.adminSettings();
+      const values = Object.fromEntries(
+        response.data.map((item) => [item.key, item.value]),
+      );
+      const rawDescription = values["referrals.page_description"]?.description;
+      const rawAmount = values["referrals.reward_amount"]?.amount;
+      const numericAmount = Number(rawAmount);
+      setReferralSettings({
+        description:
+          typeof rawDescription === "string" ? rawDescription.trim() : "",
+        rewardAmount:
+          Number.isFinite(numericAmount) && numericAmount >= 0
+            ? numericAmount.toFixed(2)
+            : "",
+      });
+      setSettingsLoaded(true);
+    } catch (error) {
+      setSettingsLoadError(
+        error instanceof Error
+          ? error.message
+          : "Referral settings could not be loaded.",
+      );
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void load("all", "");
+    void loadReferralSettings();
   }, []);
+
+  const openReferralSettings = () => {
+    setSettingsDescriptionDraft(referralSettings.description);
+    setSettingsRewardAmountDraft(referralSettings.rewardAmount);
+    setSettingsFormError("");
+    setSettingsOpen(true);
+  };
+
+  const saveReferralSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = settingsRewardAmountDraft.trim();
+    const parsedAmount = Number(amount);
+    if (
+      !/^\d+(?:\.\d{1,2})?$/.test(amount) ||
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount < 0
+    ) {
+      setSettingsFormError(
+        "Enter a non-negative reward amount with up to two decimal places.",
+      );
+      return;
+    }
+    if (referralSettings.description && !settingsDescriptionDraft.trim()) {
+      setSettingsFormError(
+        "Use Delete description to remove the current description and keep the reward setting unchanged.",
+      );
+      return;
+    }
+
+    setSettingsSaving(true);
+    setSettingsFormError("");
+    try {
+      const [descriptionResponse, rewardResponse] = await Promise.all([
+        api.adminUpdateSetting("referrals.page_description", {
+          description: settingsDescriptionDraft.trim() || null,
+        }),
+        api.adminUpdateSetting("referrals.reward_amount", {
+          amount: parsedAmount.toFixed(2),
+        }),
+      ]);
+      const savedAmount = Number(rewardResponse.data.value.amount);
+      setReferralSettings({
+        description:
+          typeof descriptionResponse.data.value.description === "string"
+            ? descriptionResponse.data.value.description.trim()
+            : "",
+        rewardAmount: Number.isFinite(savedAmount)
+          ? savedAmount.toFixed(2)
+          : parsedAmount.toFixed(2),
+      });
+      setSettingsOpen(false);
+      onToast("Referral settings saved.");
+    } catch (error) {
+      setSettingsFormError(
+        error instanceof Error
+          ? error.message
+          : "Referral settings could not be saved.",
+      );
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const deleteReferralDescription = async () => {
+    setDeleteDescriptionBusy(true);
+    try {
+      await api.adminUpdateSetting("referrals.page_description", {
+        description: null,
+      });
+      setReferralSettings((current) => ({ ...current, description: "" }));
+      setSettingsDescriptionDraft("");
+      setDeleteDescriptionOpen(false);
+      onToast("Referral description deleted. The reward amount was kept.");
+    } catch (error) {
+      onToast(
+        error instanceof Error
+          ? error.message
+          : "Referral description could not be deleted.",
+      );
+    } finally {
+      setDeleteDescriptionBusy(false);
+    }
+  };
 
   const openReferral = async (id: number) => {
     try {
@@ -8322,6 +8539,62 @@ function AdminReferralsPage({
           </button>
         }
       />
+      <section className="card overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-soft-blue text-navy">
+              <Settings2 size={19} />
+            </span>
+            <div>
+              <p className="eyebrow">Referral settings</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">
+                Member referral offer
+              </h2>
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">
+                Publish the explanation members see and set the fixed reward
+                captured for new referrals.
+              </p>
+            </div>
+          </div>
+          <button
+            disabled={settingsLoading || !settingsLoaded}
+            onClick={openReferralSettings}
+            className="btn-secondary min-h-10 shrink-0 text-xs disabled:opacity-50"
+          >
+            <Pencil size={14} />
+            {referralSettings.description ? "Edit settings" : "Add settings"}
+          </button>
+        </div>
+        {settingsLoadError && (
+          <div
+            role="alert"
+            className="border-b border-[#F4B7B7] bg-[#FEF2F2] px-5 py-3 text-xs leading-5 text-error sm:px-6"
+          >
+            {settingsLoadError}
+          </div>
+        )}
+        <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[1fr_auto]">
+          <div className="rounded-xl bg-canvas p-4">
+            <p className="eyebrow">About referrals</p>
+            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted">
+              {settingsLoading
+                ? "Loading referral description…"
+                : referralSettings.description || "No description published."}
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#D9E5F4] bg-[#F5F8FD] p-4 lg:min-w-[250px]">
+            <p className="eyebrow">Referral reward</p>
+            <p className="number mt-2 text-2xl font-semibold tracking-[-0.04em] text-navy">
+              {settingsLoading || !referralSettings.rewardAmount
+                ? "—"
+                : formatCurrency(Number(referralSettings.rewardAmount))}
+            </p>
+            <p className="mt-1 text-[11px] leading-5 text-muted">
+              Per qualified referral · applies to new referrals
+            </p>
+          </div>
+        </div>
+      </section>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total referrals"
@@ -8516,6 +8789,121 @@ function AdminReferralsPage({
           />
         )}
       </section>
+      <Modal
+        open={settingsOpen}
+        title={referralSettings.description ? "Edit referral settings" : "Set referral settings"}
+        description="These values are shown on the member Referrals page and used for future referral records."
+        onClose={() => {
+          if (!settingsSaving) setSettingsOpen(false);
+        }}
+        centered
+      >
+        <form onSubmit={saveReferralSettings} className="space-y-5">
+          <label className="block text-xs font-semibold text-ink">
+            Referral Description
+            <span className="mt-1 block text-[11px] font-normal leading-5 text-muted">
+              Plain text only. Line breaks are preserved on the member page.
+            </span>
+            <textarea
+              value={settingsDescriptionDraft}
+              onChange={(event) => setSettingsDescriptionDraft(event.target.value)}
+              maxLength={2000}
+              className="form-field mt-2 min-h-32 resize-y py-3"
+              placeholder="Explain how referral rewards work for members."
+            />
+          </label>
+          <label className="block text-xs font-semibold text-ink">
+            Referral Reward Amount (USD)
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={settingsRewardAmountDraft}
+              onChange={(event) => setSettingsRewardAmountDraft(event.target.value)}
+              className="form-field mt-2"
+              placeholder="5.00"
+            />
+            <span className="mt-1 block text-[11px] font-normal leading-5 text-muted">
+              Stored with each new referral when it is created. Existing reward
+              amounts are not recalculated.
+            </span>
+          </label>
+          {settingsFormError && (
+            <p
+              role="alert"
+              className="rounded-xl border border-[#F4B7B7] bg-[#FEF2F2] px-3 py-2.5 text-xs leading-5 text-error"
+            >
+              {settingsFormError}
+            </p>
+          )}
+          <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+            {referralSettings.description ? (
+              <button
+                type="button"
+                onClick={() => setDeleteDescriptionOpen(true)}
+                className="btn-ghost min-h-10 justify-start px-0 text-error hover:bg-transparent hover:text-[#A92A1F] sm:px-3"
+              >
+                <Trash2 size={14} /> Delete description
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="btn-ghost min-h-10"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={settingsSaving}
+                className="btn-primary min-h-10 disabled:cursor-wait disabled:opacity-60"
+              >
+                <Check size={15} /> {settingsSaving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={deleteDescriptionOpen}
+        title="Delete referral description?"
+        description="This removes only the member-facing description. The reward amount will stay unchanged."
+        onClose={() => {
+          if (!deleteDescriptionBusy) setDeleteDescriptionOpen(false);
+        }}
+        size="sm"
+        centered
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-muted">
+            Members will no longer see explanatory copy in the About referrals
+            card until you publish a new description.
+          </p>
+          <div className="flex justify-end gap-2 border-t border-line pt-4">
+            <button
+              type="button"
+              onClick={() => setDeleteDescriptionOpen(false)}
+              className="btn-ghost min-h-10"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleteDescriptionBusy}
+              onClick={() => void deleteReferralDescription()}
+              className="admin-danger-button min-h-10 disabled:cursor-wait disabled:opacity-60"
+            >
+              <Trash2 size={14} />
+              {deleteDescriptionBusy ? "Deleting…" : "Delete description"}
+            </button>
+          </div>
+        </div>
+      </Modal>
       <Modal
         open={Boolean(details)}
         title="Referral details"
@@ -8970,7 +9358,6 @@ function AdminSettingsPage({
   const [requireBankAccount, setRequireBankAccount] = useState(true);
   const [workspaceName, setWorkspaceName] = useState("");
   const [supportEmail, setSupportEmail] = useState("");
-  const [referralDescription, setReferralDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -9007,9 +9394,6 @@ function AdminSettingsPage({
         String(values["platform.identity"]?.workspace_name || ""),
       );
       setSupportEmail(String(values["platform.identity"]?.support_email || ""));
-      setReferralDescription(
-        String(values["referrals.page_description"]?.description || ""),
-      );
       setSettingsLoaded(true);
     } catch (error) {
       setLoadError(
@@ -9063,9 +9447,6 @@ function AdminSettingsPage({
         api.adminUpdateSetting("platform.identity", {
           workspace_name: workspaceName.trim(),
           support_email: supportEmail.trim(),
-        }),
-        api.adminUpdateSetting("referrals.page_description", {
-          description: referralDescription.trim(),
         }),
       ]);
       onToast("Settings saved.");
@@ -9279,17 +9660,6 @@ function AdminSettingsPage({
                 className="form-field mt-2"
                 value={supportEmail}
                 onChange={(event) => setSupportEmail(event.target.value)}
-              />
-            </label>
-            <label className="text-xs font-semibold text-ink sm:col-span-2">
-              Referral Page Description
-              <textarea
-                disabled={!settingsLoaded}
-                className="form-field mt-2 h-28 resize-y py-3"
-                value={referralDescription}
-                onChange={(event) => setReferralDescription(event.target.value)}
-                maxLength={2000}
-                placeholder="Explain how referral rewards work for members."
               />
             </label>
           </div>
