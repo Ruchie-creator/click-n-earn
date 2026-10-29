@@ -226,6 +226,9 @@ export const api = {
   adminUpdateUser(id: number, payload: { account_status?: string; role?: 'member' | 'admin' | 'super_admin' }) {
     return apiFetch<ApiEnvelope<ApiAdminUser>>('/admin/users/' + id, { method: 'PATCH', body: JSON.stringify(payload) })
   },
+  adminForceDeleteUser(id: number, confirmation: string) {
+    return apiFetch<ApiEnvelope<{ deleted: boolean }>>('/admin/users/' + id + '/force-delete', { method: 'POST', body: JSON.stringify({ confirmation }) })
+  },
   adminReferrals(params: Record<string, string> = {}) {
     const query = new URLSearchParams(params).toString()
     return apiFetch<ApiEnvelope<{ items: ApiAdminReferral[]; summary: Record<string, number>; meta: { current_page: number; last_page: number; total: number } }>>('/admin/referrals' + (query ? '?' + query : ''))

@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::get('users/export', [AdminUserController::class, 'export']);
             Route::get('users/{user}', [AdminUserController::class, 'show']);
             Route::patch('users/{user}', [AdminUserController::class, 'update']);
+            Route::post('users/{user}/force-delete', [AdminUserController::class, 'forceDestroy']);
             Route::post('users/{user}/suspend', [AdminUserController::class, 'suspend']);
             Route::post('users/{user}/activate', [AdminUserController::class, 'activate']);
             Route::get('referrals', [AdminReferralController::class, 'index']);

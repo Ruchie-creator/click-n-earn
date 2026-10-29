@@ -1,0 +1,20 @@
+[Unit]
+Description=Click & Earn Laravel queue worker (production)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clickearn-prod
+Group=clickearn-prod
+WorkingDirectory=/srv/click-and-earn/production/app/backend
+ExecStart=/usr/bin/php artisan queue:work database --queue=default --sleep=3 --tries=5 --backoff=30 --timeout=120 --max-time=3600 --no-interaction
+Restart=always
+RestartSec=5
+TimeoutStopSec=130
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

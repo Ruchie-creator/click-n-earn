@@ -261,6 +261,16 @@ if [[ "$ENVIRONMENT" == "staging" ]]; then
     as_app_user php "$ARTISAN" demo:status
 fi
 
+if [[ "$ENVIRONMENT" == "production" ]]; then
+    # Verification and transactional emails are dispatched through the database
+    # queue. Install and start the production workers on every deployment so a
+    # fresh server cannot accept registrations without delivering their emails.
+    install -m 0644 "$APP_DIR/ops/systemd/click-earn-production-queue.service" /etc/systemd/system/click-earn-production-queue.service
+    install -m 0644 "$APP_DIR/ops/systemd/click-earn-production-scheduler.service" /etc/systemd/system/click-earn-production-scheduler.service
+    systemctl daemon-reload
+    systemctl enable --now click-earn-production-queue click-earn-production-scheduler
+fi
+
 as_app_user php "$ARTISAN" queue:restart
 # Signal a schedule:work service, if one is used, to reload the new code too.
 as_app_user php "$ARTISAN" schedule:interrupt || true
@@ -273,6 +283,11 @@ if [[ "$ENVIRONMENT" == "staging" ]]; then
         systemctl restart click-earn-scheduler
         systemctl is-active --quiet click-earn-scheduler || die "click-earn-scheduler is not active after deployment."
     fi
+fi
+if [[ "$ENVIRONMENT" == "production" ]]; then
+    systemctl restart click-earn-production-queue click-earn-production-scheduler
+    systemctl is-active --quiet click-earn-production-queue || die "click-earn-production-queue is not active after deployment."
+    systemctl is-active --quiet click-earn-production-scheduler || die "click-earn-production-scheduler is not active after deployment."
 fi
 php-fpm8.5 -t
 nginx -t

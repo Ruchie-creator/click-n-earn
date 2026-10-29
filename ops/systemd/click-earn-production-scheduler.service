@@ -1,0 +1,20 @@
+[Unit]
+Description=Click & Earn Laravel scheduler (production)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clickearn-prod
+Group=clickearn-prod
+WorkingDirectory=/srv/click-and-earn/production/app/backend
+ExecStart=/usr/bin/php artisan schedule:work --no-interaction
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

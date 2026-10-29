@@ -10,6 +10,8 @@ use App\Services\AuditLogService;
 use App\Services\LedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UserController extends ApiController
@@ -94,6 +96,37 @@ class UserController extends ApiController
         $audit->record('user.activated', $user, $request, before: $before, after: $user->fresh()->toArray(), actorId: $request->user()->id);
 
         return $this->ok($this->userPayload($user->fresh()));
+    }
+
+    public function forceDestroy(Request $request, User $user, AuditLogService $audit): JsonResponse
+    {
+        $data = $request->validate([
+            'confirmation' => ['required', 'string', 'max:190'],
+        ]);
+        $this->authorizeUserManagement($request, $user);
+
+        if (! hash_equals($user->email, $data['confirmation'])) {
+            throw ValidationException::withMessages([
+                'confirmation' => 'Enter the exact email address to confirm permanent deletion.',
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $user, $audit): void {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+            if ($locked->tasksCreated()->exists()) {
+                throw ValidationException::withMessages([
+                    'user' => 'This user created tasks and cannot be deleted until those tasks are reassigned or permanently deleted.',
+                ]);
+            }
+
+            $before = $locked->toArray();
+            $audit->record('user.force_deleted', $locked, $request, before: $before, actorId: $request->user()->id);
+            $locked->tokens()->delete();
+            $locked->notifications()->delete();
+            $locked->delete();
+        });
+
+        return $this->ok(['deleted' => true]);
     }
 
     private function authorizeUserManagement(Request $request, User $target, bool $roleChange = false): void

@@ -7978,6 +7978,8 @@ function AdminUsersPage({ onToast }: { onToast: (message: string) => void }) {
   const [directory, setDirectory] = useState(() => [...members]);
   const [selectedMember, setSelectedMember] = useState<(typeof members)[number] | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [deletingMember, setDeletingMember] = useState<(typeof members)[number] | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const exportUsers = async () => {
     try {
       const blob = await api.downloadAdminUsersExport();
@@ -8006,6 +8008,22 @@ function AdminUsersPage({ onToast }: { onToast: (message: string) => void }) {
       onToast("Member access updated.");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "The member could not be updated.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+  const forceDeleteMember = async () => {
+    if (!deletingMember) return;
+    setUpdatingId(deletingMember.id);
+    try {
+      await api.adminForceDeleteUser(deletingMember.id, deleteConfirmation.trim());
+      setDirectory((current) => current.filter((item) => item.id !== deletingMember.id));
+      setSelectedMember(null);
+      setDeletingMember(null);
+      setDeleteConfirmation("");
+      onToast("User permanently deleted.");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "The user could not be permanently deleted.");
     } finally {
       setUpdatingId(null);
     }
@@ -8102,7 +8120,17 @@ function AdminUsersPage({ onToast }: { onToast: (message: string) => void }) {
             <div><p className="eyebrow">Account controls</p><div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button disabled={updatingId === selectedMember.id} onClick={() => void updateMember(selectedMember, { account_status: selectedMember.status.toLowerCase() === "active" ? "suspended" : "active" })} className="btn-secondary justify-start disabled:opacity-50"><ShieldAlert size={16} />{selectedMember.status.toLowerCase() === "active" ? "Suspend access" : "Restore access"}</button>
               <button disabled={updatingId === selectedMember.id || selectedMember.role.toLowerCase() === "super admin"} onClick={() => void updateMember(selectedMember, { role: selectedMember.role.toLowerCase() === "admin" ? "member" : "admin" })} className="btn-secondary justify-start disabled:opacity-50"><ShieldCheck size={16} />{selectedMember.role.toLowerCase() === "admin" ? "Remove admin" : "Grant admin"}</button>
+              <button disabled={updatingId === selectedMember.id} onClick={() => { setDeletingMember(selectedMember); setDeleteConfirmation(""); setSelectedMember(null); }} className="admin-danger-button justify-start disabled:opacity-50"><Trash2 size={16} />Delete permanently</button>
             </div><p className="mt-3 text-[11px] leading-5 text-subtle">Permission and status changes take effect immediately and are recorded by the admin API.</p></div>
+          </div>
+        )}
+      </Modal>
+      <Modal open={Boolean(deletingMember)} title="Permanently delete user" description="This cannot be undone. The account and its associated member records will be removed." onClose={() => !updatingId && setDeletingMember(null)} size="sm">
+        {deletingMember && (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-muted">Enter <strong>{deletingMember.email}</strong> to confirm permanent deletion.</p>
+            <input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className="form-field" placeholder={deletingMember.email} autoComplete="off" />
+            <div className="flex justify-end gap-2"><button onClick={() => setDeletingMember(null)} disabled={updatingId === deletingMember.id} className="btn-secondary">Cancel</button><button disabled={updatingId === deletingMember.id || deleteConfirmation.trim() !== deletingMember.email} onClick={() => void forceDeleteMember()} className="admin-danger-button">{updatingId === deletingMember.id ? "Deleting…" : "Delete permanently"}<Trash2 size={15} /></button></div>
           </div>
         )}
       </Modal>
