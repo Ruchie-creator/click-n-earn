@@ -94,7 +94,7 @@ case "$TARGET" in
         SERVICE_USER="clickearn-prod"
         DATABASE_NAME="clickearn_production"
         DATABASE_USER="clickearn_production_user"
-        DOMAIN="clicknlearn.io"
+        DOMAIN="clicknearn.online"
         CLIENT_PREVIEW="false"
         FPM_SOCKET="/run/php/clickearn-prod.sock"
         FPM_POOL="/etc/php/8.5/fpm/pool.d/clickearn-prod.conf"
