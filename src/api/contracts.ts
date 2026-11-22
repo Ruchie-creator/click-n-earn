@@ -73,6 +73,20 @@ export type ApiTask = {
   checkout_url?: string | null;
   starts_at?: string | null;
   expires_at?: string | null;
+  content?: ApiTaskContent | null;
+};
+
+export type ApiTaskContentItem = { id?: string; title?: string; body?: string };
+export type ApiTaskFaq = { id?: string; question?: string; answer?: string };
+export type ApiTaskContent = {
+  overview_html?: string | null;
+  terms_html?: string | null;
+  verification_time?: string | null;
+  upload_guidance?: string | null;
+  steps?: ApiTaskContentItem[];
+  dos?: ApiTaskContentItem[];
+  donts?: ApiTaskContentItem[];
+  faqs?: ApiTaskFaq[];
 };
 
 export type ApiAdminTaskDetail = {

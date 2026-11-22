@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Task;
-use App\Models\TaskCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,25 +17,17 @@ class TaskController extends ApiController
                 'reservations as user_has_active_reservation' => fn ($builder) => $builder->where('user_id', $userId)->whereIn('status', $this->activeReservationStatuses()),
             ])
             ->where(function ($builder) use ($userId): void {
-                $builder->where(function ($available): void {
-                    $available->where('status', 'available')
-                        ->whereRaw('reserved_slots + completed_slots < available_slots')
-                        ->where(fn ($dates) => $dates->whereNull('starts_at')->orWhere('starts_at', '<=', now()))
-                        ->where(fn ($dates) => $dates->whereNull('expires_at')->orWhere('expires_at', '>', now()));
-                })->orWhereHas('reservations', fn ($reservations) => $reservations
+                $builder->where(fn ($available) => $available->availableForDiscovery())
+                    ->orWhereHas('reservations', fn ($reservations) => $reservations
                     ->where('user_id', $userId)
                     ->where(fn ($history) => $history->whereNotNull('participation_claimed_at')->orWhereIn('status', $this->activeReservationStatuses())));
             })
             ->orderByDesc('created_at');
-        if ($request->filled('category') && $request->string('category')->toString() !== 'All') {
-            $query->where('category', $request->string('category')->toString());
-        }
         if ($request->filled('search')) {
             $search = $request->string('search')->toString();
             $query->where(function ($builder) use ($search): void {
                 $builder->where('title', 'ilike', '%'.$search.'%')
-                    ->orWhere('description', 'ilike', '%'.$search.'%')
-                    ->orWhere('category', 'ilike', '%'.$search.'%');
+                    ->orWhere('description', 'ilike', '%'.$search.'%');
             });
         }
         if ($request->string('sort')->toString() === 'highest_incentive') {
@@ -54,7 +45,6 @@ class TaskController extends ApiController
                 'last_page' => $tasks->lastPage(),
                 'per_page' => $tasks->perPage(),
                 'total' => $tasks->total(),
-                'categories' => TaskCategory::query()->where('is_active', true)->orderBy('name')->pluck('name')->values(),
             ],
         ]);
     }

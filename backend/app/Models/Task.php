@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +27,7 @@ class Task extends Model
         'available_slots',
         'instructions',
         'proof_requirements',
+        'content',
         'status',
         'starts_at',
         'expires_at',
@@ -40,6 +42,7 @@ class Task extends Model
             'expected_payout' => 'decimal:2',
             'instructions' => 'array',
             'proof_requirements' => 'array',
+            'content' => 'array',
             'status' => TaskStatus::class,
             'starts_at' => 'datetime',
             'expires_at' => 'datetime',
@@ -59,6 +62,29 @@ class Task extends Model
     public function taskCategory(): BelongsTo
     {
         return $this->belongsTo(TaskCategory::class, 'category_id');
+    }
+
+    /**
+     * Tasks that should be discoverable by members and the public catalogue.
+     *
+     * Keep this in one place so status, date, and slot rules cannot drift
+     * between endpoints. COALESCE protects historical rows created before the
+     * capacity counters were hardened, without changing those records.
+     *
+     * @param Builder<Task> $query
+     * @return Builder<Task>
+     */
+    public function scopeAvailableForDiscovery(Builder $query): Builder
+    {
+        return $query
+            ->where('status', TaskStatus::AVAILABLE->value)
+            ->whereRaw('COALESCE(reserved_slots, 0) + COALESCE(completed_slots, 0) < available_slots')
+            ->where(fn (Builder $dates): Builder => $dates
+                ->whereNull('starts_at')
+                ->orWhere('starts_at', '<=', now()))
+            ->where(fn (Builder $dates): Builder => $dates
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now()));
     }
 
     public function isAcceptable(): bool

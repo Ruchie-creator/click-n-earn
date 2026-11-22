@@ -90,6 +90,100 @@ class DemoDataService
         ];
     }
 
+    /**
+     * Return a read-only audit of the configured preview batch.
+     *
+     * This deliberately does not call assertMutationAllowed(): production
+     * operators must be able to inspect whether any synthetic records remain,
+     * while the mutating seed/refresh/clear operations stay disabled there.
+     *
+     * @return array<string, mixed>
+     */
+    public function audit(): array
+    {
+        $batch = DemoBatch::query()->where('slug', config('demo.batch_slug'))->first();
+        $emptyCounts = array_fill_keys(array_keys(self::COUNTS), 0);
+
+        if (! $batch) {
+            return [
+                'batch_slug' => (string) config('demo.batch_slug'),
+                'batch_label' => (string) config('demo.batch_label'),
+                'installed' => false,
+                'counts' => $emptyCounts,
+                'reservations' => ['by_status' => [], 'expected_payout' => 0.0],
+                'payouts' => ['by_status' => [], 'amount_by_status' => [], 'total_amount' => 0.0],
+                'ledger_entries' => ['by_status' => [], 'amount_by_status' => [], 'total_amount' => 0.0],
+                'proof_files' => ['safe_paths' => 0, 'unsafe_paths' => 0],
+                'cleanup' => [
+                    'can_clear' => false,
+                    'blockers' => ['No configured demo batch is installed.'],
+                ],
+            ];
+        }
+
+        $batchId = (string) $batch->id;
+        $context = $this->batchRecordIds($batchId);
+        $payouts = Payout::query()->where('demo_batch_id', $batchId)->get(['status', 'amount']);
+        $ledgerEntries = LedgerEntry::query()->where('demo_batch_id', $batchId)->get(['status', 'amount']);
+        $reservations = TaskReservation::query()->where('demo_batch_id', $batchId)->get(['status', 'expected_payout']);
+        $proofFiles = ProofSubmission::query()
+            ->where('demo_batch_id', $batchId)
+            ->get(['user_id', 'task_reservation_id', 'file_disk', 'file_path']);
+
+        $proofPathSummary = ['safe_paths' => 0, 'unsafe_paths' => 0];
+        foreach ($proofFiles as $proof) {
+            $expectedPrefix = sprintf('proofs/%d/%d/', $proof->user_id, $proof->task_reservation_id);
+            $safe = (string) $proof->file_disk === (string) config('filesystems.proof_disk')
+                && (string) $proof->file_disk !== 'public'
+                && str_starts_with((string) $proof->file_path, $expectedPrefix)
+                && ! str_contains((string) $proof->file_path, '..');
+            $proofPathSummary[$safe ? 'safe_paths' : 'unsafe_paths']++;
+        }
+
+        $blockers = $this->cleanupBlockers(
+            $batchId,
+            $context['user_ids'],
+            $context['task_ids'],
+            $context['reservation_ids'],
+            $context['proof_ids'],
+            $context['referral_ids'],
+            $context['payout_ids'],
+            $context['method_ids'],
+        );
+
+        $counts = [];
+        foreach (self::COUNTS as $key => $source) {
+            $counts[$key] = $this->countForBatch($source, $batchId);
+        }
+
+        return [
+            'batch_id' => $batchId,
+            'batch_slug' => (string) $batch->slug,
+            'batch_label' => (string) $batch->label,
+            'installed' => true,
+            'counts' => $counts,
+            'reservations' => [
+                'by_status' => $this->countByValue($reservations, 'status'),
+                'expected_payout' => round((float) $reservations->sum(fn (TaskReservation $reservation): float => (float) $reservation->expected_payout), 2),
+            ],
+            'payouts' => [
+                'by_status' => $this->countByValue($payouts, 'status'),
+                'amount_by_status' => $this->sumByValue($payouts, 'status', 'amount'),
+                'total_amount' => round((float) $payouts->sum(fn (Payout $payout): float => (float) $payout->amount), 2),
+            ],
+            'ledger_entries' => [
+                'by_status' => $this->countByValue($ledgerEntries, 'status'),
+                'amount_by_status' => $this->sumByValue($ledgerEntries, 'status', 'amount'),
+                'total_amount' => round((float) $ledgerEntries->sum(fn (LedgerEntry $entry): float => (float) $entry->amount), 2),
+            ],
+            'proof_files' => $proofPathSummary,
+            'cleanup' => [
+                'can_clear' => $blockers === [],
+                'blockers' => $blockers,
+            ],
+        ];
+    }
+
     public function seed(): array
     {
         $this->assertMutationAllowed();
@@ -559,29 +653,15 @@ class DemoDataService
             }
 
             $batchId = (string) $batch->id;
-            $userIds = User::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $taskIds = Task::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $reservationIds = TaskReservation::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $proofIds = ProofSubmission::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $referralIds = Referral::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $payoutIds = Payout::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $methodIds = PayoutMethod::query()->where('demo_batch_id', $batchId)->pluck('id')->all();
-            $affectedTaskIds = TaskReservation::query()
-                ->where('demo_batch_id', $batchId)
-                ->pluck('task_id')
-                ->unique()
-                ->all();
-
-            $legacyAdministrator = User::query()
-                ->whereIn('id', $userIds)
-                ->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])
-                ->first(['id', 'email']);
-            if ($legacyAdministrator) {
-                throw new RuntimeException(sprintf(
-                    'Demo cleanup stopped because administrator %s is still tagged as demo data. Promote it to a non-demo administrator before refreshing the batch.',
-                    $legacyAdministrator->email,
-                ));
-            }
+            $context = $this->batchRecordIds($batchId);
+            $userIds = $context['user_ids'];
+            $taskIds = $context['task_ids'];
+            $reservationIds = $context['reservation_ids'];
+            $proofIds = $context['proof_ids'];
+            $referralIds = $context['referral_ids'];
+            $payoutIds = $context['payout_ids'];
+            $methodIds = $context['method_ids'];
+            $affectedTaskIds = $context['affected_task_ids'];
 
             $this->assertNoUnmarkedRelatedRecords($batchId, $userIds, $taskIds, $reservationIds, $proofIds, $referralIds, $payoutIds, $methodIds);
 
@@ -672,7 +752,57 @@ class DemoDataService
         ];
     }
 
-    private function assertNoUnmarkedRelatedRecords(
+    /** @return array<string, array<int, int|string>> */
+    private function batchRecordIds(string $batchId): array
+    {
+        return [
+            'user_ids' => User::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'task_ids' => Task::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'reservation_ids' => TaskReservation::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'proof_ids' => ProofSubmission::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'referral_ids' => Referral::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'payout_ids' => Payout::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'method_ids' => PayoutMethod::query()->where('demo_batch_id', $batchId)->pluck('id')->all(),
+            'affected_task_ids' => TaskReservation::query()
+                ->where('demo_batch_id', $batchId)
+                ->pluck('task_id')
+                ->unique()
+                ->all(),
+        ];
+    }
+
+    /** @return array<string, int> */
+    private function countByValue(iterable $records, string $attribute): array
+    {
+        $counts = [];
+        foreach ($records as $record) {
+            $value = $record->{$attribute};
+            $key = $value instanceof \BackedEnum ? (string) $value->value : (string) $value;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /** @return array<string, float> */
+    private function sumByValue(iterable $records, string $groupAttribute, string $amountAttribute): array
+    {
+        $amounts = [];
+        foreach ($records as $record) {
+            $value = $record->{$groupAttribute};
+            $key = $value instanceof \BackedEnum ? (string) $value->value : (string) $value;
+            $amounts[$key] = round(($amounts[$key] ?? 0) + (float) $record->{$amountAttribute}, 2);
+        }
+
+        ksort($amounts);
+
+        return $amounts;
+    }
+
+    /** @return array<int, string> */
+    private function cleanupBlockers(
         string $batchId,
         array $userIds,
         array $taskIds,
@@ -681,8 +811,19 @@ class DemoDataService
         array $referralIds,
         array $payoutIds,
         array $methodIds,
-    ): void {
+    ): array {
         $blockers = [];
+        $legacyAdministrator = User::query()
+            ->whereIn('id', $userIds)
+            ->whereIn('role', [UserRole::ADMIN->value, UserRole::SUPER_ADMIN->value])
+            ->first(['id', 'email']);
+        if ($legacyAdministrator) {
+            $blockers[] = sprintf(
+                'administrator %s is still tagged as demo data; promote it to a non-demo administrator before cleanup',
+                $legacyAdministrator->email,
+            );
+        }
+
         $unmarked = fn ($query) => $query->where(fn ($scope) => $scope->whereNull('demo_batch_id')->orWhere('demo_batch_id', '<>', $batchId));
 
         if ($this->hasUnmarked(Task::class, ['created_by' => $userIds], $unmarked)) {
@@ -765,6 +906,20 @@ class DemoDataService
             $blockers[] = 'a demo referral linked to a non-demo account';
         }
 
+        return array_values(array_unique($blockers));
+    }
+
+    private function assertNoUnmarkedRelatedRecords(
+        string $batchId,
+        array $userIds,
+        array $taskIds,
+        array $reservationIds,
+        array $proofIds,
+        array $referralIds,
+        array $payoutIds,
+        array $methodIds,
+    ): void {
+        $blockers = $this->cleanupBlockers($batchId, $userIds, $taskIds, $reservationIds, $proofIds, $referralIds, $payoutIds, $methodIds);
         if ($blockers !== []) {
             throw new RuntimeException('Demo cleanup stopped before deleting anything because it found '.implode('; ', array_unique($blockers)).'. Resolve the linked records, then retry.');
         }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\DemoClearCommand;
+use App\Console\Commands\DemoAuditCommand;
 use App\Console\Commands\DemoSeedCommand;
 use App\Console\Commands\DemoStatusCommand;
 use App\Console\Commands\PromoteAdminCommand;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         DemoSeedCommand::class,
         DemoClearCommand::class,
+        DemoAuditCommand::class,
         DemoStatusCommand::class,
         PromoteAdminCommand::class,
     ])

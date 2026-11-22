@@ -67,6 +67,36 @@ class DemoDataSystemTest extends TestCase
         $this->assertSame(8, Task::query()->where('demo_batch_id', $batch->id)->count());
     }
 
+    public function test_demo_audit_is_read_only_and_reports_financial_source_breakdown(): void
+    {
+        Artisan::call('demo:seed');
+        $beforeTasks = Task::query()->count();
+        $beforeBatches = DemoBatch::query()->count();
+
+        $audit = app(DemoDataService::class)->audit();
+
+        $this->assertTrue($audit['installed']);
+        $this->assertSame(8, $audit['counts']['tasks']);
+        $this->assertSame([], $audit['reservations']['by_status']);
+        $this->assertSame(0.0, $audit['payouts']['total_amount']);
+        $this->assertSame(0.0, $audit['ledger_entries']['total_amount']);
+        $this->assertTrue($audit['cleanup']['can_clear']);
+        $this->assertSame($beforeTasks, Task::query()->count());
+        $this->assertSame($beforeBatches, DemoBatch::query()->count());
+    }
+
+    public function test_demo_audit_endpoint_is_read_only_for_the_official_administrator(): void
+    {
+        Artisan::call('demo:seed');
+        $token = $this->previewOwner->createToken('demo-audit-regression-test')->plainTextToken;
+
+        $this->getJson('/api/admin/demo-data/audit', ['Authorization' => 'Bearer '.$token])
+            ->assertOk()
+            ->assertJsonPath('data.installed', true)
+            ->assertJsonPath('data.counts.tasks', 8)
+            ->assertJsonPath('data.cleanup.can_clear', true);
+    }
+
     public function test_refresh_replaces_only_the_catalog_batch_and_preserves_the_official_administrator(): void
     {
         Artisan::call('demo:seed');
@@ -96,6 +126,10 @@ class DemoDataSystemTest extends TestCase
             'demo_batch_id' => $batch->id,
             'demo_key' => 'administrator',
         ]);
+
+        $audit = app(DemoDataService::class)->audit();
+        $this->assertFalse($audit['cleanup']['can_clear']);
+        $this->assertStringContainsString('administrator '.$legacyAdmin->email, implode(' | ', $audit['cleanup']['blockers']));
 
         $this->actingAs($legacyAdmin, 'sanctum')
             ->postJson('/api/admin/demo-data/refresh', ['confirmation' => 'REFRESH DEMO DATA'])

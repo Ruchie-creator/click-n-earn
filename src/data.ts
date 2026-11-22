@@ -19,6 +19,16 @@ export type Task = {
   checkoutUrl?: string;
   startsAt?: string | null;
   expiresAt?: string | null;
+  content?: {
+    overview_html?: string | null;
+    terms_html?: string | null;
+    verification_time?: string | null;
+    upload_guidance?: string | null;
+    steps?: Array<{ id?: string; title?: string; body?: string }>;
+    dos?: Array<{ id?: string; title?: string; body?: string }>;
+    donts?: Array<{ id?: string; title?: string; body?: string }>;
+    faqs?: Array<{ id?: string; question?: string; answer?: string }>;
+  };
 };
 
 export let taskCategories: string[] = [];
@@ -280,6 +290,7 @@ type BackendTask = {
   checkout_url?: string | null;
   starts_at?: string | null;
   expires_at?: string | null;
+  content?: Task["content"] | null;
 };
 
 type BackendReservation = {
@@ -392,6 +403,7 @@ function mapTask(task: BackendTask): Task {
     checkoutUrl: task.checkout_url || undefined,
     startsAt: task.starts_at,
     expiresAt: task.expires_at,
+    content: task.content || undefined,
   };
 }
 

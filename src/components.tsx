@@ -384,9 +384,6 @@ export function TaskCard({
           <StatusBadge tone={statusTone} dot>
             {displayStatus}
           </StatusBadge>
-          <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-navy shadow-sm">
-            {task.category}
-          </span>
         </div>
       </div>
       <div className="p-4 sm:p-5">

@@ -147,6 +147,7 @@ Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function ()
             Route::get('airwallex/status', [AdminSettingController::class, 'airwallexStatus']);
             Route::post('airwallex/test-connection', [AdminSettingController::class, 'testAirwallexConnection']);
             Route::post('airwallex/environment', [AdminSettingController::class, 'activateAirwallexEnvironment']);
+            Route::get('demo-data/audit', [DemoDataController::class, 'audit']);
             Route::get('demo-data', [DemoDataController::class, 'status']);
             Route::post('demo-data/seed', [DemoDataController::class, 'seed']);
             Route::post('demo-data/refresh', [DemoDataController::class, 'refresh']);

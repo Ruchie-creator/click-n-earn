@@ -68,6 +68,7 @@ abstract class ApiController extends Controller
             'sponsor' => data_get($task->instructions, 'sponsor', 'Click & Earn partner'),
             'instructions' => $task->instructions ?: [],
             'requirements' => $task->proof_requirements ?: [],
+            'content' => $task->content ?: [],
             'starts_at' => $task->starts_at?->toISOString(),
             'expires_at' => $task->expires_at?->toISOString(),
         ];

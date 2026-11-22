@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Task;
-use App\Models\TaskCategory;
 use App\Services\AuditLogService;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -81,7 +80,6 @@ class TaskController extends ApiController
     {
         $data = $this->validated($request);
         $task = DB::transaction(function () use ($data, $request, $audit): Task {
-            $this->resolveCategory($data, true);
             $data['slug'] = $data['slug'] ?? Str::slug($data['title']).'-'.Str::lower(Str::random(5));
             $data['created_by'] = $request->user()->id;
             $data['status'] = $data['status'] ?? TaskStatus::AVAILABLE;
@@ -108,7 +106,6 @@ class TaskController extends ApiController
         $data = $this->validated($request, false);
         $task = DB::transaction(function () use ($task, $data, $audit, $request): Task {
             $locked = Task::query()->lockForUpdate()->findOrFail($task->id);
-            $this->resolveCategory($data, false);
             if (isset($data['available_slots']) && $data['available_slots'] < $locked->reserved_slots + $locked->completed_slots) {
                 throw ValidationException::withMessages([
                     'available_slots' => 'Available slots cannot be lower than the reserved and completed task count.',
@@ -195,12 +192,15 @@ class TaskController extends ApiController
 
     private function validated(Request $request, bool $required = true): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'title' => [$required ? 'required' : 'sometimes', 'string', 'max:180'],
             'slug' => ['sometimes', 'string', 'max:200'],
             'description' => [$required ? 'required' : 'sometimes', 'string'],
-            'category' => [$required ? 'required_without:category_id' : 'sometimes', 'nullable', 'string', 'max:80'],
-            'category_id' => [$required ? 'required_without:category' : 'sometimes', 'nullable', 'integer', 'exists:task_categories,id'],
+            // Categories are legacy metadata only. New tasks do not require one;
+            // accepting the fields keeps older clients/data compatible without
+            // creating or activating category records.
+            'category' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'category_id' => ['sometimes', 'nullable', 'integer', 'exists:task_categories,id'],
             'image_path' => ['nullable', 'string', 'max:500'],
             'external_checkout_url' => ['nullable', 'url', 'max:500'],
             'reimbursement_amount' => [$required ? 'required' : 'sometimes', 'numeric', 'min:0.01'],
@@ -208,55 +208,115 @@ class TaskController extends ApiController
             'available_slots' => [$required ? 'required' : 'sometimes', 'integer', 'min:1'],
             'instructions' => ['nullable', 'array'],
             'proof_requirements' => ['nullable', 'array'],
+            'content' => ['sometimes', 'nullable', 'array'],
+            'content.overview_html' => ['nullable', 'string', 'max:50000'],
+            'content.terms_html' => ['nullable', 'string', 'max:50000'],
+            'content.verification_time' => ['nullable', 'string', 'max:120'],
+            'content.upload_guidance' => ['nullable', 'string', 'max:5000'],
+            'content.steps' => ['nullable', 'array', 'max:100'],
+            'content.steps.*' => ['array'],
+            'content.steps.*.id' => ['nullable', 'string', 'max:100'],
+            'content.steps.*.title' => ['nullable', 'string', 'max:180'],
+            'content.steps.*.body' => ['nullable', 'string', 'max:20000'],
+            'content.dos' => ['nullable', 'array', 'max:100'],
+            'content.dos.*' => ['array'],
+            'content.dos.*.id' => ['nullable', 'string', 'max:100'],
+            'content.dos.*.title' => ['nullable', 'string', 'max:180'],
+            'content.dos.*.body' => ['nullable', 'string', 'max:10000'],
+            'content.donts' => ['nullable', 'array', 'max:100'],
+            'content.donts.*' => ['array'],
+            'content.donts.*.id' => ['nullable', 'string', 'max:100'],
+            'content.donts.*.title' => ['nullable', 'string', 'max:180'],
+            'content.donts.*.body' => ['nullable', 'string', 'max:10000'],
+            'content.faqs' => ['nullable', 'array', 'max:100'],
+            'content.faqs.*' => ['array'],
+            'content.faqs.*.id' => ['nullable', 'string', 'max:100'],
+            'content.faqs.*.question' => ['nullable', 'string', 'max:500'],
+            'content.faqs.*.answer' => ['nullable', 'string', 'max:20000'],
             'status' => ['sometimes', 'string', 'in:available,paused,expired,archived'],
             'starts_at' => ['nullable', 'date'],
             'expires_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
+
+        if (array_key_exists('content', $data)) {
+            $data['content'] = $this->normalizeContent($data['content']);
+        }
+
+        return $data;
     }
 
-    /** @param array<string, mixed> $data */
-    private function resolveCategory(array &$data, bool $required): void
+    /**
+     * Keep the structured editor payload predictable and safe for rendering.
+     * This is deliberately additive; legacy description/instructions are not
+     * rewritten or interpreted here.
+     */
+    private function normalizeContent(?array $content): ?array
     {
-        if (array_key_exists('category_id', $data) && $data['category_id'] !== null) {
-            $category = TaskCategory::query()->where('is_active', true)->find($data['category_id']);
-            if (! $category) {
-                throw ValidationException::withMessages(['category_id' => 'Choose an active task category.']);
-            }
-            $data['category_id'] = $category->id;
-            $data['category'] = $category->name;
+        if ($content === null) {
+            return null;
+        }
 
-            return;
-        }
-        if (array_key_exists('category', $data) && trim((string) $data['category']) !== '') {
-            $name = trim((string) $data['category']);
-            $category = TaskCategory::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
-            if ($category && ! $category->is_active) {
-                $category->forceFill(['is_active' => true, 'archived_at' => null])->save();
-            }
-            $category ??= TaskCategory::create(['name' => $name, 'slug' => $this->categorySlug($name), 'is_active' => true]);
-            $data['category_id'] = $category->id;
-            $data['category'] = $category->name;
-
-            return;
-        }
-        if ($required) {
-            throw ValidationException::withMessages(['category_id' => 'Choose or add a task category.']);
-        }
-        unset($data['category_id']);
-        if (array_key_exists('category', $data)) {
-            unset($data['category']);
-        }
+        return [
+            'overview_html' => $this->safeRichText($content['overview_html'] ?? null),
+            'terms_html' => $this->safeRichText($content['terms_html'] ?? null),
+            'verification_time' => $this->plainText($content['verification_time'] ?? null, 120),
+            'upload_guidance' => $this->safeRichText($content['upload_guidance'] ?? null),
+            'steps' => $this->normalizeEntries($content['steps'] ?? [], 'body'),
+            'dos' => $this->normalizeEntries($content['dos'] ?? [], 'body'),
+            'donts' => $this->normalizeEntries($content['donts'] ?? [], 'body'),
+            'faqs' => $this->normalizeEntries($content['faqs'] ?? [], 'answer', 'question'),
+        ];
     }
 
-    private function categorySlug(string $name): string
+    /** @return array<int, array<string, string>> */
+    private function normalizeEntries(array $entries, string $bodyKey, string $titleKey = 'title'): array
     {
-        $base = Str::slug($name) ?: 'category';
-        $slug = $base;
-        $suffix = 2;
-        while (TaskCategory::query()->where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$suffix++;
+        $normalized = [];
+
+        foreach ($entries as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $title = $this->plainText($entry[$titleKey] ?? null, 500);
+            $body = $this->safeRichText($entry[$bodyKey] ?? null);
+            if ($title === null && $body === null) {
+                continue;
+            }
+
+            $normalized[] = [
+                'id' => $this->plainText($entry['id'] ?? null, 100) ?: Str::uuid()->toString(),
+                $titleKey => $title ?? '',
+                $bodyKey => $body ?? '',
+            ];
         }
 
-        return $slug;
+        return $normalized;
+    }
+
+    private function plainText(mixed $value, int $maxLength): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim(strip_tags((string) $value));
+
+        return $value === '' ? null : mb_substr($value, 0, $maxLength);
+    }
+
+    private function safeRichText(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $clean = strip_tags((string) $value, '<p><br><strong><em><u><ol><ul><li><h1><h2><h3><blockquote>');
+        // Allowed tags are intentionally attribute-free: no javascript URLs,
+        // event handlers, inline CSS, or embedded content can survive.
+        $clean = preg_replace('/<([a-z0-9]+)(?:\s[^>]*)?>/i', '<$1>', $clean) ?? '';
+        $clean = trim($clean);
+
+        return $clean === '' ? null : $clean;
     }
 }

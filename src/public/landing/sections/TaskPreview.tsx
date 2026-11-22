@@ -30,7 +30,6 @@ function TaskCard({ task }: { task: PublicTask }) {
     <article className="ce-card ce-card-hover flex h-full flex-col p-5 sm:p-6">
       <div className="ce-task-preview-image">
         <img src={task.image || '/public-images/tasks-hero.webp'} alt="" loading="lazy" decoding="async" />
-        <span className="ce-task-preview-image-label">{task.category}</span>
       </div>
       <div className="flex items-center justify-between gap-3">
         <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-[#4F6FAE]">Featured task</span>

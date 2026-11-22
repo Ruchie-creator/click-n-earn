@@ -109,7 +109,6 @@ import {
   referralRewardAmount,
   referrals,
   reservations,
-  taskCategories,
   tasks,
   verificationQueue,
   type NotificationItem,
@@ -130,7 +129,6 @@ import {
   type ApiFaq,
   type ApiPayoutMethod,
   type ApiPayoutVerification,
-  type ApiTaskCategory,
   type ApiUser,
 } from "./api";
 import type { ApiBeneficiarySchema } from "./api/contracts";
@@ -1676,50 +1674,38 @@ function TasksPage({
     try {
       const saved = JSON.parse(
         window.sessionStorage.getItem("click-earn-task-filters") || "{}",
-      ) as { search?: string; category?: string; sort?: string };
+      ) as { search?: string; sort?: string };
       return {
         search: saved.search || "",
-        category: saved.category || "All",
         sort: saved.sort || "Recommended",
       };
     } catch {
-      return { search: "", category: "All", sort: "Recommended" };
+      return { search: "", sort: "Recommended" };
     }
   });
   const [search, setSearch] = useState(initialFilters.search);
-  const [category, setCategory] = useState(initialFilters.category);
   const [sort, setSort] = useState(initialFilters.sort);
   useEffect(() => {
     window.sessionStorage.setItem(
       "click-earn-task-filters",
-      JSON.stringify({ search, category, sort }),
+      JSON.stringify({ search, sort }),
     );
-  }, [search, category, sort]);
-  const categories = [
-    "All",
-    ...new Set(
-      [...taskCategories, ...tasks.map((task) => task.category)].filter(
-        Boolean,
-      ),
-    ),
-  ];
+  }, [search, sort]);
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
-      `${task.title} ${task.shortDescription} ${task.description} ${task.category}`
+      `${task.title} ${task.shortDescription} ${task.description}`
         .toLowerCase()
         .includes(search.toLowerCase());
-    return matchesSearch && (category === "All" || task.category === category);
+    return matchesSearch;
   });
   if (sort === "Highest incentive")
     filteredTasks.sort((a, b) => b.incentive - a.incentive);
   if (sort === "Most slots") filteredTasks.sort((a, b) => b.slots - a.slots);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
-    Number(category !== "All") +
     Number(sort !== "Recommended");
   const clearFilters = () => {
     setSearch("");
-    setCategory("All");
     setSort("Recommended");
   };
   return (
@@ -1750,7 +1736,7 @@ function TasksPage({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="form-field h-11 bg-canvas pl-10"
-                placeholder="Search tasks, details or categories"
+                placeholder="Search tasks or details"
               />
             </label>
             <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
@@ -1780,28 +1766,6 @@ function TasksPage({
                   </span>
                 </button>
               )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
-            <span className="shrink-0 text-[11px] font-semibold text-muted">
-              Category
-            </span>
-            <div
-              className="thin-scroll flex min-w-0 gap-1.5 overflow-x-auto pb-1 sm:pb-0"
-              role="group"
-              aria-label="Task category"
-            >
-              {categories.map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  aria-pressed={category === item}
-                  onClick={() => setCategory(item)}
-                  className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-semibold transition-[background-color,color,box-shadow] ${category === item ? "bg-navy text-white shadow-sm" : "text-muted hover:bg-soft-blue hover:text-navy"}`}
-                >
-                  {item}
-                </button>
-              ))}
             </div>
           </div>
         </div>
@@ -2021,6 +1985,7 @@ function TaskDetailPage({
   onResendEmail: () => Promise<void>;
 }) {
   const { processing } = useFeedback();
+  const [activeTab, setActiveTab] = useState<"overview" | "steps" | "proof" | "guidance" | "terms">("overview");
   const availabilityStatus =
     task.availabilityStatus ||
     (task.status.toLowerCase() === "available" && task.slots > 0
@@ -2029,139 +1994,49 @@ function TaskDetailPage({
   const available = availabilityStatus === "available";
   const purchased = availabilityStatus === "purchased";
   const eligible = Boolean(user?.eligible_to_reserve);
+  const instructions = task.instructions
+    .map((instruction) =>
+      instruction.replace(/^\s*(?:step\s*)?\d+\s*[.):\-]\s*/i, "").trim(),
+    )
+    .filter(Boolean);
+  const content = task.content || {};
+  const structuredSteps = (content.steps || []).filter((item) => item.title || item.body);
+  const steps = structuredSteps.length ? structuredSteps : instructions.map((body, index) => ({ id: String(index), title: `Step ${index + 1}`, body }));
+  const dos = (content.dos || []).filter((item) => item.title || item.body);
+  const donts = (content.donts || []).filter((item) => item.title || item.body);
+  const faqs = (content.faqs || []).filter((item) => item.question || item.answer);
+  const overview = content.overview_html || task.description;
+  const terms = content.terms_html || `${task.description}\n\nA valid purchase through the designated partner route and readable proof are required. Rewards are reviewed before approval and payment. Campaign conditions do not waive applicable consumer protections.`;
   const reserve = () => {
     if (available) void onReserve();
   };
+  const payout = task.productPrice + task.incentive;
+  const tabs = [
+    ["overview", "Overview"],
+    ["steps", "Steps"],
+    ["proof", "Proof submission"],
+    ["guidance", "Do’s & don’ts"],
+    ["terms", "Terms"],
+  ] as const;
   return (
-    <div className="space-y-7">
-      <PageHeader
-        back={onBack}
-        eyebrow="Available task"
-        title={task.title || "Task details"}
-        description={task.description || "Task details are unavailable."}
-        actions={
-          <StatusBadge
-            tone={available || purchased ? "success" : "neutral"}
-            dot
-          >
-            {purchased ? "Purchased" : available ? "Available" : "Unavailable"}{" "}
-            · {task.slots} slots left
-          </StatusBadge>
-        }
-      />
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="card overflow-hidden">
-          <div className="aspect-[2/1] max-h-[350px] overflow-hidden bg-[#E9EEF5]">
-            <img
-              src={task.image}
-              alt=""
-              className="task-image h-full w-full object-cover"
-            />
-          </div>
-          <div className="p-5 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="eyebrow">Sponsored by {task.sponsor}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">
-                  What you’ll do
-                </p>
-              </div>
-              <span className="rounded-full bg-soft-blue px-2.5 py-1 text-[11px] font-semibold text-navy">
-                {task.category}
-              </span>
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl bg-canvas p-4">
-                <p className="text-xs text-muted">Purchase reimbursement</p>
-                <p className="number mt-2 text-xl font-semibold tracking-[-0.04em] text-ink">
-                  {formatCurrency(task.productPrice)}
-                </p>
-                <p className="mt-1 text-[11px] text-subtle">
-                  Paid at partner checkout
-                </p>
-              </div>
-              <div className="rounded-xl bg-[#ECFDF3] p-4">
-                <p className="text-xs text-success">Incentive</p>
-                <p className="number mt-2 text-xl font-semibold tracking-[-0.04em] text-success">
-                  +{formatCurrency(task.incentive)}
-                </p>
-                <p className="mt-1 text-[11px] text-[#54B77A]">
-                  For completing the task
-                </p>
-              </div>
-              <div className="rounded-xl bg-soft-blue p-4">
-                <p className="text-xs text-navy">Expected payout</p>
-                <p className="number mt-2 text-xl font-semibold tracking-[-0.04em] text-navy">
-                  {formatCurrency(task.productPrice + task.incentive)}
-                </p>
-                <p className="mt-1 text-[11px] text-accent">After approval</p>
-              </div>
-            </div>
-            <div className="mt-6 rounded-xl border border-[#C8D8EB] bg-soft-blue p-4">
-              <div className="flex items-start gap-3">
-                <Info size={17} className="mt-0.5 shrink-0 text-navy" />
-                <div>
-                  <p className="text-sm font-semibold text-navy">
-                    How reimbursement works
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-[#526D96]">
-                    You pay the product price at the partner checkout. Once your
-                    proof is approved, Click & Earn returns the purchase price
-                    plus your incentive in one payout.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold text-ink">Instructions</h2>
-              <ol className="mt-3 space-y-3">
-                {task.instructions.map((instruction, index) => (
-                  <li
-                    key={instruction}
-                    className="flex gap-3 text-sm leading-6 text-muted"
-                  >
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-semibold text-navy">
-                      {index + 1}
-                    </span>
-                    <span>{instruction}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <div className="mt-6 border-t border-line pt-6">
-              <h2 className="text-sm font-semibold text-ink">Requirements</h2>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {task.requirements.map((requirement) => (
-                  <div
-                    key={requirement}
-                    className="flex items-center gap-2 text-xs text-muted"
-                  >
-                    <CheckCircle2 size={15} className="shrink-0 text-success" />
-                    {requirement}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+    <div className="space-y-5">
+      <button onClick={onBack} className="btn-ghost -ml-3"><ArrowLeft size={16} /> Back to tasks</button>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold tracking-[-0.05em] text-ink sm:text-4xl">{task.title || "Task details"}</h1><StatusBadge tone={available || purchased ? "success" : "neutral"} dot>{purchased ? "Reserved" : available ? "Available now" : "Unavailable"}</StatusBadge></div><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{task.description || "Review the task details, reserve a slot, then submit proof for verification."}</p></div>
+        <div className="flex flex-wrap gap-2"><a aria-disabled={!task.checkoutUrl} href={task.checkoutUrl || undefined} target="_blank" rel="noreferrer" className={`btn-primary ${!task.checkoutUrl ? "pointer-events-none opacity-50" : ""}`}><ExternalLink size={16} /> Visit product page</a><button disabled={(!available && !purchased) || processing || !eligible} onClick={purchased ? () => onNavigate("my-tasks") : reserve} className="btn-secondary disabled:opacity-50">{purchased ? "View my task" : processing ? "Reserving…" : "Reserve task"}<ArrowRight size={15} /></button></div>
+      </div>
+      <section className="card overflow-hidden"><div className="grid gap-0 lg:grid-cols-[250px_minmax(0,1fr)]"><div className="aspect-[16/9] overflow-hidden bg-canvas lg:aspect-auto"><img src={task.image} alt="" className="task-image h-full w-full object-cover" /></div><div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5"><div><p className="text-[11px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(task.incentive)}</strong></div><div className="rounded-lg bg-[#ECFDF3] px-3 py-2"><p className="text-[11px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(payout)}</strong></div><div><p className="text-[11px] text-muted">Availability</p><strong className="mt-1 block text-sm text-ink">{task.slots} slots left</strong><span className="text-[11px] text-muted">After verification</span></div></div></div></section>
+      <div role="tablist" aria-label="Task details" className="card flex overflow-x-auto p-1.5">{tabs.map(([id, label]) => <button key={id} id={`task-tab-${id}`} role="tab" aria-selected={activeTab === id} aria-controls={`task-panel-${id}`} onClick={() => setActiveTab(id)} className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-semibold transition ${activeTab === id ? "bg-soft-blue text-navy" : "text-muted hover:bg-canvas"}`}>{label}</button>)}</div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <section id={`task-panel-${activeTab}`} role="tabpanel" aria-live="polite" className="card p-5 sm:p-7">
+          {activeTab === "overview" && <><p className="eyebrow">About this offer</p><h2 className="mt-1 text-xl font-semibold text-ink">What you’ll receive</h2><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-muted">{overview}</p><div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Purchase cost</p><strong className="number text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Reimbursement + bonus</p><strong className="number text-lg text-success">{formatCurrency(task.productPrice)} + {formatCurrency(task.incentive)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-4"><p className="text-xs text-success">Total payout</p><strong className="number text-lg text-success">{formatCurrency(payout)}</strong></div></div></>}
+          {activeTab === "steps" && <><p className="eyebrow">Follow these steps</p><h2 className="mt-1 text-xl font-semibold text-ink">How to complete this task</h2>{steps.length ? <ol className="mt-6 space-y-3">{steps.map((step, index) => <li key={step.id || `${index}-${step.title}`} className="flex gap-4 rounded-xl border border-line p-4"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><div><h3 className="font-semibold text-ink">{step.title || `Step ${index + 1}`}</h3><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-muted">{step.body}</p></div></li>)}</ol> : <p className="mt-4 rounded-xl bg-canvas p-4 text-sm leading-6 text-muted">No additional step-by-step instructions were provided for this task.</p>}</>}
+          {activeTab === "proof" && <><p className="eyebrow">Proof submission</p><h2 className="mt-1 text-xl font-semibold text-ink">What to upload</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{content.upload_guidance || "Reserve the task before purchasing. Upload clear, original proof from My tasks after the purchase; verification and payout remain subject to review."}</p><div className="mt-5 space-y-2">{task.requirements.map((requirement) => <div key={requirement} className="flex gap-3 rounded-lg bg-canvas p-3 text-sm text-muted"><CheckCircle2 size={17} className="shrink-0 text-success" />{requirement}</div>)}</div></>}
+          {activeTab === "guidance" && <><p className="eyebrow">Complete responsibly</p><h2 className="mt-1 text-xl font-semibold text-ink">Do’s & don’ts</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-[#B7E7C6] bg-[#F2FCF5] p-4"><h3 className="font-semibold text-success">Do</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(dos.length ? dos : [{ title: "Use the configured partner link.", body: "" }, { title: "Make a genuine purchase and keep the original receipt.", body: "" }, { title: "Submit readable proof within the stated campaign period.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}><strong>{item.title}</strong>{item.body ? <span className="block">{item.body}</span> : null}</li>)}</ul></div><div className="rounded-xl border border-red-100 bg-red-50 p-4"><h3 className="font-semibold text-error">Don’t</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(donts.length ? donts : [{ title: "Submit altered, duplicate, or refunded purchase evidence.", body: "" }, { title: "Create multiple accounts or duplicate claims.", body: "" }, { title: "Assume approval or payment before verification.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}><strong>{item.title}</strong>{item.body ? <span className="block">{item.body}</span> : null}</li>)}</ul></div></div></>}
+          {activeTab === "terms" && <><p className="eyebrow">Campaign conditions</p><h2 className="mt-1 text-xl font-semibold text-ink">Terms and verification</h2><p className="mt-2 text-xs text-muted">Verification time: {content.verification_time || "After administrator review"}</p><div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-muted">{terms}</div>{faqs.length ? <div className="mt-7 space-y-3"><h3 className="font-semibold text-ink">Frequently asked questions</h3>{faqs.map((faq, index) => <details key={faq.id || `${index}-${faq.question}`} className="rounded-lg border border-line p-3"><summary className="cursor-pointer text-sm font-semibold text-ink">{faq.question}</summary><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{faq.answer}</p></details>)}</div> : null}</>}
         </section>
         <div className="space-y-5">
-          <section className="card p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="eyebrow">Before you begin</p>
-                <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-ink">
-                  Reserve before purchasing
-                </h2>
-              </div>
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy">
-                <ShieldCheck size={19} />
-              </span>
-            </div>
-            <p className="mt-4 text-xs leading-5 text-muted">
-              The server confirms the available capacity and freezes this task’s
-              reimbursement and incentive when your reservation is created.
-            </p>
-          </section>
+          <section className="card p-5"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy"><ShieldCheck size={19} /></span><div><p className="font-semibold text-ink">Reserve before purchasing</p><p className="mt-1 text-xs leading-5 text-muted">Your reservation locks the reward terms. Visiting the product page does not mark the task complete.</p></div></div></section>
           {user && !eligible && (
             <AccountEligibilityPanel
               compact
@@ -2170,30 +2045,7 @@ function TaskDetailPage({
               onResendEmail={onResendEmail}
             />
           )}
-          <section className="card bg-navy p-5 text-white sm:p-6">
-            <p className="eyebrow text-white/50">Ready to continue?</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em]">
-              {purchased
-                ? "This task has been purchased."
-                : available
-                  ? "Reserve your task slot."
-                  : "This task is unavailable."}
-            </h2>
-            <p className="mt-2 text-xs leading-5 text-white/60">
-              {purchased
-                ? "Your task remains available in My tasks for proof submission and status updates."
-                : available
-                  ? "You’ll be taken to proof submission after the reservation is confirmed. Partner checkout is available from that page."
-                  : "This task cannot be reserved right now. Check My tasks for an existing reservation or proof status."}
-            </p>
-            <button
-              disabled={!available || processing || !eligible}
-              onClick={reserve}
-              className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-navy transition-[background-color,transform] duration-200 hover:bg-[#EEF3FA] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {purchased ? "Purchased" : available && processing ? "Reserving…" : available ? "Reserve task" : "Unavailable"}{" "}
-              <ArrowRight size={15} />
-            </button>
+          <section className="card bg-navy p-5 text-white"><p className="eyebrow text-white/50">Task status</p><h2 className="mt-1 text-lg font-semibold">{purchased ? "Task reserved" : available ? "Ready when you are" : "Task unavailable"}</h2><p className="mt-2 text-xs leading-5 text-white/60">{purchased ? "Use My tasks to submit proof and track the review." : "Reserving does not create a payout. Proof and administrator verification are required."}</p><button disabled={(!available && !purchased) || processing || !eligible} onClick={purchased ? () => onNavigate("my-tasks") : reserve} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-navy disabled:opacity-50">{purchased ? "View my task" : processing ? "Reserving…" : available ? "Reserve task" : "Unavailable"}<ArrowRight size={15} /></button>
             {!eligible && (
               <button
                 onClick={() =>
@@ -2211,8 +2063,7 @@ function TaskDetailPage({
                 <ArrowRight size={13} className="ml-1 inline" />
               </button>
             )}
-          </section>
-          <section className="card p-5">
+          </section><section className="card p-5">
             <div className="flex items-start gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#FFF7ED] text-warning">
                 <CircleHelp size={17} />
@@ -2226,8 +2077,7 @@ function TaskDetailPage({
               </div>
             </div>
           </section>
-        </div>
-      </div>
+        </div></div>
     </div>
   );
 }
@@ -5208,19 +5058,12 @@ function AdminTasksPage({
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [categories, setCategories] = useState<ApiTaskCategory[]>([]);
-  const [categoryQuery, setCategoryQuery] = useState("");
-  const visibleCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(categoryQuery.trim().toLowerCase()),
-  );
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const filtered = adminTasks
     .filter((task) =>
-      `${task.title} ${task.category} ${task.sponsor}`
+      `${task.title} ${task.sponsor}`
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
     )
@@ -5229,18 +5072,12 @@ function AdminTasksPage({
         statusFilter === "all" ||
         task.status.toLowerCase() === statusFilter,
     )
-    .filter(
-      (task) => categoryFilter === "all" || task.category === categoryFilter,
-    )
     .sort((a, b) => {
       if (sortBy === "reward")
         return b.productPrice + b.incentive - (a.productPrice + a.incentive);
       if (sortBy === "capacity") return b.slots - a.slots;
       return Number(b.id) - Number(a.id);
     });
-  const taskCategoryNames = Array.from(
-    new Set(adminTasks.map((task) => task.category)),
-  ).sort();
   const liveTaskCount = adminTasks.filter(
     (task) => task.status.toLowerCase() === "available",
   ).length;
@@ -5252,73 +5089,6 @@ function AdminTasksPage({
     (sum, task) => sum + task.slots * (task.productPrice + task.incentive),
     0,
   );
-  const loadCategories = async () => {
-    try {
-      setCategories((await api.adminTaskCategories()).data);
-    } catch (error) {
-      onToast(
-        error instanceof Error
-          ? error.message
-          : "Task categories could not be loaded.",
-      );
-    }
-  };
-  useEffect(() => {
-    void loadCategories();
-  }, []);
-  const createCategory = async (name: string): Promise<ApiTaskCategory> => {
-    const category = (await api.adminCreateTaskCategory(name)).data;
-    setCategories((current) =>
-      [...current.filter((item) => item.id !== category.id), category].sort(
-        (a, b) => a.name.localeCompare(b.name),
-      ),
-    );
-    return category;
-  };
-  const saveCategory = async (
-    id: number,
-    payload: { name?: string; is_active?: boolean },
-  ) => {
-    try {
-      const category = (await api.adminUpdateTaskCategory(id, payload)).data;
-      setCategories((current) =>
-        current
-          .map((item) => (item.id === id ? category : item))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      );
-    } catch (error) {
-      onToast(
-        error instanceof Error
-          ? error.message
-          : "The category could not be updated.",
-      );
-    }
-  };
-  const deleteCategory = async (category: ApiTaskCategory) => {
-    if (
-      !window.confirm(
-        category.task_count
-          ? `Archive “${category.name}”? Existing tasks will keep this category.`
-          : `Delete “${category.name}”?`,
-      )
-    )
-      return;
-    try {
-      const result = (await api.adminDeleteTaskCategory(category.id)).data;
-      onToast(
-        result.archived
-          ? "Category archived. Existing tasks still use it."
-          : "Category deleted.",
-      );
-      await loadCategories();
-    } catch (error) {
-      onToast(
-        error instanceof Error
-          ? error.message
-          : "The category could not be removed.",
-      );
-    }
-  };
   const createTask = async (payload: Record<string, unknown>) => {
     await runOperation(
       {
@@ -5397,13 +5167,6 @@ function AdminTasksPage({
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               disabled={processing}
-              onClick={() => setShowCategoryManager(true)}
-              className="btn-secondary disabled:opacity-60"
-            >
-              <Settings2 size={15} /> Categories
-            </button>
-            <button
-              disabled={processing}
               onClick={() => setShowModal(true)}
               className="btn-primary disabled:opacity-60"
             >
@@ -5435,7 +5198,7 @@ function AdminTasksPage({
               <span className="number text-xs text-subtle">{filtered.length}/{adminTasks.length}</span>
             </div>
           </div>
-          <div className="grid w-full gap-2 sm:grid-cols-[minmax(190px,1fr)_140px_150px_130px] lg:w-auto">
+          <div className="grid w-full gap-2 sm:grid-cols-[minmax(190px,1fr)_140px_130px] lg:w-auto">
             <div className="relative min-w-0">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle"
@@ -5445,7 +5208,7 @@ function AdminTasksPage({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="form-field h-10 pl-9 text-xs"
-              placeholder="Search title, category, sponsor"
+              placeholder="Search title or sponsor"
             />
           </div>
             <select className="form-field h-10 text-xs" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status">
@@ -5454,10 +5217,6 @@ function AdminTasksPage({
               <option value="paused">Paused</option>
               <option value="expired">Expired</option>
               <option value="archived">Archived</option>
-            </select>
-            <select className="form-field h-10 text-xs" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter by category">
-              <option value="all">All categories</option>
-              {taskCategoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
             <select className="form-field h-10 text-xs" value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort tasks">
               <option value="newest">Newest</option>
@@ -5473,7 +5232,6 @@ function AdminTasksPage({
                 <thead>
                   <tr>
                     <th className="px-6 py-3">Task</th>
-                    <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Unit economics</th>
                     <th className="px-4 py-3">Capacity</th>
                     <th className="px-4 py-3">State</th>
@@ -5508,9 +5266,6 @@ function AdminTasksPage({
                             </p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-xs font-medium text-muted">{task.category}</span>
                       </td>
                       <td className="px-4 py-4">
                         <p className="number text-sm font-semibold text-ink">{formatCurrency(task.productPrice + task.incentive)}</p>
@@ -5561,7 +5316,7 @@ function AdminTasksPage({
                       </StatusBadge>
                     </div>
                     <p className="mt-1 text-[11px] text-muted">
-                      {task.category} · {task.slots} slots ·{" "}
+                      {task.slots} slots ·{" "}
                       <span className="number font-semibold text-navy">
                         {formatCurrency(task.productPrice + task.incentive)}
                       </span>
@@ -5594,9 +5349,6 @@ function AdminTasksPage({
         size="lg"
       >
         <CreateTaskForm
-          categories={categories.filter((category) => category.is_active)}
-          onCreateCategory={createCategory}
-          onCategoryError={(message) => onToast(message)}
           onCancel={() => setShowModal(false)}
           onCreate={createTask}
           processing={processing}
@@ -5615,7 +5367,6 @@ function AdminTasksPage({
           <EditTaskForm
             key={editingTask.id}
             task={editingTask}
-            categories={categories.filter((category) => category.is_active)}
             processing={processing}
             onCancel={() => setEditingTask(null)}
             onSave={(payload) => editTask(editingTask, payload)}
@@ -5642,125 +5393,6 @@ function AdminTasksPage({
           </div>
         )}
       </Modal>
-      <Modal
-        open={showCategoryManager}
-        title="Task categories"
-        description="Create, rename, deactivate, archive, or safely delete categories without breaking tasks."
-        onClose={() => setShowCategoryManager(false)}
-        size="lg"
-      >
-        <form
-          className="flex flex-col gap-2 border-b border-line pb-4 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const formElement = event.currentTarget;
-            const form = new FormData(formElement);
-            const name = String(form.get("category_name") || "").trim();
-            if (name)
-              void createCategory(name)
-                .then(() => {
-                  formElement.reset();
-                  onToast("Category created.");
-                })
-                .catch((error) =>
-                  onToast(
-                    error instanceof Error
-                      ? error.message
-                      : "Category could not be created.",
-                  ),
-                );
-          }}
-        >
-          <input
-            name="category_name"
-            required
-            maxLength={80}
-            className="form-field min-h-10 flex-1"
-            placeholder="New category name"
-          />
-          <button className="btn-primary min-h-10">
-            <Plus size={15} /> Add category
-          </button>
-        </form>
-        <label className="relative mt-4 block">
-          <span className="sr-only">Search categories</span>
-          <Search
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle"
-          />
-          <input
-            value={categoryQuery}
-            onChange={(event) => setCategoryQuery(event.target.value)}
-            className="form-field h-10 pl-9 text-xs"
-            placeholder="Search categories"
-          />
-        </label>
-        <div className="mt-3 max-h-[55dvh] space-y-2 overflow-y-auto">
-          {visibleCategories.map((category) => (
-            <form
-              key={category.id}
-              className="flex flex-col gap-2 rounded-xl border border-line p-3 sm:flex-row sm:items-center"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                void saveCategory(category.id, {
-                  name: String(form.get("name") || "").trim(),
-                });
-              }}
-            >
-              <input
-                name="name"
-                defaultValue={category.name}
-                maxLength={80}
-                className="form-field min-h-9 flex-1 text-xs"
-                aria-label={`Rename ${category.name}`}
-              />
-              <span className="min-w-24 text-[11px] text-muted">
-                {category.task_count}{" "}
-                {category.task_count === 1 ? "task" : "tasks"}
-              </span>
-              <span
-                className={`rounded-full px-2 py-1 text-[10px] font-semibold ${category.is_active ? "bg-[#ECFDF3] text-success" : "bg-canvas text-muted"}`}
-              >
-                {category.is_active ? "Active" : "Archived"}
-              </span>
-              <div className="flex gap-1">
-                <button
-                  type="submit"
-                  className="btn-secondary min-h-9 px-2 text-[11px]"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void saveCategory(category.id, {
-                      is_active: !category.is_active,
-                    })
-                  }
-                  className="btn-ghost min-h-9 px-2 text-[11px]"
-                >
-                  {category.is_active ? "Disable" : "Enable"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void deleteCategory(category)}
-                  className="btn-ghost min-h-9 px-2 text-[11px] text-error"
-                >
-                  <Trash2 size={13} />{" "}
-                  {category.task_count ? "Archive" : "Delete"}
-                </button>
-              </div>
-            </form>
-          ))}
-          {categories.length === 0 && (
-            <TableEmpty message="No categories yet. Add one to start organizing tasks." />
-          )}
-          {categories.length > 0 && visibleCategories.length === 0 && (
-            <TableEmpty message="No categories match your search." />
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }
@@ -5784,7 +5416,6 @@ function AdminTaskDetailPage({
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [categories, setCategories] = useState<ApiTaskCategory[]>([]);
 
   const loadDetail = async () => {
     setLoading(true);
@@ -5803,10 +5434,6 @@ function AdminTaskDetailPage({
 
   useEffect(() => {
     void loadDetail();
-    api
-      .adminTaskCategories()
-      .then((response) => setCategories(response.data))
-      .catch(() => undefined);
   }, [task.id]);
 
   const saveTask = async (payload: Record<string, unknown>) => {
@@ -5909,7 +5536,6 @@ function AdminTaskDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <span className="task-command-kicker">TASK / {task.id.padStart(4, "0")}</span>
               <StatusBadge tone={getTone(task.status)} dot>{task.status}</StatusBadge>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">{task.category}</span>
             </div>
             <h1 className="mt-5 max-w-3xl text-balance text-3xl font-semibold tracking-[-0.055em] text-white sm:text-4xl">{task.title}</h1>
             <p className="mt-3 max-w-2xl text-pretty text-sm leading-6 text-white/60">{task.description}</p>
@@ -5998,7 +5624,7 @@ function AdminTaskDetailPage({
       </section>
 
       <Modal open={editing} title="Edit task configuration" description="Update the member experience, capacity, and unit economics." onClose={() => !processing && setEditing(false)} size="lg">
-        <EditTaskForm task={task} categories={categories.filter((category) => category.is_active)} processing={processing} onCancel={() => setEditing(false)} onSave={saveTask} />
+        <EditTaskForm task={task} processing={processing} onCancel={() => setEditing(false)} onSave={saveTask} />
       </Modal>
       <Modal open={deleting} title="Force delete task" description="This permanently removes the task and all reservation and proof records attached to it." onClose={() => !processing && setDeleting(false)} size="sm">
         <div className="space-y-5">
@@ -6011,32 +5637,41 @@ function AdminTaskDetailPage({
   );
 }
 
+type EditorItem = { id: string; title?: string; body?: string; question?: string; answer?: string };
+
+const newEditorItem = (): EditorItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, title: "", body: "" });
+
+function EditorItems({ title, items, setItems, kind }: { title: string; items: EditorItem[]; setItems: (items: EditorItem[]) => void; kind: "step" | "item" | "faq" }) {
+  const update = (id: string, key: keyof EditorItem, value: string) => setItems(items.map((item) => item.id === id ? { ...item, [key]: value } : item));
+  const move = (index: number, delta: number) => { const next = [...items]; const target = index + delta; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; setItems(next); };
+  return <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">{title}</legend><div className="space-y-3">{items.map((item, index) => <div key={item.id} className="rounded-lg bg-canvas p-3"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-navy">{kind === "step" ? `Step ${index + 1}` : `Item ${index + 1}`}</span><div className="flex gap-1"><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, -1)} disabled={index === 0}>↑</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, 1)} disabled={index === items.length - 1}>↓</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => setItems(items.filter((entry) => entry.id !== item.id))}>Remove</button></div></div>{kind === "faq" ? <><input className="form-field mt-2" value={item.question || ""} onChange={(event) => update(item.id, "question", event.target.value)} placeholder="Question" /><textarea className="form-field mt-2 min-h-16 py-2" value={item.answer || ""} onChange={(event) => update(item.id, "answer", event.target.value)} placeholder="Answer" /></> : <><input className="form-field mt-2" value={item.title || ""} onChange={(event) => update(item.id, "title", event.target.value)} placeholder={kind === "step" ? "Step title" : "Short heading"} /><textarea className="form-field mt-2 min-h-16 py-2" value={item.body || ""} onChange={(event) => update(item.id, "body", event.target.value)} placeholder="Detailed explanation" /></>}</div>)}</div><button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={() => setItems([...items, kind === "faq" ? { ...newEditorItem(), title: undefined, body: undefined, question: "", answer: "" } : newEditorItem()])}><Plus size={14} /> Add {kind === "step" ? "step" : kind === "faq" ? "FAQ" : "item"}</button></fieldset>;
+}
+
 function CreateTaskForm({
-  categories,
-  onCreateCategory,
-  onCategoryError,
   onCancel,
   onCreate,
   processing,
 }: {
-  categories: ApiTaskCategory[];
-  onCreateCategory: (name: string) => Promise<ApiTaskCategory>;
-  onCategoryError: (message: string) => void;
   onCancel: () => void;
   onCreate: (payload: Record<string, unknown>) => Promise<void>;
   processing: boolean;
 }) {
   const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [categorySearch, setCategorySearch] = useState("");
-  const [addingCategory, setAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [categoryBusy, setCategoryBusy] = useState(false);
   const [slots, setSlots] = useState("");
   const [price, setPrice] = useState("");
   const [incentive, setIncentive] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [slug, setSlug] = useState("");
+  const [imagePath, setImagePath] = useState("");
+  const [overview, setOverview] = useState("");
+  const [terms, setTerms] = useState("");
+  const [verificationTime, setVerificationTime] = useState("24–48 hours");
+  const [uploadGuidance, setUploadGuidance] = useState("JPG, PNG, or PDF. Maximum 10 MB per file.");
+  const [steps, setSteps] = useState<EditorItem[]>([newEditorItem()]);
+  const [dos, setDos] = useState<EditorItem[]>([]);
+  const [donts, setDonts] = useState<EditorItem[]>([]);
+  const [faqs, setFaqs] = useState<EditorItem[]>([]);
   const validEconomics =
     Number(price) > 0 &&
     Number.isFinite(Number(price)) &&
@@ -6045,43 +5680,18 @@ function CreateTaskForm({
     Number(slots) >= 1 &&
     Number.isInteger(Number(slots));
   const payout = validEconomics ? Number(price) + Number(incentive) : null;
-  const selectedCategory = categories.find(
-    (item) => String(item.id) === categoryId,
-  );
-  const matchingCategories = categories.filter((item) =>
-    item.name.toLowerCase().includes(categorySearch.trim().toLowerCase()),
-  );
-  const addCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    setCategoryBusy(true);
-    try {
-      const category = await onCreateCategory(newCategoryName.trim());
-      setCategoryId(String(category.id));
-      setNewCategoryName("");
-      setAddingCategory(false);
-    } catch (error) {
-      onCategoryError(
-        error instanceof Error
-          ? error.message
-          : "Category could not be created.",
-      );
-    } finally {
-      setCategoryBusy(false);
-    }
-  };
   const submit = () => {
     if (
       !title.trim() ||
       !instructions.trim() ||
-      !selectedCategory ||
       !validEconomics
     )
       return;
     void onCreate({
       title: title.trim(),
-      category_id: selectedCategory.id,
-      category: selectedCategory.name,
+      slug: slug.trim() || undefined,
       description: instructions.trim(),
+      image_path: imagePath.trim() || null,
       reimbursement_amount: Number(price),
       incentive_amount: Number(incentive),
       available_slots: Number(slots),
@@ -6092,6 +5702,7 @@ function CreateTaskForm({
         "Include the transaction reference",
       ],
       status: "paused",
+      content: { overview_html: overview.trim() || instructions.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
     });
   };
   return (
@@ -6106,71 +5717,8 @@ function CreateTaskForm({
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
-        <div className="text-xs font-semibold text-ink">
-          <label htmlFor="task-category" className="block">
-            Category
-          </label>
-          <input
-            aria-label="Search categories"
-            value={categorySearch}
-            onChange={(event) => setCategorySearch(event.target.value)}
-            className="form-field mt-2"
-            placeholder="Search categories"
-          />
-          <div className="mt-2 flex gap-2">
-            <select
-              id="task-category"
-              required
-              className="form-field min-w-0 flex-1"
-              value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
-            >
-              <option value="">Select a category</option>
-              {matchingCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setAddingCategory((current) => !current)}
-              className="btn-secondary min-h-11 shrink-0 px-3 text-xs"
-            >
-              <Plus size={14} /> Add New Category
-            </button>
-          </div>
-          {matchingCategories.length === 0 && (
-            <p className="mt-1 text-[11px] text-muted">
-              No category matches. Create one below.
-            </p>
-          )}
-          {addingCategory && (
-            <div className="mt-3 rounded-xl border border-[#C8D8EB] bg-soft-blue p-3">
-              <p className="text-[11px] font-semibold text-navy">
-                Add a category without leaving this task form
-              </p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input
-                  autoFocus
-                  maxLength={80}
-                  value={newCategoryName}
-                  onChange={(event) => setNewCategoryName(event.target.value)}
-                  className="form-field min-h-10 bg-white text-xs"
-                  placeholder="Category name"
-                />
-                <button
-                  type="button"
-                  disabled={categoryBusy || !newCategoryName.trim()}
-                  onClick={() => void addCategory()}
-                  className="btn-primary min-h-10 shrink-0 text-xs disabled:opacity-50"
-                >
-                  {categoryBusy ? "Saving…" : "Save category"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="auto-generated" /></label>
+        <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} placeholder="/task-images/example.jpg" /></label>
         <label className="text-xs font-semibold text-ink">
           Available slots
           <input
@@ -6242,6 +5790,12 @@ function CreateTaskForm({
             onChange={(event) => setInstructions(event.target.value)}
           />
         </label>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} placeholder="Explain the offer and expected payout." /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
+        <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
+        <EditorItems title="Don’ts" items={donts} setItems={setDonts} kind="item" />
+        <EditorItems title="FAQs (optional)" items={faqs} setItems={setFaqs} kind="faq" />
       </div>
       <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
         <button
@@ -6256,7 +5810,6 @@ function CreateTaskForm({
             processing ||
             !title.trim() ||
             !instructions.trim() ||
-            !categoryId ||
             !validEconomics
           }
           onClick={submit}
@@ -6271,19 +5824,16 @@ function CreateTaskForm({
 
 function EditTaskForm({
   task,
-  categories,
   processing,
   onCancel,
   onSave,
 }: {
   task: Task;
-  categories: ApiTaskCategory[];
   processing: boolean;
   onCancel: () => void;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [title, setTitle] = useState(task.title);
-  const [category, setCategory] = useState(task.category);
   const [slots, setSlots] = useState(String(task.availableSlots ?? task.slots));
   const [price, setPrice] = useState(String(task.productPrice));
   const [incentive, setIncentive] = useState(String(task.incentive));
@@ -6291,6 +5841,17 @@ function EditTaskForm({
   const [description, setDescription] = useState(
     task.description || task.instructions.join("\n"),
   );
+  const initialContent = task.content || {};
+  const [slug, setSlug] = useState("");
+  const [imagePath, setImagePath] = useState(task.image || "");
+  const [overview, setOverview] = useState(initialContent.overview_html || task.description);
+  const [terms, setTerms] = useState(initialContent.terms_html || "");
+  const [verificationTime, setVerificationTime] = useState(initialContent.verification_time || "24–48 hours");
+  const [uploadGuidance, setUploadGuidance] = useState(initialContent.upload_guidance || "JPG, PNG, or PDF. Maximum 10 MB per file.");
+  const [steps, setSteps] = useState<EditorItem[]>((initialContent.steps || task.instructions.map((body, index) => ({ id: String(index), title: `Step ${index + 1}`, body }))).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
+  const [dos, setDos] = useState<EditorItem[]>((initialContent.dos || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
+  const [donts, setDonts] = useState<EditorItem[]>((initialContent.donts || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
+  const [faqs, setFaqs] = useState<EditorItem[]>((initialContent.faqs || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, question: item.question || "", answer: item.answer || "" })));
   const priceValue = Number(price);
   const incentiveValue = Number(incentive);
   const slotValue = Number(slots);
@@ -6310,7 +5871,8 @@ function EditTaskForm({
         if (!valid) return;
         void onSave({
           title: title.trim(),
-          category,
+          slug: slug.trim() || undefined,
+          image_path: imagePath.trim() || null,
           description: description.trim(),
           reimbursement_amount: priceValue,
           incentive_amount: incentiveValue,
@@ -6320,6 +5882,7 @@ function EditTaskForm({
             .split("\n")
             .map((item) => item.trim())
             .filter(Boolean),
+          content: { overview_html: overview.trim() || description.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
         });
       }}
     >
@@ -6328,13 +5891,8 @@ function EditTaskForm({
           Task title
           <input className="form-field mt-2" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} />
         </label>
-        <label className="text-xs font-semibold text-ink">
-          Category
-          <select className="form-field mt-2" value={category} onChange={(event) => setCategory(event.target.value)}>
-            {!categories.some((item) => item.name === category) && <option value={category}>{category}</option>}
-            {categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-          </select>
-        </label>
+        <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="Keep existing slug" /></label>
+        <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} /></label>
         <label className="text-xs font-semibold text-ink">
           Total capacity
           <input className="form-field mt-2" type="number" min={Math.max(1, (task.reservedSlots ?? 0) + (task.completedSlots ?? 0))} step="1" value={slots} onChange={(event) => setSlots(event.target.value)} />
@@ -6356,6 +5914,12 @@ function EditTaskForm({
           Checkout URL
           <input className="form-field mt-2" type="url" value={checkoutUrl} onChange={(event) => setCheckoutUrl(event.target.value)} placeholder="https://" />
         </label>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
+        <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
+        <EditorItems title="Don’ts" items={donts} setItems={setDonts} kind="item" />
+        <EditorItems title="FAQs (optional)" items={faqs} setItems={setFaqs} kind="faq" />
         <label className="text-xs font-semibold text-ink sm:col-span-2">
           Instructions
           <textarea className="form-field mt-2 h-28 resize-none py-3" value={description} onChange={(event) => setDescription(event.target.value)} />

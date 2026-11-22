@@ -24,7 +24,6 @@ class PublicTaskEndpointTest extends TestCase
         $this->getJson('/api/public/tasks')
             ->assertOk()
             ->assertJsonPath('data.meta.total', 1)
-            ->assertJsonPath('data.meta.categories.0', 'Productivity')
             ->assertJsonPath('data.items.0.slug', $available->slug)
             ->assertJsonPath('data.items.0.expected_payout', 57)
             ->assertJsonPath('data.items.0.slots', 4)
@@ -45,7 +44,20 @@ class PublicTaskEndpointTest extends TestCase
             ->assertJsonMissingPath('data.instructions');
     }
 
-    public function test_public_catalogue_filters_by_category_and_search(): void
+    public function test_active_uncategorized_task_is_visible_in_the_public_catalogue(): void
+    {
+        $task = $this->makeTask(User::factory()->create(), 'available', 'uncategorized-task', [
+            'category' => null,
+        ]);
+
+        $this->getJson('/api/public/tasks')
+            ->assertOk()
+            ->assertJsonPath('data.meta.total', 1)
+            ->assertJsonPath('data.items.0.slug', $task->slug)
+            ->assertJsonMissingPath('data.items.0.category');
+    }
+
+    public function test_public_catalogue_searches_without_category_filters(): void
     {
         $owner = User::factory()->create();
         $match = $this->makeTask($owner, 'available', 'matching-task');
@@ -54,11 +66,11 @@ class PublicTaskEndpointTest extends TestCase
             'category' => 'Learning',
         ]);
 
-        $this->getJson('/api/public/tasks?category='.urlencode($match->category).'&search='.urlencode('catalogue'))
+        $this->getJson('/api/public/tasks?category='.urlencode($match->category).'&search='.urlencode('public'))
             ->assertOk()
-            ->assertJsonPath('data.meta.total', 1)
-            ->assertJsonPath('data.items.0.slug', $match->slug)
-            ->assertJsonMissing(['slug' => $other->slug]);
+            ->assertJsonPath('data.meta.total', 2)
+            ->assertJsonFragment(['slug' => $match->slug])
+            ->assertJsonFragment(['slug' => $other->slug]);
 
         $this->getJson('/api/public/tasks?per_page=1000')
             ->assertUnprocessable()

@@ -10,6 +10,17 @@ use Illuminate\Validation\ValidationException;
 
 class DemoDataController extends ApiController
 {
+    public function audit(Request $request, DemoDataService $demo): JsonResponse
+    {
+        abort_if(
+            filled($request->user()?->demo_batch_id),
+            403,
+            'Demo-batch accounts cannot audit preview data. Use the official non-demo administrator account.',
+        );
+
+        return $this->ok($demo->audit());
+    }
+
     public function status(Request $request, DemoDataService $demo): JsonResponse
     {
         $this->ensurePreviewControls($request, $demo);
