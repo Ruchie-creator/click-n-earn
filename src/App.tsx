@@ -5718,7 +5718,7 @@ function CreateTaskForm({
           />
         </label>
         <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="auto-generated" /></label>
-        <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} placeholder="/task-images/example.jpg" /></label>
+        <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} placeholder="/task-images/business-planning-template.jpg" /></label>
         <label className="text-xs font-semibold text-ink">
           Available slots
           <input
