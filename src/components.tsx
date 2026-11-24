@@ -438,6 +438,53 @@ export function TaskCard({
   );
 }
 
+/** Compact marketplace row matching the approved member task catalogue layout. */
+export function MarketplaceTaskRow({
+  task,
+  onView,
+}: {
+  task: Task;
+  onView: (task: Task) => void;
+}) {
+  const purchased = task.availabilityStatus === "purchased";
+  const unavailable = task.availabilityStatus === "unavailable";
+  const displayStatus = purchased ? "Reserved" : unavailable ? "Unavailable" : "Available";
+  const statusTone: StatusTone = unavailable ? "neutral" : purchased ? "info" : "success";
+  return (
+    <article className="card overflow-hidden transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#C8D8EB] hover:shadow-[0_12px_28px_rgba(31,53,88,0.08)]">
+      <div className="grid gap-4 p-3 sm:grid-cols-[164px_minmax(0,1fr)_150px] sm:items-center sm:p-3.5">
+        <div className="h-32 overflow-hidden rounded-xl bg-[#EEF2F8] sm:h-[132px]">
+          {task.image ? (
+            <img src={task.image} alt="" loading="lazy" decoding="async" className="task-image h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full place-items-center text-navy"><ImageIcon size={30} strokeWidth={1.5} /></div>
+          )}
+        </div>
+        <div className="min-w-0 self-stretch py-1 sm:py-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-semibold tracking-[-0.03em] text-ink sm:text-[20px]">{task.title}</h3>
+              <StatusBadge tone={statusTone} dot>{displayStatus}</StatusBadge>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-soft-blue px-3 py-1.5 text-[11px] font-semibold text-navy">
+              <UsersRound size={13} /> {task.slots} slots open
+            </span>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
+            <div><p className="text-[10px] text-subtle">Purchase cost</p><p className="number mt-1 text-lg font-semibold text-ink">{formatCurrency(task.productPrice)}</p></div>
+            <div><p className="text-[10px] text-subtle">Reimbursement</p><p className="number mt-1 text-lg font-semibold text-success">{formatCurrency(task.productPrice)}</p></div>
+            <div><p className="text-[10px] text-subtle">Extra bonus</p><p className="number mt-1 text-lg font-semibold text-success">+{formatCurrency(task.incentive)}</p></div>
+            <div className="rounded-xl bg-[#ECF8F0] px-3 py-2"><p className="text-[10px] text-[#5B8E70]">Total payout</p><p className="number mt-1 text-lg font-semibold text-success">{formatCurrency(task.productPrice + task.incentive)}</p></div>
+          </div>
+        </div>
+        <div className="flex items-center sm:h-full sm:flex-col sm:items-stretch sm:justify-end sm:gap-3">
+          <button onClick={() => onView(task)} className="btn-primary min-h-11 w-full justify-center text-sm">View task <ArrowRight size={16} /></button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function FileUpload({
   files,
   onFilesChange,

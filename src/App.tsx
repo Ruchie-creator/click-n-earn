@@ -140,6 +140,7 @@ import {
   FileUpload,
   Logo,
   Modal,
+  MarketplaceTaskRow,
   PageHeader,
   Sidebar,
   StatCard,
@@ -1709,11 +1710,12 @@ function TasksPage({
     setSort("Recommended");
   };
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <PageHeader
-        eyebrow="Marketplace"
-        title="Find your next task"
-        description="Browse funded opportunities, review the task terms, and reserve a slot before purchasing."
+        eyebrow="Opportunities"
+        title="Available tasks"
+        description="Find an active opportunity and review the requirements before you start."
+        actions={<StatusBadge tone="success" dot>{tasks.length} active tasks</StatusBadge>}
       />
       {user && !user.eligible_to_reserve && (
         <AccountEligibilityPanel
@@ -1723,7 +1725,7 @@ function TasksPage({
           onResendEmail={onResendEmail}
         />
       )}
-      <section className="card p-4 sm:p-5" aria-label="Filter available tasks">
+      <section className="card p-3.5 sm:p-4" aria-label="Filter available tasks">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative min-w-0 flex-1 lg:max-w-[440px]">
@@ -1735,14 +1737,14 @@ function TasksPage({
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="form-field h-11 bg-canvas pl-10"
-                placeholder="Search tasks or details"
+                className="form-field h-11 bg-white pl-10"
+                placeholder="Search tasks by title or keyword..."
               />
             </label>
             <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
               <label className="flex h-11 items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-medium text-muted focus-within:border-accent focus-within:ring-4 focus-within:ring-[#1F3558]/10">
                 <SlidersHorizontal size={15} className="text-accent" />
-                <span className="hidden sm:inline">Sort</span>
+                <span className="hidden sm:inline">Sort by</span>
                 <select
                   aria-label="Sort tasks"
                   value={sort}
@@ -1771,18 +1773,13 @@ function TasksPage({
         </div>
       </section>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted" aria-live="polite">
-          <span className="font-semibold text-ink">{filteredTasks.length}</span>{" "}
-          of {tasks.length} opportunities
-        </p>
-        <p className="hidden text-xs text-subtle sm:block">
-          Rewards are reserved while slots are available
-        </p>
+        <p className="text-sm text-muted" aria-live="polite"><span className="font-semibold text-navy">{filteredTasks.length} opportunities</span> available to explore</p>
+        <p className="hidden text-xs text-subtle sm:block">Rewards are subject to successful verification</p>
       </div>
       {filteredTasks.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-3">
           {filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onView={onSelectTask} />
+            <MarketplaceTaskRow key={task.id} task={task} onView={onSelectTask} />
           ))}
         </div>
       ) : (
@@ -2025,7 +2022,7 @@ function TaskDetailPage({
         <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold tracking-[-0.05em] text-ink sm:text-4xl">{task.title || "Task details"}</h1><StatusBadge tone={available || purchased ? "success" : "neutral"} dot>{purchased ? "Reserved" : available ? "Available now" : "Unavailable"}</StatusBadge></div><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{task.description || "Review the task details, reserve a slot, then submit proof for verification."}</p></div>
         <div className="flex flex-wrap gap-2"><a aria-disabled={!task.checkoutUrl} href={task.checkoutUrl || undefined} target="_blank" rel="noreferrer" className={`btn-primary ${!task.checkoutUrl ? "pointer-events-none opacity-50" : ""}`}><ExternalLink size={16} /> Visit product page</a><button disabled={(!available && !purchased) || processing || !eligible} onClick={purchased ? () => onNavigate("my-tasks") : reserve} className="btn-secondary disabled:opacity-50">{purchased ? "View my task" : processing ? "Reserving…" : "Reserve task"}<ArrowRight size={15} /></button></div>
       </div>
-      <section className="card overflow-hidden"><div className="grid gap-0 lg:grid-cols-[250px_minmax(0,1fr)]"><div className="aspect-[16/9] overflow-hidden bg-canvas lg:aspect-auto"><img src={task.image} alt="" className="task-image h-full w-full object-cover" /></div><div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5"><div><p className="text-[11px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(task.incentive)}</strong></div><div className="rounded-lg bg-[#ECFDF3] px-3 py-2"><p className="text-[11px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(payout)}</strong></div><div><p className="text-[11px] text-muted">Availability</p><strong className="mt-1 block text-sm text-ink">{task.slots} slots left</strong><span className="text-[11px] text-muted">After verification</span></div></div></div></section>
+      <section className="card overflow-hidden"><div className="grid gap-0 lg:grid-cols-[250px_minmax(0,1fr)_190px]"><div className="aspect-[16/9] overflow-hidden bg-canvas lg:aspect-auto"><img src={task.image} alt="" className="task-image h-full w-full object-cover" /></div><div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4"><div><p className="text-[11px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(task.incentive)}</strong></div><div className="rounded-lg bg-[#ECFDF3] px-3 py-2"><p className="text-[11px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(payout)}</strong></div></div><div className="border-t border-line p-5 lg:border-l lg:border-t-0"><p className="text-[11px] text-muted">Verification time</p><strong className="mt-1 block text-sm text-navy">{content.verification_time || "24–48 hours"}</strong><p className="mt-2 text-[11px] text-muted">{task.slots} slots open</p>{purchased && <button onClick={() => onNavigate("my-tasks")} className="btn-secondary mt-4 min-h-10 w-full justify-center text-xs"><Upload size={14} /> Submit proof</button>}</div></div></section>
       <div role="tablist" aria-label="Task details" className="card flex overflow-x-auto p-1.5">{tabs.map(([id, label]) => <button key={id} id={`task-tab-${id}`} role="tab" aria-selected={activeTab === id} aria-controls={`task-panel-${id}`} onClick={() => setActiveTab(id)} className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-semibold transition ${activeTab === id ? "bg-soft-blue text-navy" : "text-muted hover:bg-canvas"}`}>{label}</button>)}</div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section id={`task-panel-${activeTab}`} role="tabpanel" aria-live="polite" className="card p-5 sm:p-7">
@@ -5346,7 +5343,7 @@ function AdminTasksPage({
         onClose={() => {
           if (!processing) setShowModal(false);
         }}
-        size="lg"
+        size="xl"
       >
         <CreateTaskForm
           onCancel={() => setShowModal(false)}
@@ -5361,7 +5358,7 @@ function AdminTasksPage({
         onClose={() => {
           if (!processing) setEditingTask(null);
         }}
-        size="lg"
+        size="xl"
       >
         {editingTask && (
           <EditTaskForm
@@ -5642,9 +5639,32 @@ type EditorItem = { id: string; title?: string; body?: string; question?: string
 const newEditorItem = (): EditorItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, title: "", body: "" });
 
 function EditorItems({ title, items, setItems, kind }: { title: string; items: EditorItem[]; setItems: (items: EditorItem[]) => void; kind: "step" | "item" | "faq" }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(items.slice(0, 1).map((item) => item.id)));
   const update = (id: string, key: keyof EditorItem, value: string) => setItems(items.map((item) => item.id === id ? { ...item, [key]: value } : item));
   const move = (index: number, delta: number) => { const next = [...items]; const target = index + delta; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; setItems(next); };
-  return <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">{title}</legend><div className="space-y-3">{items.map((item, index) => <div key={item.id} className="rounded-lg bg-canvas p-3"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-navy">{kind === "step" ? `Step ${index + 1}` : `Item ${index + 1}`}</span><div className="flex gap-1"><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, -1)} disabled={index === 0}>↑</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, 1)} disabled={index === items.length - 1}>↓</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => setItems(items.filter((entry) => entry.id !== item.id))}>Remove</button></div></div>{kind === "faq" ? <><input className="form-field mt-2" value={item.question || ""} onChange={(event) => update(item.id, "question", event.target.value)} placeholder="Question" /><textarea className="form-field mt-2 min-h-16 py-2" value={item.answer || ""} onChange={(event) => update(item.id, "answer", event.target.value)} placeholder="Answer" /></> : <><input className="form-field mt-2" value={item.title || ""} onChange={(event) => update(item.id, "title", event.target.value)} placeholder={kind === "step" ? "Step title" : "Short heading"} /><textarea className="form-field mt-2 min-h-16 py-2" value={item.body || ""} onChange={(event) => update(item.id, "body", event.target.value)} placeholder="Detailed explanation" /></>}</div>)}</div><button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={() => setItems([...items, kind === "faq" ? { ...newEditorItem(), title: undefined, body: undefined, question: "", answer: "" } : newEditorItem()])}><Plus size={14} /> Add {kind === "step" ? "step" : kind === "faq" ? "FAQ" : "item"}</button></fieldset>;
+  const duplicate = (index: number) => {
+    const copy = { ...items[index], id: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+    const next = [...items];
+    next.splice(index + 1, 0, copy);
+    setItems(next);
+    setExpanded((current) => new Set([...current, copy.id]));
+  };
+  const add = () => {
+    const item = kind === "faq" ? { ...newEditorItem(), title: undefined, body: undefined, question: "", answer: "" } : newEditorItem();
+    setItems([...items, item]);
+    setExpanded((current) => new Set([...current, item.id]));
+  };
+  return <fieldset className="sm:col-span-2 rounded-xl border border-line bg-white p-4 shadow-[0_4px_18px_rgba(31,53,88,0.04)]"><legend className="px-1 text-sm font-semibold text-ink">{title}</legend><div className="space-y-2">{items.map((item, index) => { const isOpen = expanded.has(item.id); const label = kind === "faq" ? item.question || "Untitled FAQ" : item.title || (kind === "step" ? `Step ${index + 1}` : `Item ${index + 1}`); return <div key={item.id} className="rounded-xl border border-line bg-canvas"><div className="flex items-center gap-2 px-3 py-2"><button type="button" aria-expanded={isOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left text-xs font-semibold text-ink" onClick={() => setExpanded((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}><ChevronDown size={15} className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} /><span className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-[10px] font-bold text-navy">{index + 1}</span><span className="truncate">{label}</span></button><div className="flex shrink-0 items-center gap-1"><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move item up">↑</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, 1)} disabled={index === items.length - 1} aria-label="Move item down">↓</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => duplicate(index)} aria-label="Duplicate item"><Copy size={13} /></button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px] text-error" onClick={() => setItems(items.filter((entry) => entry.id !== item.id))} aria-label="Delete item"><Trash2 size={13} /></button></div></div>{isOpen && <div className="border-t border-line p-3">{kind === "faq" ? <><label className="block text-[11px] font-semibold text-muted">Question<input className="form-field mt-1" value={item.question || ""} onChange={(event) => update(item.id, "question", event.target.value)} placeholder="Question" /></label><label className="mt-3 block text-[11px] font-semibold text-muted">Answer<textarea className="form-field mt-1 min-h-20 py-2" value={item.answer || ""} onChange={(event) => update(item.id, "answer", event.target.value)} placeholder="Answer" /></label></> : <><label className="block text-[11px] font-semibold text-muted">{kind === "step" ? "Step title" : "Heading"}<input className="form-field mt-1" value={item.title || ""} onChange={(event) => update(item.id, "title", event.target.value)} placeholder={kind === "step" ? "Step title" : "Short heading"} /></label><label className="mt-3 block text-[11px] font-semibold text-muted">Description<textarea className="form-field mt-1 min-h-20 py-2" value={item.body || ""} onChange={(event) => update(item.id, "body", event.target.value)} placeholder="Detailed explanation" /></label></>}</div>}</div>; })}</div><button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={add}><Plus size={14} /> Add {kind === "step" ? "step" : kind === "faq" ? "FAQ" : "item"}</button></fieldset>;
+}
+
+function ProofRequirementEditor({ items, setItems }: { items: string[]; setItems: (items: string[]) => void }) {
+  return <fieldset className="sm:col-span-2 rounded-xl border border-line bg-white p-4 shadow-[0_4px_18px_rgba(31,53,88,0.04)]"><legend className="px-1 text-sm font-semibold text-ink">Proof submission requirements</legend><p className="mt-1 text-xs text-muted">Define the evidence members must provide. File validation remains enforced by the existing proof workflow.</p><div className="mt-3 space-y-2">{items.map((item, index) => <div key={`${index}-${item}`} className="flex items-center gap-2 rounded-lg bg-canvas p-2"><CheckCircle2 size={16} className="shrink-0 text-accent" /><input className="form-field min-h-9 flex-1 text-xs" value={item} onChange={(event) => setItems(items.map((entry, current) => current === index ? event.target.value : entry))} placeholder="Required evidence" /><button type="button" className="btn-ghost min-h-8 px-2 text-xs text-error" onClick={() => setItems(items.filter((_, current) => current !== index))} aria-label="Remove proof requirement"><Trash2 size={13} /></button></div>)}</div><button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={() => setItems([...items, ""])}><Plus size={14} /> Add requirement</button></fieldset>;
+}
+
+function TaskEditorPreview({ title, image, overview, terms, price, incentive, verificationTime, steps, requirements }: { title: string; image: string; overview: string; terms: string; price: string; incentive: string; verificationTime: string; steps: EditorItem[]; requirements: string[] }) {
+  const purchase = Number(price) || 0;
+  const bonus = Number(incentive) || 0;
+  return <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow">Preview</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink">{title || "Untitled task"}</h2><p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-muted">{overview || "Add an overview to explain the offer."}</p></div>{image ? <img src={image} alt="" className="h-24 w-32 rounded-xl object-cover" /> : null}</div><div className="grid gap-3 sm:grid-cols-4"><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(bonus)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-3"><p className="text-[10px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase + bonus)}</strong></div></div><div className="grid gap-5 lg:grid-cols-2"><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Steps</h3><ol className="mt-3 space-y-2">{steps.filter((item) => item.title || item.body).map((item, index) => <li key={item.id} className="flex gap-3 text-sm leading-6 text-muted"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><span><strong className="text-ink">{item.title || `Step ${index + 1}`}</strong>{item.body ? <span className="block whitespace-pre-wrap">{item.body}</span> : null}</span></li>)}</ol></section><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Proof & verification</h3><p className="mt-2 text-sm leading-6 text-muted">{verificationTime || "After administrator review"}</p><ul className="mt-3 space-y-2">{requirements.filter(Boolean).map((item) => <li key={item} className="flex gap-2 text-sm text-muted"><CheckCircle2 size={16} className="shrink-0 text-success" />{item}</li>)}</ul></section></div>{terms ? <section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Terms</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{terms}</p></section> : null}</div>;
 }
 
 function CreateTaskForm({
@@ -5668,6 +5688,9 @@ function CreateTaskForm({
   const [terms, setTerms] = useState("");
   const [verificationTime, setVerificationTime] = useState("24–48 hours");
   const [uploadGuidance, setUploadGuidance] = useState("JPG, PNG, or PDF. Maximum 10 MB per file.");
+  const [requirements, setRequirements] = useState<string[]>(["Upload a readable receipt", "Include the transaction reference"]);
+  const [status, setStatus] = useState<"paused" | "available">("paused");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [steps, setSteps] = useState<EditorItem[]>([newEditorItem()]);
   const [dos, setDos] = useState<EditorItem[]>([]);
   const [donts, setDonts] = useState<EditorItem[]>([]);
@@ -5680,7 +5703,7 @@ function CreateTaskForm({
     Number(slots) >= 1 &&
     Number.isInteger(Number(slots));
   const payout = validEconomics ? Number(price) + Number(incentive) : null;
-  const submit = () => {
+  const submit = (nextStatus: "paused" | "available" = status) => {
     if (
       !title.trim() ||
       !instructions.trim() ||
@@ -5697,11 +5720,8 @@ function CreateTaskForm({
       available_slots: Number(slots),
       external_checkout_url: checkoutUrl.trim() || null,
       instructions: [instructions.trim()],
-      proof_requirements: [
-        "Upload a readable receipt",
-        "Include the transaction reference",
-      ],
-      status: "paused",
+      proof_requirements: requirements.filter(Boolean),
+      status: nextStatus,
       content: { overview_html: overview.trim() || instructions.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
     });
   };
@@ -5719,6 +5739,7 @@ function CreateTaskForm({
         </label>
         <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="auto-generated" /></label>
         <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} placeholder="/task-images/business-planning-template.jpg" /></label>
+        <label className="text-xs font-semibold text-ink">Task status<select className="form-field mt-2" value={status} onChange={(event) => setStatus(event.target.value as "paused" | "available")}><option value="paused">Paused / draft</option><option value="available">Active / published</option></select></label>
         <label className="text-xs font-semibold text-ink">
           Available slots
           <input
@@ -5792,6 +5813,7 @@ function CreateTaskForm({
         </label>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} placeholder="Explain the offer and expected payout." /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <ProofRequirementEditor items={requirements} setItems={setRequirements} />
         <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
         <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
         <EditorItems title="Don’ts" items={donts} setItems={setDonts} kind="item" />
@@ -5805,19 +5827,11 @@ function CreateTaskForm({
         >
           Cancel
         </button>
-        <button
-          disabled={
-            processing ||
-            !title.trim() ||
-            !instructions.trim() ||
-            !validEconomics
-          }
-          onClick={submit}
-          className="btn-primary disabled:cursor-wait disabled:opacity-60"
-        >
-          {processing ? "Creating…" : "Create draft"} <ArrowRight size={15} />
-        </button>
+        <button type="button" disabled={processing || !title.trim() || !instructions.trim() || !validEconomics} onClick={() => setPreviewOpen(true)} className="btn-secondary disabled:cursor-wait disabled:opacity-60"><Eye size={15} /> Preview</button>
+        <button type="button" disabled={processing || !title.trim() || !instructions.trim() || !validEconomics} onClick={() => submit("paused")} className="btn-secondary disabled:cursor-wait disabled:opacity-60">{processing ? "Saving…" : "Save draft"}</button>
+        <button type="button" disabled={processing || !title.trim() || !instructions.trim() || !validEconomics} onClick={() => submit("available")} className="btn-primary disabled:cursor-wait disabled:opacity-60">{processing ? "Publishing…" : "Publish"} <ArrowRight size={15} /></button>
       </div>
+      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl"><TaskEditorPreview title={title} image={imagePath} overview={overview || instructions} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
     </div>
   );
 }
@@ -5842,12 +5856,15 @@ function EditTaskForm({
     task.description || task.instructions.join("\n"),
   );
   const initialContent = task.content || {};
+  const [status, setStatus] = useState<"paused" | "available" | "archived">(task.status.toLowerCase() === "available" ? "available" : task.status.toLowerCase() === "archived" ? "archived" : "paused");
   const [slug, setSlug] = useState("");
   const [imagePath, setImagePath] = useState(task.image || "");
   const [overview, setOverview] = useState(initialContent.overview_html || task.description);
   const [terms, setTerms] = useState(initialContent.terms_html || "");
   const [verificationTime, setVerificationTime] = useState(initialContent.verification_time || "24–48 hours");
   const [uploadGuidance, setUploadGuidance] = useState(initialContent.upload_guidance || "JPG, PNG, or PDF. Maximum 10 MB per file.");
+  const [requirements, setRequirements] = useState<string[]>(task.requirements.length ? task.requirements : ["Upload a readable receipt", "Include the transaction reference"]);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [steps, setSteps] = useState<EditorItem[]>((initialContent.steps || task.instructions.map((body, index) => ({ id: String(index), title: `Step ${index + 1}`, body }))).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
   const [dos, setDos] = useState<EditorItem[]>((initialContent.dos || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
   const [donts, setDonts] = useState<EditorItem[]>((initialContent.donts || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, title: item.title || "", body: item.body || "" })));
@@ -5863,27 +5880,30 @@ function EditTaskForm({
     Number.isInteger(slotValue) &&
     slotValue >= 1;
 
+  const save = (nextStatus: "paused" | "available" | "archived" = status) => {
+    if (!valid) return;
+    void onSave({
+      title: title.trim(),
+      slug: slug.trim() || undefined,
+      image_path: imagePath.trim() || null,
+      description: description.trim(),
+      reimbursement_amount: priceValue,
+      incentive_amount: incentiveValue,
+      available_slots: slotValue,
+      external_checkout_url: checkoutUrl.trim() || null,
+      proof_requirements: requirements.filter(Boolean),
+      instructions: description.split("\n").map((item) => item.trim()).filter(Boolean),
+      status: nextStatus,
+      content: { overview_html: overview.trim() || description.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
+    });
+  };
+
   return (
     <form
       className="space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!valid) return;
-        void onSave({
-          title: title.trim(),
-          slug: slug.trim() || undefined,
-          image_path: imagePath.trim() || null,
-          description: description.trim(),
-          reimbursement_amount: priceValue,
-          incentive_amount: incentiveValue,
-          available_slots: slotValue,
-          external_checkout_url: checkoutUrl.trim() || null,
-          instructions: description
-            .split("\n")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          content: { overview_html: overview.trim() || description.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
-        });
+        save();
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -5893,6 +5913,7 @@ function EditTaskForm({
         </label>
         <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="Keep existing slug" /></label>
         <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} /></label>
+        <label className="text-xs font-semibold text-ink">Task status<select className="form-field mt-2" value={status} onChange={(event) => setStatus(event.target.value as "paused" | "available" | "archived")}><option value="paused">Paused</option><option value="available">Active / published</option><option value="archived">Archived</option></select></label>
         <label className="text-xs font-semibold text-ink">
           Total capacity
           <input className="form-field mt-2" type="number" min={Math.max(1, (task.reservedSlots ?? 0) + (task.completedSlots ?? 0))} step="1" value={slots} onChange={(event) => setSlots(event.target.value)} />
@@ -5916,6 +5937,7 @@ function EditTaskForm({
         </label>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <ProofRequirementEditor items={requirements} setItems={setRequirements} />
         <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
         <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
         <EditorItems title="Don’ts" items={donts} setItems={setDonts} kind="item" />
@@ -5927,8 +5949,12 @@ function EditTaskForm({
       </div>
       <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button disabled={!valid || processing} className="btn-primary disabled:opacity-50">{processing ? "Saving…" : "Save changes"}<Check size={15} /></button>
+        <button type="button" disabled={!valid || processing} onClick={() => setPreviewOpen(true)} className="btn-secondary disabled:opacity-50"><Eye size={15} /> Preview</button>
+        <button type="button" disabled={!valid || processing} onClick={() => save("paused")} className="btn-secondary disabled:opacity-50">{processing ? "Saving…" : "Save draft"}</button>
+        <button type="button" disabled={!valid || processing} onClick={() => save("archived")} className="btn-ghost text-error disabled:opacity-50">Archive</button>
+        <button type="button" disabled={!valid || processing} onClick={() => save("available")} className="btn-primary disabled:opacity-50">{processing ? "Publishing…" : "Publish / update"}<Check size={15} /></button>
       </div>
+      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl"><TaskEditorPreview title={title} image={imagePath} overview={overview || description} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
     </form>
   );
 }
