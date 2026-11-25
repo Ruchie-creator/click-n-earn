@@ -81,6 +81,9 @@ class TaskController extends ApiController
         $data = $this->validated($request);
         $task = DB::transaction(function () use ($data, $request, $audit): Task {
             $data['slug'] = $data['slug'] ?? Str::slug($data['title']).'-'.Str::lower(Str::random(5));
+            $data['available_slots'] = config('tasks.capacity_limits_enabled', false)
+                ? ($data['available_slots'] ?? (int) config('tasks.unlimited_slots', 2147483647))
+                : (int) config('tasks.unlimited_slots', 2147483647);
             $data['created_by'] = $request->user()->id;
             $data['status'] = $data['status'] ?? TaskStatus::AVAILABLE;
             $data['instructions'] = $data['instructions'] ?? [];
@@ -104,9 +107,12 @@ class TaskController extends ApiController
     public function update(Request $request, Task $task, AuditLogService $audit): JsonResponse
     {
         $data = $this->validated($request, false);
+        if (! config('tasks.capacity_limits_enabled', false)) {
+            unset($data['available_slots']);
+        }
         $task = DB::transaction(function () use ($task, $data, $audit, $request): Task {
             $locked = Task::query()->lockForUpdate()->findOrFail($task->id);
-            if (isset($data['available_slots']) && $data['available_slots'] < $locked->reserved_slots + $locked->completed_slots) {
+            if (config('tasks.capacity_limits_enabled', false) && isset($data['available_slots']) && $data['available_slots'] < $locked->reserved_slots + $locked->completed_slots) {
                 throw ValidationException::withMessages([
                     'available_slots' => 'Available slots cannot be lower than the reserved and completed task count.',
                 ]);
@@ -205,7 +211,9 @@ class TaskController extends ApiController
             'external_checkout_url' => ['nullable', 'url', 'max:500'],
             'reimbursement_amount' => [$required ? 'required' : 'sometimes', 'numeric', 'min:0.01'],
             'incentive_amount' => [$required ? 'required' : 'sometimes', 'numeric', 'min:0'],
-            'available_slots' => [$required ? 'required' : 'sometimes', 'integer', 'min:1'],
+            'available_slots' => config('tasks.capacity_limits_enabled', false)
+                ? [$required ? 'required' : 'sometimes', 'integer', 'min:1']
+                : ['sometimes', 'nullable'],
             'instructions' => ['nullable', 'array'],
             'proof_requirements' => ['nullable', 'array'],
             'content' => ['sometimes', 'nullable', 'array'],

@@ -62,10 +62,10 @@ export type ApiTask = {
   reimbursement_amount: number;
   incentive: number;
   expected_payout: number;
-  slots: number;
-  available_slots?: number;
-  reserved_slots?: number;
-  completed_slots?: number;
+  slots?: number | null;
+  available_slots?: number | null;
+  reserved_slots?: number | null;
+  completed_slots?: number | null;
   status: string;
   availability_status?: "available" | "purchased" | "unavailable";
   sponsor?: string;
@@ -171,7 +171,7 @@ export type PublicTask = {
   reimbursement_amount: number;
   incentive: number;
   expected_payout: number;
-  slots: number;
+  slots?: number | null;
   status: "available";
 };
 

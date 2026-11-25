@@ -19,8 +19,8 @@ class TaskController extends ApiController
             ->where(function ($builder) use ($userId): void {
                 $builder->where(fn ($available) => $available->availableForDiscovery())
                     ->orWhereHas('reservations', fn ($reservations) => $reservations
-                    ->where('user_id', $userId)
-                    ->where(fn ($history) => $history->whereNotNull('participation_claimed_at')->orWhereIn('status', $this->activeReservationStatuses())));
+                        ->where('user_id', $userId)
+                        ->where(fn ($history) => $history->whereNotNull('participation_claimed_at')->orWhereIn('status', $this->activeReservationStatuses())));
             })
             ->orderByDesc('created_at');
         if ($request->filled('search')) {
@@ -32,7 +32,7 @@ class TaskController extends ApiController
         }
         if ($request->string('sort')->toString() === 'highest_incentive') {
             $query->orderByDesc('incentive_amount');
-        } elseif ($request->string('sort')->toString() === 'most_slots') {
+        } elseif (config('tasks.capacity_limits_enabled', false) && $request->string('sort')->toString() === 'most_slots') {
             $query->orderByRaw('(available_slots - reserved_slots - completed_slots) DESC');
         }
 

@@ -28,7 +28,7 @@ class PublicTaskController extends ApiController
 
         if (($validated['sort'] ?? 'newest') === 'highest_incentive') {
             $query->orderByDesc('incentive_amount');
-        } elseif (($validated['sort'] ?? 'newest') === 'most_slots') {
+        } elseif (config('tasks.capacity_limits_enabled', false) && ($validated['sort'] ?? 'newest') === 'most_slots') {
             $query->orderByRaw('(available_slots - reserved_slots - completed_slots) DESC');
         } else {
             $query->latest();
@@ -74,7 +74,9 @@ class PublicTaskController extends ApiController
             'reimbursement_amount' => (float) $task->reimbursement_amount,
             'incentive' => (float) $task->incentive_amount,
             'expected_payout' => (float) $task->expected_payout,
-            'slots' => max(0, $task->available_slots - $task->reserved_slots - $task->completed_slots),
+            'slots' => config('tasks.capacity_limits_enabled', false)
+                ? max(0, $task->available_slots - $task->reserved_slots - $task->completed_slots)
+                : null,
             'status' => 'available',
             'content' => $task->content ?: [],
         ];

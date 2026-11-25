@@ -107,6 +107,57 @@ button {
     @apply focus-ring h-11 w-full rounded-lg border border-line bg-white px-3.5 text-sm text-ink placeholder:text-subtle transition-[border-color,box-shadow] duration-200 focus:border-accent;
   }
 
+  .rich-text {
+    @apply text-sm leading-7 text-muted;
+  }
+
+  .rich-text p {
+    margin: 0 0 0.75rem;
+  }
+
+  .rich-text p:last-child {
+    margin-bottom: 0;
+  }
+
+  .rich-text ul,
+  .rich-text ol {
+    margin: 0.5rem 0 0.75rem;
+    padding-left: 1.35rem;
+  }
+
+  .rich-text ul {
+    list-style: disc;
+  }
+
+  .rich-text ol {
+    list-style: decimal;
+  }
+
+  .rich-text li + li {
+    margin-top: 0.25rem;
+  }
+
+  .rich-text strong {
+    color: #172033;
+    font-weight: 700;
+  }
+
+  .rich-text h1,
+  .rich-text h2,
+  .rich-text h3 {
+    margin: 0.9rem 0 0.35rem;
+    color: #172033;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .rich-text blockquote {
+    margin: 0.75rem 0;
+    border-left: 3px solid #b9d7ff;
+    padding-left: 0.85rem;
+    color: #526d96;
+  }
+
   .lift {
     @apply transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#C4D0DE] hover:shadow-soft;
   }
@@ -171,38 +222,6 @@ button {
 
   .task-command-kicker {
     @apply rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70;
-  }
-
-  .task-capacity-orbit {
-    @apply flex items-center gap-5 rounded-2xl bg-white/[0.075] p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)];
-    backdrop-filter: blur(12px);
-  }
-
-  .task-capacity-ring {
-    @apply grid h-28 w-28 shrink-0 place-items-center rounded-full;
-    background: conic-gradient(#7c9cff var(--progress), rgba(255,255,255,.09) 0);
-    box-shadow: 0 0 35px rgba(79, 111, 174, 0.24);
-  }
-
-  .task-capacity-ring::before {
-    content: "";
-    grid-area: 1 / 1;
-    @apply h-[86px] w-[86px] rounded-full bg-[#16243C];
-  }
-
-  .task-capacity-ring > div {
-    grid-area: 1 / 1;
-    @apply relative z-10 text-center;
-  }
-
-  .task-capacity-ring strong,
-  .task-capacity-orbit > div > div strong {
-    @apply block text-xl font-semibold tracking-[-0.04em] text-white;
-  }
-
-  .task-capacity-ring span,
-  .task-capacity-orbit > div > div span {
-    @apply mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-white/45;
   }
 
   .task-metric-card {

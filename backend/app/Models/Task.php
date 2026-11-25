@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Enums\TaskStatus;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -71,20 +71,25 @@ class Task extends Model
      * between endpoints. COALESCE protects historical rows created before the
      * capacity counters were hardened, without changing those records.
      *
-     * @param Builder<Task> $query
+     * @param  Builder<Task>  $query
      * @return Builder<Task>
      */
     public function scopeAvailableForDiscovery(Builder $query): Builder
     {
-        return $query
+        $query
             ->where('status', TaskStatus::AVAILABLE->value)
-            ->whereRaw('COALESCE(reserved_slots, 0) + COALESCE(completed_slots, 0) < available_slots')
             ->where(fn (Builder $dates): Builder => $dates
                 ->whereNull('starts_at')
                 ->orWhere('starts_at', '<=', now()))
             ->where(fn (Builder $dates): Builder => $dates
                 ->whereNull('expires_at')
                 ->orWhere('expires_at', '>', now()));
+
+        if (config('tasks.capacity_limits_enabled', false)) {
+            $query->whereRaw('COALESCE(reserved_slots, 0) + COALESCE(completed_slots, 0) < available_slots');
+        }
+
+        return $query;
     }
 
     public function isAcceptable(): bool
@@ -92,6 +97,7 @@ class Task extends Model
         return $this->status === TaskStatus::AVAILABLE
             && (! $this->starts_at || $this->starts_at->isPast())
             && (! $this->expires_at || $this->expires_at->isFuture())
-            && ($this->reserved_slots + $this->completed_slots) < $this->available_slots;
+            && (! config('tasks.capacity_limits_enabled', false)
+                || ($this->reserved_slots + $this->completed_slots) < $this->available_slots);
     }
 }

@@ -417,14 +417,7 @@ export function TaskCard({
         </div>
         <div className="mt-3 flex items-center justify-between gap-2">
           <span className="text-[11px] text-muted">
-            {task.availabilityStatus === "purchased" ? (
-              "Already purchased"
-            ) : (
-              <>
-                <span className="font-semibold text-ink">{task.slots}</span>{" "}
-                slots available
-              </>
-            )}
+            {task.availabilityStatus === "purchased" ? "Already purchased" : "Available to eligible members"}
           </span>
           <button
             onClick={() => onView(task)}
@@ -466,9 +459,6 @@ export function MarketplaceTaskRow({
               <h3 className="truncate text-lg font-semibold tracking-[-0.03em] text-ink sm:text-[20px]">{task.title}</h3>
               <StatusBadge tone={statusTone} dot>{displayStatus}</StatusBadge>
             </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-soft-blue px-3 py-1.5 text-[11px] font-semibold text-navy">
-              <UsersRound size={13} /> {task.slots} slots open
-            </span>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
             <div><p className="text-[10px] text-subtle">Purchase cost</p><p className="number mt-1 text-lg font-semibold text-ink">{formatCurrency(task.productPrice)}</p></div>

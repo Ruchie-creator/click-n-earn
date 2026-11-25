@@ -34,5 +34,6 @@
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+        <env name="TASK_CAPACITY_LIMITS_ENABLED" value="true" force="true"/>
     </php>
 </phpunit>

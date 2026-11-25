@@ -59,10 +59,12 @@ abstract class ApiController extends Controller
             'reimbursement_amount' => (float) $task->reimbursement_amount,
             'incentive' => (float) $task->incentive_amount,
             'expected_payout' => (float) $task->expected_payout,
-            'slots' => max(0, $task->available_slots - $task->reserved_slots - $task->completed_slots),
-            'available_slots' => $task->available_slots,
-            'reserved_slots' => $task->reserved_slots,
-            'completed_slots' => $task->completed_slots,
+            'slots' => config('tasks.capacity_limits_enabled', false)
+                ? max(0, $task->available_slots - $task->reserved_slots - $task->completed_slots)
+                : null,
+            'available_slots' => config('tasks.capacity_limits_enabled', false) ? $task->available_slots : null,
+            'reserved_slots' => config('tasks.capacity_limits_enabled', false) ? $task->reserved_slots : null,
+            'completed_slots' => config('tasks.capacity_limits_enabled', false) ? $task->completed_slots : null,
             'status' => $this->enumValue($task->status),
             'availability_status' => $availabilityStatus,
             'sponsor' => data_get($task->instructions, 'sponsor', 'Click & Earn partner'),

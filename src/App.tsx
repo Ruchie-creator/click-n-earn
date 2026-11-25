@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -19,6 +18,7 @@ import {
   Banknote,
   BarChart3,
   BellRing,
+  Bold,
   Bookmark,
   Check,
   CheckCircle2,
@@ -44,10 +44,13 @@ import {
   Globe2,
   Image as ImageIcon,
   Info,
+  Italic,
   KeyRound,
   Landmark,
   LayoutDashboard,
   Link2,
+  List,
+  ListOrdered,
   LockKeyhole,
   Mail,
   Maximize2,
@@ -57,6 +60,8 @@ import {
   MoreVertical,
   Pencil,
   Plus,
+  Pilcrow,
+  Quote,
   Receipt,
   ReceiptText,
   RefreshCw,
@@ -72,6 +77,7 @@ import {
   Trash2,
   TrendingUp,
   Upload,
+  Underline,
   UserCheck,
   UserPlus,
   Users,
@@ -754,7 +760,7 @@ function AppShell() {
       {
         title: "Reserving your reward",
         description:
-          "Confirming the task details and securing an available slot.",
+          "Confirming the task details and securing your reservation.",
         successMessage: "Reward reserved successfully",
         successDescription:
           "Your reservation is ready. Submit proof after completing the purchase.",
@@ -794,7 +800,7 @@ function AppShell() {
       {
         title: "Reserving your reward",
         description:
-          "Confirming the task details and securing an available slot.",
+          "Confirming the task details and securing your reservation.",
         successMessage: "Reward reserved successfully",
         successDescription:
           "Your reservation is ready. Submit proof after completing the purchase.",
@@ -1701,7 +1707,6 @@ function TasksPage({
   });
   if (sort === "Highest incentive")
     filteredTasks.sort((a, b) => b.incentive - a.incentive);
-  if (sort === "Most slots") filteredTasks.sort((a, b) => b.slots - a.slots);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
     Number(sort !== "Recommended");
@@ -1753,7 +1758,6 @@ function TasksPage({
                 >
                   <option>Recommended</option>
                   <option>Highest incentive</option>
-                  <option>Most slots</option>
                 </select>
               </label>
               {activeFilterCount > 0 && (
@@ -1954,7 +1958,7 @@ function MyTasksPage({
         <EmptyState
           icon={ClipboardCheck}
           title="No tasks reserved yet."
-          description="Browse available opportunities and reserve a slot to get started."
+          description="Browse available opportunities and reserve a task to get started."
           action={
             <button onClick={() => onNavigate("tasks")} className="btn-primary">
               Browse tasks
@@ -1985,7 +1989,7 @@ function TaskDetailPage({
   const [activeTab, setActiveTab] = useState<"overview" | "steps" | "proof" | "guidance" | "terms">("overview");
   const availabilityStatus =
     task.availabilityStatus ||
-    (task.status.toLowerCase() === "available" && task.slots > 0
+    (task.status.toLowerCase() === "available"
       ? "available"
       : "unavailable");
   const available = availabilityStatus === "available";
@@ -2019,18 +2023,18 @@ function TaskDetailPage({
     <div className="space-y-5">
       <button onClick={onBack} className="btn-ghost -ml-3"><ArrowLeft size={16} /> Back to tasks</button>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold tracking-[-0.05em] text-ink sm:text-4xl">{task.title || "Task details"}</h1><StatusBadge tone={available || purchased ? "success" : "neutral"} dot>{purchased ? "Reserved" : available ? "Available now" : "Unavailable"}</StatusBadge></div><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{task.description || "Review the task details, reserve a slot, then submit proof for verification."}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold tracking-[-0.05em] text-ink sm:text-4xl">{task.title || "Task details"}</h1><StatusBadge tone={available || purchased ? "success" : "neutral"} dot>{purchased ? "Reserved" : available ? "Available now" : "Unavailable"}</StatusBadge></div><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{task.description || "Review the task details, reserve the task, then submit proof for verification."}</p></div>
         <div className="flex flex-wrap gap-2"><a aria-disabled={!task.checkoutUrl} href={task.checkoutUrl || undefined} target="_blank" rel="noreferrer" className={`btn-primary ${!task.checkoutUrl ? "pointer-events-none opacity-50" : ""}`}><ExternalLink size={16} /> Visit product page</a><button disabled={(!available && !purchased) || processing || !eligible} onClick={purchased ? () => onNavigate("my-tasks") : reserve} className="btn-secondary disabled:opacity-50">{purchased ? "View my task" : processing ? "Reserving…" : "Reserve task"}<ArrowRight size={15} /></button></div>
       </div>
-      <section className="card overflow-hidden"><div className="grid gap-0 lg:grid-cols-[250px_minmax(0,1fr)_190px]"><div className="aspect-[16/9] overflow-hidden bg-canvas lg:aspect-auto"><img src={task.image} alt="" className="task-image h-full w-full object-cover" /></div><div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4"><div><p className="text-[11px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(task.incentive)}</strong></div><div className="rounded-lg bg-[#ECFDF3] px-3 py-2"><p className="text-[11px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(payout)}</strong></div></div><div className="border-t border-line p-5 lg:border-l lg:border-t-0"><p className="text-[11px] text-muted">Verification time</p><strong className="mt-1 block text-sm text-navy">{content.verification_time || "24–48 hours"}</strong><p className="mt-2 text-[11px] text-muted">{task.slots} slots open</p>{purchased && <button onClick={() => onNavigate("my-tasks")} className="btn-secondary mt-4 min-h-10 w-full justify-center text-xs"><Upload size={14} /> Submit proof</button>}</div></div></section>
+      <section className="card overflow-hidden"><div className="grid gap-0 lg:grid-cols-[250px_minmax(0,1fr)_190px]"><div className="aspect-[16/9] overflow-hidden bg-canvas lg:aspect-auto"><img src={task.image} alt="" className="task-image h-full w-full object-cover" /></div><div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4"><div><p className="text-[11px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(task.productPrice)}</strong></div><div><p className="text-[11px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(task.incentive)}</strong></div><div className="rounded-lg bg-[#ECFDF3] px-3 py-2"><p className="text-[11px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(payout)}</strong></div></div><div className="border-t border-line p-5 lg:border-l lg:border-t-0"><p className="text-[11px] text-muted">Verification time</p><strong className="mt-1 block text-sm text-navy">{content.verification_time || "24–48 hours"}</strong>{purchased && <button onClick={() => onNavigate("my-tasks")} className="btn-secondary mt-4 min-h-10 w-full justify-center text-xs"><Upload size={14} /> Submit proof</button>}</div></div></section>
       <div role="tablist" aria-label="Task details" className="card flex overflow-x-auto p-1.5">{tabs.map(([id, label]) => <button key={id} id={`task-tab-${id}`} role="tab" aria-selected={activeTab === id} aria-controls={`task-panel-${id}`} onClick={() => setActiveTab(id)} className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-semibold transition ${activeTab === id ? "bg-soft-blue text-navy" : "text-muted hover:bg-canvas"}`}>{label}</button>)}</div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section id={`task-panel-${activeTab}`} role="tabpanel" aria-live="polite" className="card p-5 sm:p-7">
-          {activeTab === "overview" && <><p className="eyebrow">About this offer</p><h2 className="mt-1 text-xl font-semibold text-ink">What you’ll receive</h2><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-muted">{overview}</p><div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Purchase cost</p><strong className="number text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Reimbursement + bonus</p><strong className="number text-lg text-success">{formatCurrency(task.productPrice)} + {formatCurrency(task.incentive)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-4"><p className="text-xs text-success">Total payout</p><strong className="number text-lg text-success">{formatCurrency(payout)}</strong></div></div></>}
-          {activeTab === "steps" && <><p className="eyebrow">Follow these steps</p><h2 className="mt-1 text-xl font-semibold text-ink">How to complete this task</h2>{steps.length ? <ol className="mt-6 space-y-3">{steps.map((step, index) => <li key={step.id || `${index}-${step.title}`} className="flex gap-4 rounded-xl border border-line p-4"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><div><h3 className="font-semibold text-ink">{step.title || `Step ${index + 1}`}</h3><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-muted">{step.body}</p></div></li>)}</ol> : <p className="mt-4 rounded-xl bg-canvas p-4 text-sm leading-6 text-muted">No additional step-by-step instructions were provided for this task.</p>}</>}
-          {activeTab === "proof" && <><p className="eyebrow">Proof submission</p><h2 className="mt-1 text-xl font-semibold text-ink">What to upload</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{content.upload_guidance || "Reserve the task before purchasing. Upload clear, original proof from My tasks after the purchase; verification and payout remain subject to review."}</p><div className="mt-5 space-y-2">{task.requirements.map((requirement) => <div key={requirement} className="flex gap-3 rounded-lg bg-canvas p-3 text-sm text-muted"><CheckCircle2 size={17} className="shrink-0 text-success" />{requirement}</div>)}</div></>}
-          {activeTab === "guidance" && <><p className="eyebrow">Complete responsibly</p><h2 className="mt-1 text-xl font-semibold text-ink">Do’s & don’ts</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-[#B7E7C6] bg-[#F2FCF5] p-4"><h3 className="font-semibold text-success">Do</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(dos.length ? dos : [{ title: "Use the configured partner link.", body: "" }, { title: "Make a genuine purchase and keep the original receipt.", body: "" }, { title: "Submit readable proof within the stated campaign period.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}><strong>{item.title}</strong>{item.body ? <span className="block">{item.body}</span> : null}</li>)}</ul></div><div className="rounded-xl border border-red-100 bg-red-50 p-4"><h3 className="font-semibold text-error">Don’t</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(donts.length ? donts : [{ title: "Submit altered, duplicate, or refunded purchase evidence.", body: "" }, { title: "Create multiple accounts or duplicate claims.", body: "" }, { title: "Assume approval or payment before verification.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}><strong>{item.title}</strong>{item.body ? <span className="block">{item.body}</span> : null}</li>)}</ul></div></div></>}
-          {activeTab === "terms" && <><p className="eyebrow">Campaign conditions</p><h2 className="mt-1 text-xl font-semibold text-ink">Terms and verification</h2><p className="mt-2 text-xs text-muted">Verification time: {content.verification_time || "After administrator review"}</p><div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-muted">{terms}</div>{faqs.length ? <div className="mt-7 space-y-3"><h3 className="font-semibold text-ink">Frequently asked questions</h3>{faqs.map((faq, index) => <details key={faq.id || `${index}-${faq.question}`} className="rounded-lg border border-line p-3"><summary className="cursor-pointer text-sm font-semibold text-ink">{faq.question}</summary><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{faq.answer}</p></details>)}</div> : null}</>}
+          {activeTab === "overview" && <><p className="eyebrow">About this offer</p><h2 className="mt-1 text-xl font-semibold text-ink">What you’ll receive</h2><RichTextContent value={overview} className="mt-4" /><div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Purchase cost</p><strong className="number text-lg text-ink">{formatCurrency(task.productPrice)}</strong></div><div className="rounded-xl bg-canvas p-4"><p className="text-xs text-muted">Reimbursement + bonus</p><strong className="number text-lg text-success">{formatCurrency(task.productPrice)} + {formatCurrency(task.incentive)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-4"><p className="text-xs text-success">Total payout</p><strong className="number text-lg text-success">{formatCurrency(payout)}</strong></div></div></>}
+          {activeTab === "steps" && <><p className="eyebrow">Follow these steps</p><h2 className="mt-1 text-xl font-semibold text-ink">How to complete this task</h2>{steps.length ? <ol className="mt-6 space-y-3">{steps.map((step, index) => <li key={step.id || `${index}-${step.title}`} className="flex gap-4 rounded-xl border border-line p-4"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><div><h3 className="font-semibold text-ink">{step.title || `Step ${index + 1}`}</h3><RichTextContent value={step.body} className="mt-1" /></div></li>)}</ol> : <p className="mt-4 rounded-xl bg-canvas p-4 text-sm leading-6 text-muted">No additional step-by-step instructions were provided for this task.</p>}</>}
+          {activeTab === "proof" && <><p className="eyebrow">Proof submission</p><h2 className="mt-1 text-xl font-semibold text-ink">What to upload</h2><RichTextContent value={content.upload_guidance || "Reserve the task before purchasing. Upload clear, original proof from My tasks after the purchase; verification and payout remain subject to review."} className="mt-3" /><div className="mt-5 space-y-2">{task.requirements.map((requirement) => <div key={requirement} className="flex gap-3 rounded-lg bg-canvas p-3 text-sm text-muted"><CheckCircle2 size={17} className="shrink-0 text-success" />{requirement}</div>)}</div></>}
+          {activeTab === "guidance" && <><p className="eyebrow">Complete responsibly</p><h2 className="mt-1 text-xl font-semibold text-ink">Do’s & don’ts</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-[#B7E7C6] bg-[#F2FCF5] p-4"><h3 className="font-semibold text-success">Do</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(dos.length ? dos : [{ title: "Use the configured partner link.", body: "" }, { title: "Make a genuine purchase and keep the original receipt.", body: "" }, { title: "Submit readable proof within the stated campaign period.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}>{item.title ? <strong>{item.title}</strong> : null}{item.body ? <RichTextContent value={item.body} className="mt-1" /> : null}</li>)}</ul></div><div className="rounded-xl border border-red-100 bg-red-50 p-4"><h3 className="font-semibold text-error">Don’t</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-muted">{(donts.length ? donts : [{ title: "Submit altered, duplicate, or refunded purchase evidence.", body: "" }, { title: "Create multiple accounts or duplicate claims.", body: "" }, { title: "Assume approval or payment before verification.", body: "" }]).map((item, index) => <li key={item.id || `${index}-${item.title}`}>{item.title ? <strong>{item.title}</strong> : null}{item.body ? <RichTextContent value={item.body} className="mt-1" /> : null}</li>)}</ul></div></div></>}
+          {activeTab === "terms" && <><p className="eyebrow">Campaign conditions</p><h2 className="mt-1 text-xl font-semibold text-ink">Terms and verification</h2><p className="mt-2 text-xs text-muted">Verification time: {content.verification_time || "After administrator review"}</p><RichTextContent value={terms} className="mt-4" />{faqs.length ? <div className="mt-7 space-y-3"><h3 className="font-semibold text-ink">Frequently asked questions</h3>{faqs.map((faq, index) => <details key={faq.id || `${index}-${faq.question}`} className="rounded-lg border border-line p-3"><summary className="cursor-pointer text-sm font-semibold text-ink">{faq.question}</summary><RichTextContent value={faq.answer} className="mt-2" /></details>)}</div> : null}</>}
         </section>
         <div className="space-y-5">
           <section className="card p-5"><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-soft-blue text-navy"><ShieldCheck size={19} /></span><div><p className="font-semibold text-ink">Reserve before purchasing</p><p className="mt-1 text-xs leading-5 text-muted">Your reservation locks the reward terms. Visiting the product page does not mark the task complete.</p></div></div></section>
@@ -2114,7 +2118,10 @@ function ProofPage({
     latest?.transactionReference || "",
   );
   const [note, setNote] = useState("");
-  const canSubmit = reservation.status === "reserved";
+  // Proof is intentionally one-time. The API enforces this as well; the
+  // client guard keeps a stale reservation response from showing an upload
+  // control after a proof already exists.
+  const canSubmit = reservation.status === "reserved" && !latest;
   const hasCurrentFile = files.length > 0;
   return (
     <div className="space-y-7">
@@ -2181,7 +2188,7 @@ function ProofPage({
                   : "A proof file has been submitted."}{" "}
                 ·{" "}
                 {reservation.status === "changes_requested"
-                  ? "One proof has already been submitted, so another upload is not available. Review the administrator’s note in your notifications or contact support."
+                  ? "One proof has already been submitted, so a replacement upload is not available. Review the administrator’s note in your notifications or contact support."
                   : "Status updates come from the review workflow."}
               </div>
             )}
@@ -2302,8 +2309,9 @@ function ProofPage({
             )}
             {reservation.status === "changes_requested" && (
               <p className="mt-3 rounded-lg bg-[#FFFBEB] px-3 py-2 text-xs leading-5 text-warning">
-                Please review the latest message from the verification team
-                before resubmitting.
+                A second proof upload is disabled for this reservation. Please
+                review the latest message from the verification team or
+                contact support.
               </p>
             )}
             {task.checkoutUrl && canSubmit && (
@@ -5072,7 +5080,6 @@ function AdminTasksPage({
     .sort((a, b) => {
       if (sortBy === "reward")
         return b.productPrice + b.incentive - (a.productPrice + a.incentive);
-      if (sortBy === "capacity") return b.slots - a.slots;
       return Number(b.id) - Number(a.id);
     });
   const liveTaskCount = adminTasks.filter(
@@ -5081,11 +5088,6 @@ function AdminTasksPage({
   const pausedTaskCount = adminTasks.filter(
     (task) => task.status.toLowerCase() === "paused",
   ).length;
-  const totalOpenSlots = adminTasks.reduce((sum, task) => sum + task.slots, 0);
-  const totalExposure = adminTasks.reduce(
-    (sum, task) => sum + task.slots * (task.productPrice + task.incentive),
-    0,
-  );
   const createTask = async (payload: Record<string, unknown>) => {
     await runOperation(
       {
@@ -5176,8 +5178,7 @@ function AdminTasksPage({
         {[
           ["Live", liveTaskCount, "Accepting members"],
           ["Paused", pausedTaskCount, "Awaiting action"],
-          ["Open capacity", totalOpenSlots, "Slots remaining"],
-          ["Potential exposure", formatCurrency(totalExposure), "At full uptake"],
+          ["Average payout", adminTasks.length ? formatCurrency(adminTasks.reduce((sum, task) => sum + task.productPrice + task.incentive, 0) / adminTasks.length) : "—", "Per completed task"],
         ].map(([label, value, helper]) => (
           <div key={String(label)} className="admin-signal">
             <p>{label}</p>
@@ -5218,7 +5219,6 @@ function AdminTasksPage({
             <select className="form-field h-10 text-xs" value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort tasks">
               <option value="newest">Newest</option>
               <option value="reward">Highest payout</option>
-              <option value="capacity">Most capacity</option>
             </select>
           </div>
         </div>
@@ -5230,7 +5230,6 @@ function AdminTasksPage({
                   <tr>
                     <th className="px-6 py-3">Task</th>
                     <th className="px-4 py-3">Unit economics</th>
-                    <th className="px-4 py-3">Capacity</th>
                     <th className="px-4 py-3">State</th>
                     <th className="px-6 py-3 text-right">Controls</th>
                   </tr>
@@ -5267,12 +5266,6 @@ function AdminTasksPage({
                       <td className="px-4 py-4">
                         <p className="number text-sm font-semibold text-ink">{formatCurrency(task.productPrice + task.incentive)}</p>
                         <p className="mt-0.5 text-[10px] text-subtle">{formatCurrency(task.productPrice)} base · {formatCurrency(task.incentive)} reward</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-between gap-3 text-[11px]"><span className="number font-semibold text-ink">{task.slots} open</span><span className="number text-subtle">{task.reservedSlots ?? 0} held</span></div>
-                        <div className="mt-2 h-1.5 w-32 overflow-hidden bg-[#E8EDF3]">
-                          <span className="block h-full bg-accent" style={{ width: `${Math.min(100, ((task.reservedSlots ?? 0) + (task.completedSlots ?? 0)) / Math.max(1, task.availableSlots ?? task.slots) * 100)}%` }} />
-                        </div>
                       </td>
                       <td className="px-4 py-4">
                         <StatusBadge tone={getTone(task.status)} dot>
@@ -5313,15 +5306,14 @@ function AdminTasksPage({
                       </StatusBadge>
                     </div>
                     <p className="mt-1 text-[11px] text-muted">
-                      {task.slots} slots ·{" "}
                       <span className="number font-semibold text-navy">
                         {formatCurrency(task.productPrice + task.incentive)}
-                      </span>
+                      </span>{" "}per completion
                     </p>
                   </div>
                     <button onClick={() => onSelectTask(task)} className="admin-icon-button" aria-label="Open task analytics"><Eye size={15} /></button>
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[11px] text-muted"><span className="number">{task.slots} open · {task.reservedSlots ?? 0} held</span><button disabled={processing} onClick={() => void changeTaskStatus(task)} className="font-semibold text-navy">{task.status.toLowerCase() === "available" ? "Pause" : "Make live"}</button></div>
+                  <div className="mt-3 flex items-center justify-end border-t border-line pt-3 text-[11px] text-muted"><button disabled={processing} onClick={() => void changeTaskStatus(task)} className="font-semibold text-navy">{task.status.toLowerCase() === "available" ? "Pause" : "Make live"}</button></div>
                 </div>
               ))}
             </div>
@@ -5355,7 +5347,7 @@ function AdminTasksPage({
       <Modal
         open={Boolean(editingTask)}
         title="Edit task configuration"
-        description="Update the member experience, capacity, and unit economics."
+        description="Update the member experience and unit economics."
         onClose={() => {
           if (!processing) setEditingTask(null);
         }}
@@ -5503,11 +5495,6 @@ function AdminTaskDetailPage({
         return `${x},${y}`;
       })
       .join(" ");
-  const capacity = Math.max(1, task.availableSlots ?? task.slots);
-  const uptake = Math.min(
-    100,
-    (((task.reservedSlots ?? 0) + (task.completedSlots ?? 0)) / capacity) * 100,
-  );
 
   return (
     <div className="admin-workspace space-y-6">
@@ -5540,18 +5527,13 @@ function AdminTaskDetailPage({
             <p className="mt-3 max-w-2xl text-pretty text-sm leading-6 text-white/60">{task.description}</p>
             <div className="mt-7 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/55">
               <span><strong className="number mr-1.5 text-white">{formatCurrency(task.productPrice + task.incentive)}</strong> per completion</span>
-              <span><strong className="number mr-1.5 text-white">{task.slots}</strong> slots open</span>
-              <span><strong className="number mr-1.5 text-white">{Math.round(uptake)}%</strong> capacity used</span>
+              <span><strong className="number mr-1.5 text-white">{task.reservedSlots ?? 0}</strong> reservations</span>
+              <span><strong className="number mr-1.5 text-white">{task.completedSlots ?? 0}</strong> completed</span>
             </div>
           </div>
-          <div className="task-capacity-orbit">
-            <div className="task-capacity-ring" style={{ "--progress": `${uptake * 3.6}deg` } as CSSProperties}>
-              <div><strong className="number">{Math.round(uptake)}%</strong><span>uptake</span></div>
-            </div>
-            <div className="grid flex-1 grid-cols-2 gap-3 text-center">
-              <div><strong className="number">{task.reservedSlots ?? 0}</strong><span>Reserved</span></div>
-              <div><strong className="number">{task.completedSlots ?? 0}</strong><span>Completed</span></div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 text-center text-white/70">
+            <div><strong className="number block text-2xl text-white">{task.reservedSlots ?? 0}</strong><span className="text-xs">Reserved</span></div>
+            <div><strong className="number block text-2xl text-white">{task.completedSlots ?? 0}</strong><span className="text-xs">Completed</span></div>
           </div>
         </div>
       </section>
@@ -5622,7 +5604,7 @@ function AdminTaskDetailPage({
         )}
       </section>
 
-      <Modal open={editing} title="Edit task configuration" description="Update the member experience, capacity, and unit economics." onClose={() => !processing && setEditing(false)} size="lg">
+      <Modal open={editing} title="Edit task configuration" description="Update the member experience and unit economics." onClose={() => !processing && setEditing(false)} size="lg">
         <EditTaskForm task={task} processing={processing} onCancel={() => setEditing(false)} onSave={saveTask} />
       </Modal>
       <Modal open={deleting} title="Force delete task" description="This permanently removes the task and all reservation and proof records attached to it." onClose={() => !processing && setDeleting(false)} size="sm">
@@ -5637,6 +5619,125 @@ function AdminTaskDetailPage({
 }
 
 type EditorItem = { id: string; title?: string; body?: string; question?: string; answer?: string };
+
+const richTextTags = new Set(["p", "br", "strong", "em", "u", "ol", "ul", "li", "h1", "h2", "h3", "blockquote"]);
+
+function escapeRichText(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] || character);
+}
+
+function sanitizeRichText(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (typeof DOMParser === "undefined") return escapeRichText(raw).replace(/\r?\n/g, "<br>");
+  if (!/<\s*\/?\s*[a-z][^>]*>/i.test(raw)) {
+    return raw.split(/\r?\n/).map((line) => `<p>${line ? escapeRichText(line) : "<br>"}</p>`).join("");
+  }
+  const document = new DOMParser().parseFromString(raw, "text/html");
+  const serialize = (node: ChildNode): string => {
+    if (node.nodeType === 3) return escapeRichText(node.textContent || "");
+    if (node.nodeType !== 1) return "";
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (["script", "style", "iframe", "object", "embed"].includes(tag)) return "";
+    const children = Array.from(element.childNodes).map(serialize).join("");
+    if (tag === "b") return `<strong>${children}</strong>`;
+    if (tag === "i") return `<em>${children}</em>`;
+    if (tag === "br") return "<br>";
+    if (richTextTags.has(tag)) return `<${tag}>${children}</${tag}>`;
+    return children;
+  };
+  return Array.from(document.body.childNodes).map(serialize).join("").trim();
+}
+
+function RichTextContent({ value, className = "" }: { value?: string | null; className?: string }) {
+  const html = sanitizeRichText(value || "");
+  if (!html) return null;
+  return <div className={`rich-text ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function RichTextEditor({
+  value,
+  onChange,
+  placeholder,
+  minHeight = "min-h-28",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  minHeight?: string;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const isEmpty = !value.replace(/<[^>]+>/g, "").trim();
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const next = sanitizeRichText(value);
+    if (editor.innerHTML !== next) editor.innerHTML = next;
+  }, [value]);
+  const runCommand = (command: string, commandValue?: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, commandValue);
+    onChange(editor.innerHTML);
+  };
+  const toolbarButton = (label: string, icon: ReactNode, command: string, commandValue?: string) => (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className="grid h-8 w-8 place-items-center rounded-md text-muted transition hover:bg-soft-blue hover:text-navy"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => runCommand(command, commandValue)}
+    >
+      {icon}
+    </button>
+  );
+  return (
+    <div className="overflow-hidden rounded-lg border border-line bg-white focus-within:border-accent focus-within:ring-4 focus-within:ring-[#1F3558]/10">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-line bg-canvas p-1">
+        {toolbarButton("Paragraph", <Pilcrow size={15} />, "formatBlock", "p")}
+        {toolbarButton("Bold", <Bold size={15} />, "bold")}
+        {toolbarButton("Italic", <Italic size={15} />, "italic")}
+        {toolbarButton("Underline", <Underline size={15} />, "underline")}
+        {toolbarButton("Bulleted list", <List size={15} />, "insertUnorderedList")}
+        {toolbarButton("Numbered list", <ListOrdered size={15} />, "insertOrderedList")}
+        {toolbarButton("Quote", <Quote size={15} />, "formatBlock", "blockquote")}
+        {toolbarButton("Clear formatting", <span className="text-[11px] font-bold">Tx</span>, "removeFormat")}
+      </div>
+      <div className="relative">
+        {isEmpty && <span className="pointer-events-none absolute left-3 top-3 text-sm text-subtle">{placeholder}</span>}
+        <div
+          ref={editorRef}
+          contentEditable
+          role="textbox"
+          aria-multiline="true"
+          spellCheck
+          className={`rich-text ${minHeight} max-h-72 overflow-y-auto px-3 py-3 text-sm outline-none`}
+          onInput={(event) => onChange(event.currentTarget.innerHTML)}
+          onBlur={(event) => onChange(sanitizeRichText(event.currentTarget.innerHTML))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function cleanEditorItems(items: EditorItem[]): EditorItem[] {
+  return items
+    .filter((item) => item.title || item.body || item.question || item.answer)
+    .map((item) => ({
+      ...item,
+      body: item.body === undefined ? undefined : sanitizeRichText(item.body),
+      answer: item.answer === undefined ? undefined : sanitizeRichText(item.answer),
+    }));
+}
 
 const newEditorItem = (): EditorItem => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, title: "", body: "" });
 
@@ -5656,7 +5757,65 @@ function EditorItems({ title, items, setItems, kind }: { title: string; items: E
     setItems([...items, item]);
     setExpanded((current) => new Set([...current, item.id]));
   };
-  return <fieldset className="sm:col-span-2 rounded-xl border border-line bg-white p-4 shadow-[0_4px_18px_rgba(31,53,88,0.04)]"><legend className="px-1 text-sm font-semibold text-ink">{title}</legend><div className="space-y-2">{items.map((item, index) => { const isOpen = expanded.has(item.id); const label = kind === "faq" ? item.question || "Untitled FAQ" : item.title || (kind === "step" ? `Step ${index + 1}` : `Item ${index + 1}`); return <div key={item.id} className="rounded-xl border border-line bg-canvas"><div className="flex items-center gap-2 px-3 py-2"><button type="button" aria-expanded={isOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left text-xs font-semibold text-ink" onClick={() => setExpanded((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}><ChevronDown size={15} className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} /><span className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-[10px] font-bold text-navy">{index + 1}</span><span className="truncate">{label}</span></button><div className="flex shrink-0 items-center gap-1"><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move item up">↑</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, 1)} disabled={index === items.length - 1} aria-label="Move item down">↓</button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => duplicate(index)} aria-label="Duplicate item"><Copy size={13} /></button><button type="button" className="btn-ghost min-h-7 px-2 text-[11px] text-error" onClick={() => setItems(items.filter((entry) => entry.id !== item.id))} aria-label="Delete item"><Trash2 size={13} /></button></div></div>{isOpen && <div className="border-t border-line p-3">{kind === "faq" ? <><label className="block text-[11px] font-semibold text-muted">Question<input className="form-field mt-1" value={item.question || ""} onChange={(event) => update(item.id, "question", event.target.value)} placeholder="Question" /></label><label className="mt-3 block text-[11px] font-semibold text-muted">Answer<textarea className="form-field mt-1 min-h-20 py-2" value={item.answer || ""} onChange={(event) => update(item.id, "answer", event.target.value)} placeholder="Answer" /></label></> : <><label className="block text-[11px] font-semibold text-muted">{kind === "step" ? "Step title" : "Heading"}<input className="form-field mt-1" value={item.title || ""} onChange={(event) => update(item.id, "title", event.target.value)} placeholder={kind === "step" ? "Step title" : "Short heading"} /></label><label className="mt-3 block text-[11px] font-semibold text-muted">Description<textarea className="form-field mt-1 min-h-20 py-2" value={item.body || ""} onChange={(event) => update(item.id, "body", event.target.value)} placeholder="Detailed explanation" /></label></>}</div>}</div>; })}</div><button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={add}><Plus size={14} /> Add {kind === "step" ? "step" : kind === "faq" ? "FAQ" : "item"}</button></fieldset>;
+  return (
+    <fieldset className="sm:col-span-2 rounded-xl border border-line bg-white p-4 shadow-[0_4px_18px_rgba(31,53,88,0.04)]">
+      <legend className="px-1 text-sm font-semibold text-ink">{title}</legend>
+      <div className="space-y-2">
+        {items.map((item, index) => {
+          const isOpen = expanded.has(item.id);
+          const label = kind === "faq"
+            ? item.question || "Untitled FAQ"
+            : item.title || (kind === "step" ? `Step ${index + 1}` : `Item ${index + 1}`);
+          return (
+            <div key={item.id} className="rounded-xl border border-line bg-canvas">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-xs font-semibold text-ink"
+                  onClick={() => setExpanded((current) => {
+                    const next = new Set(current);
+                    if (next.has(item.id)) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  })}
+                >
+                  <ChevronDown size={15} className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                  <span className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-[10px] font-bold text-navy">{index + 1}</span>
+                  <span className="truncate">{label}</span>
+                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move item up">↑</button>
+                  <button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => move(index, 1)} disabled={index === items.length - 1} aria-label="Move item down">↓</button>
+                  <button type="button" className="btn-ghost min-h-7 px-2 text-[11px]" onClick={() => duplicate(index)} aria-label="Duplicate item"><Copy size={13} /></button>
+                  <button type="button" className="btn-ghost min-h-7 px-2 text-[11px] text-error" onClick={() => setItems(items.filter((entry) => entry.id !== item.id))} aria-label="Delete item"><Trash2 size={13} /></button>
+                </div>
+              </div>
+              {isOpen && (
+                <div className="border-t border-line p-3">
+                  {kind === "faq" ? (
+                    <>
+                      <label className="block text-[11px] font-semibold text-muted">Question<input className="form-field mt-1" value={item.question || ""} onChange={(event) => update(item.id, "question", event.target.value)} placeholder="Question" /></label>
+                      <div className="mt-3">
+                        <p className="mb-1 text-[11px] font-semibold text-muted">Answer</p>
+                        <RichTextEditor value={item.answer || ""} onChange={(value) => update(item.id, "answer", value)} placeholder="Write the answer with paragraphs, emphasis, or lists." minHeight="min-h-24" />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <p className="mb-1 text-[11px] font-semibold text-muted">Description</p>
+                      <RichTextEditor value={item.body || ""} onChange={(value) => update(item.id, "body", value)} placeholder={kind === "step" ? "Explain what the member should do in this step." : "Add clear guidance with paragraphs or lists."} minHeight="min-h-24" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" className="btn-secondary mt-3 min-h-9 text-xs" onClick={add}><Plus size={14} /> Add {kind === "step" ? "step" : kind === "faq" ? "FAQ" : "item"}</button>
+    </fieldset>
+  );
 }
 
 function ProofRequirementEditor({ items, setItems }: { items: string[]; setItems: (items: string[]) => void }) {
@@ -5666,7 +5825,7 @@ function ProofRequirementEditor({ items, setItems }: { items: string[]; setItems
 function TaskEditorPreview({ title, image, overview, terms, price, incentive, verificationTime, steps, requirements }: { title: string; image: string; overview: string; terms: string; price: string; incentive: string; verificationTime: string; steps: EditorItem[]; requirements: string[] }) {
   const purchase = Number(price) || 0;
   const bonus = Number(incentive) || 0;
-  return <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow">Preview</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink">{title || "Untitled task"}</h2><p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-muted">{overview || "Add an overview to explain the offer."}</p></div>{image ? <img src={image} alt="" className="h-24 w-32 rounded-xl object-cover" /> : null}</div><div className="grid gap-3 sm:grid-cols-4"><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(bonus)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-3"><p className="text-[10px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase + bonus)}</strong></div></div><div className="grid gap-5 lg:grid-cols-2"><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Steps</h3><ol className="mt-3 space-y-2">{steps.filter((item) => item.title || item.body).map((item, index) => <li key={item.id} className="flex gap-3 text-sm leading-6 text-muted"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><span><strong className="text-ink">{item.title || `Step ${index + 1}`}</strong>{item.body ? <span className="block whitespace-pre-wrap">{item.body}</span> : null}</span></li>)}</ol></section><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Proof & verification</h3><p className="mt-2 text-sm leading-6 text-muted">{verificationTime || "After administrator review"}</p><ul className="mt-3 space-y-2">{requirements.filter(Boolean).map((item) => <li key={item} className="flex gap-2 text-sm text-muted"><CheckCircle2 size={16} className="shrink-0 text-success" />{item}</li>)}</ul></section></div>{terms ? <section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Terms</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{terms}</p></section> : null}</div>;
+  return <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow">Preview</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink">{title || "Untitled task"}</h2><RichTextContent value={overview || "Add an overview to explain the offer."} className="mt-2 max-w-2xl" /></div>{image ? <img src={image} alt="" className="h-24 w-32 rounded-xl object-cover" /> : null}</div><div className="grid gap-3 sm:grid-cols-4"><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Purchase cost</p><strong className="number mt-1 block text-lg text-ink">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Reimbursement</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase)}</strong></div><div className="rounded-xl bg-canvas p-3"><p className="text-[10px] text-muted">Bonus</p><strong className="number mt-1 block text-lg text-success">+{formatCurrency(bonus)}</strong></div><div className="rounded-xl bg-[#ECFDF3] p-3"><p className="text-[10px] text-success">Total payout</p><strong className="number mt-1 block text-lg text-success">{formatCurrency(purchase + bonus)}</strong></div></div><div className="grid gap-5 lg:grid-cols-2"><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Steps</h3><ol className="mt-3 space-y-2">{steps.filter((item) => item.title || item.body).map((item, index) => <li key={item.id} className="flex gap-3 text-sm leading-6 text-muted"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft-blue text-xs font-bold text-navy">{index + 1}</span><span><strong className="text-ink">{item.title || `Step ${index + 1}`}</strong>{item.body ? <RichTextContent value={item.body} className="mt-1" /> : null}</span></li>)}</ol></section><section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Proof & verification</h3><p className="mt-2 text-sm leading-6 text-muted">{verificationTime || "After administrator review"}</p><ul className="mt-3 space-y-2">{requirements.filter(Boolean).map((item) => <li key={item} className="flex gap-2 text-sm text-muted"><CheckCircle2 size={16} className="shrink-0 text-success" />{item}</li>)}</ul></section></div>{terms ? <section className="rounded-xl border border-line p-4"><h3 className="font-semibold text-ink">Terms</h3><RichTextContent value={terms} className="mt-2" /></section> : null}</div>;
 }
 
 function CreateTaskForm({
@@ -5679,7 +5838,6 @@ function CreateTaskForm({
   processing: boolean;
 }) {
   const [title, setTitle] = useState("");
-  const [slots, setSlots] = useState("");
   const [price, setPrice] = useState("");
   const [incentive, setIncentive] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
@@ -5701,9 +5859,7 @@ function CreateTaskForm({
     Number(price) > 0 &&
     Number.isFinite(Number(price)) &&
     Number(incentive) >= 0 &&
-    Number.isFinite(Number(incentive)) &&
-    Number(slots) >= 1 &&
-    Number.isInteger(Number(slots));
+    Number.isFinite(Number(incentive));
   const payout = validEconomics ? Number(price) + Number(incentive) : null;
   const submit = (nextStatus: "paused" | "available" = status) => {
     if (
@@ -5719,12 +5875,11 @@ function CreateTaskForm({
       image_path: imagePath.trim() || null,
       reimbursement_amount: Number(price),
       incentive_amount: Number(incentive),
-      available_slots: Number(slots),
       external_checkout_url: checkoutUrl.trim() || null,
       instructions: [instructions.trim()],
       proof_requirements: requirements.filter(Boolean),
       status: nextStatus,
-      content: { overview_html: overview.trim() || instructions.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
+      content: { overview_html: sanitizeRichText(overview) || instructions.trim(), terms_html: sanitizeRichText(terms) || null, verification_time: verificationTime.trim() || null, upload_guidance: sanitizeRichText(uploadGuidance) || null, steps: cleanEditorItems(steps), dos: cleanEditorItems(dos), donts: cleanEditorItems(donts), faqs: cleanEditorItems(faqs) },
     });
   };
   return (
@@ -5742,18 +5897,6 @@ function CreateTaskForm({
         <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="auto-generated" /></label>
         <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} placeholder="/task-images/business-planning-template.jpg" /></label>
         <label className="text-xs font-semibold text-ink">Task status<select className="form-field mt-2" value={status} onChange={(event) => setStatus(event.target.value as "paused" | "available")}><option value="paused">Paused / draft</option><option value="available">Active / published</option></select></label>
-        <label className="text-xs font-semibold text-ink">
-          Available slots
-          <input
-            required
-            min="1"
-            step="1"
-            className="form-field mt-2"
-            type="number"
-            value={slots}
-            onChange={(event) => setSlots(event.target.value)}
-          />
-        </label>
         <label className="text-xs font-semibold text-ink">
           Product reimbursement
           <input
@@ -5814,8 +5957,8 @@ function CreateTaskForm({
           />
           <span className="mt-1.5 block text-[10px] font-normal text-subtle">Shown to members before they open the full task details.</span>
         </label>
-        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} placeholder="Explain the offer and expected payout." /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
-        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview</legend><div className="mt-2"><p className="mb-1 text-xs font-semibold text-ink">Overview</p><RichTextEditor value={overview} onChange={setOverview} placeholder="Explain the offer and expected payout." /></div></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><div className="mt-2 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><div><p className="mb-1 text-xs font-semibold text-ink">Upload guidance</p><RichTextEditor value={uploadGuidance} onChange={setUploadGuidance} placeholder="Tell members what proof to upload." minHeight="min-h-20" /></div></div></fieldset>
         <ProofRequirementEditor items={requirements} setItems={setRequirements} />
         <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
         <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
@@ -5851,7 +5994,6 @@ function EditTaskForm({
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [title, setTitle] = useState(task.title);
-  const [slots, setSlots] = useState(String(task.availableSlots ?? task.slots));
   const [price, setPrice] = useState(String(task.productPrice));
   const [incentive, setIncentive] = useState(String(task.incentive));
   const [checkoutUrl, setCheckoutUrl] = useState(task.checkoutUrl ?? "");
@@ -5874,14 +6016,11 @@ function EditTaskForm({
   const [faqs, setFaqs] = useState<EditorItem[]>((initialContent.faqs || []).map((item: any) => ({ id: item.id || `${Date.now()}-${Math.random()}`, question: item.question || "", answer: item.answer || "" })));
   const priceValue = Number(price);
   const incentiveValue = Number(incentive);
-  const slotValue = Number(slots);
   const valid =
     title.trim().length > 0 &&
     description.trim().length > 0 &&
     priceValue > 0 &&
-    incentiveValue >= 0 &&
-    Number.isInteger(slotValue) &&
-    slotValue >= 1;
+    incentiveValue >= 0;
 
   const save = (nextStatus: "paused" | "available" | "archived" = status) => {
     if (!valid) return;
@@ -5892,12 +6031,11 @@ function EditTaskForm({
       description: description.trim(),
       reimbursement_amount: priceValue,
       incentive_amount: incentiveValue,
-      available_slots: slotValue,
       external_checkout_url: checkoutUrl.trim() || null,
       proof_requirements: requirements.filter(Boolean),
       instructions: description.split("\n").map((item) => item.trim()).filter(Boolean),
       status: nextStatus,
-      content: { overview_html: overview.trim() || description.trim(), terms_html: terms.trim() || null, verification_time: verificationTime.trim() || null, upload_guidance: uploadGuidance.trim() || null, steps: steps.filter((item) => item.title || item.body), dos: dos.filter((item) => item.title || item.body), donts: donts.filter((item) => item.title || item.body), faqs: faqs.filter((item) => item.question || item.answer) },
+      content: { overview_html: sanitizeRichText(overview) || description.trim(), terms_html: sanitizeRichText(terms) || null, verification_time: verificationTime.trim() || null, upload_guidance: sanitizeRichText(uploadGuidance) || null, steps: cleanEditorItems(steps), dos: cleanEditorItems(dos), donts: cleanEditorItems(donts), faqs: cleanEditorItems(faqs) },
     });
   };
 
@@ -5923,11 +6061,6 @@ function EditTaskForm({
         <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} /></label>
         <label className="text-xs font-semibold text-ink">Task status<select className="form-field mt-2" value={status} onChange={(event) => setStatus(event.target.value as "paused" | "available" | "archived")}><option value="paused">Paused</option><option value="available">Active / published</option><option value="archived">Archived</option></select></label>
         <label className="text-xs font-semibold text-ink">
-          Total capacity
-          <input className="form-field mt-2" type="number" min={Math.max(1, (task.reservedSlots ?? 0) + (task.completedSlots ?? 0))} step="1" value={slots} onChange={(event) => setSlots(event.target.value)} />
-          <span className="mt-1.5 block text-[10px] font-normal text-subtle">Cannot be lower than reserved plus completed.</span>
-        </label>
-        <label className="text-xs font-semibold text-ink">
           Reimbursement
           <input className="form-field mt-2" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
         </label>
@@ -5935,16 +6068,16 @@ function EditTaskForm({
           Incentive
           <input className="form-field mt-2" type="number" min="0" step="0.01" value={incentive} onChange={(event) => setIncentive(event.target.value)} />
         </label>
-        <div className="sm:col-span-2 grid grid-cols-2 gap-4 border-y border-line py-4">
-          <div><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Member payout</p><p className="number mt-1 text-xl font-semibold text-ink">{Number.isFinite(priceValue + incentiveValue) ? formatCurrency(priceValue + incentiveValue) : "—"}</p></div>
-          <div><p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Max exposure</p><p className="number mt-1 text-xl font-semibold text-ink">{valid ? formatCurrency((priceValue + incentiveValue) * slotValue) : "—"}</p></div>
+        <div className="sm:col-span-2 border-y border-line py-4">
+          <p className="text-[10px] uppercase tracking-[0.12em] text-subtle">Member payout</p>
+          <p className="number mt-1 text-xl font-semibold text-ink">{Number.isFinite(priceValue + incentiveValue) ? formatCurrency(priceValue + incentiveValue) : "—"}</p>
         </div>
         <label className="text-xs font-semibold text-ink sm:col-span-2">
           Checkout URL
           <input className="form-field mt-2" type="url" value={checkoutUrl} onChange={(event) => setCheckoutUrl(event.target.value)} placeholder="https://" />
         </label>
-        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
-        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview</legend><div className="mt-2"><p className="mb-1 text-xs font-semibold text-ink">Overview</p><RichTextEditor value={overview} onChange={setOverview} placeholder="Explain the offer and expected payout." /></div></fieldset>
+        <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><div className="mt-2 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><div><p className="mb-1 text-xs font-semibold text-ink">Upload guidance</p><RichTextEditor value={uploadGuidance} onChange={setUploadGuidance} placeholder="Tell members what proof to upload." minHeight="min-h-20" /></div></div></fieldset>
         <ProofRequirementEditor items={requirements} setItems={setRequirements} />
         <EditorItems title="Step-by-step instructions" items={steps} setItems={setSteps} kind="step" />
         <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
@@ -9937,7 +10070,7 @@ function LegacyLandingPage({
             </h1>
             <p className="mt-6 max-w-[530px] text-base leading-7 text-muted sm:text-lg">
               Click & Earn connects you with funded purchase tasks. Review the
-              task terms, reserve a slot, submit purchase proof, and track the
+              task terms, reserve the task, submit purchase proof, and track the
               review and payout status.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -10024,7 +10157,7 @@ function LegacyLandingPage({
                     </div>
                     <div className="mt-4 flex items-center gap-2 rounded-lg bg-soft-blue px-3 py-2.5 text-[10px] leading-4 text-navy">
                       <ShieldCheck size={15} /> The server records these values
-                      when a slot is reserved.
+                      when a reservation is created.
                     </div>
                   </div>
                   <div className="rounded-xl bg-navy p-3 text-white">
@@ -10075,7 +10208,7 @@ function LegacyLandingPage({
             <InfoStep
               number="01"
               title="Choose a funded task"
-              body="Browse opportunities with the purchase amount, incentive, and remaining slots clearly displayed."
+              body="Browse opportunities with the purchase amount, incentive, and full payout clearly displayed."
               icon={<Tag size={19} />}
             />
             <InfoStep
@@ -10194,7 +10327,7 @@ function LegacyHowPage({
               {
                 number: "01",
                 title: "Choose a task that fits",
-                body: "Browse funded tasks by category, reward, and available slots. Every card shows the full expected payout before you commit.",
+                body: "Browse funded tasks by category and reward. Every card shows the full expected payout before you commit.",
                 icon: <Tag size={20} />,
               },
               {
