@@ -5344,6 +5344,7 @@ function AdminTasksPage({
           if (!processing) setShowModal(false);
         }}
         size="xl"
+        bodyClassName="p-5 sm:p-6"
       >
         <CreateTaskForm
           onCancel={() => setShowModal(false)}
@@ -5359,6 +5360,7 @@ function AdminTasksPage({
           if (!processing) setEditingTask(null);
         }}
         size="xl"
+        bodyClassName="p-5 sm:p-6"
       >
         {editingTask && (
           <EditTaskForm
@@ -5803,13 +5805,14 @@ function CreateTaskForm({
           </div>
         </label>
         <label className="text-xs font-semibold text-ink sm:col-span-2">
-          Task instructions
+          Short summary
           <textarea
             required
             className="form-field mt-2 h-24 resize-none py-3"
             value={instructions}
             onChange={(event) => setInstructions(event.target.value)}
           />
+          <span className="mt-1.5 block text-[10px] font-normal text-subtle">Shown to members before they open the full task details.</span>
         </label>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Task overview & terms</legend><label className="mt-2 block text-xs font-semibold text-ink">Overview<textarea className="form-field mt-2 min-h-28 py-3" value={overview} onChange={(event) => setOverview(event.target.value)} placeholder="Explain the offer and expected payout." /></label><label className="mt-3 block text-xs font-semibold text-ink">Important notes / terms<textarea className="form-field mt-2 min-h-24 py-3" value={terms} onChange={(event) => setTerms(event.target.value)} /></label></fieldset>
         <fieldset className="sm:col-span-2 rounded-xl border border-line p-4"><legend className="px-1 text-sm font-semibold text-ink">Proof requirements</legend><label className="block text-xs font-semibold text-ink">Verification time<input className="form-field mt-2" value={verificationTime} onChange={(event) => setVerificationTime(event.target.value)} /></label><label className="mt-3 block text-xs font-semibold text-ink">Upload guidance<textarea className="form-field mt-2 min-h-20 py-3" value={uploadGuidance} onChange={(event) => setUploadGuidance(event.target.value)} /></label></fieldset>
@@ -5831,7 +5834,7 @@ function CreateTaskForm({
         <button type="button" disabled={processing || !title.trim() || !instructions.trim() || !validEconomics} onClick={() => submit("paused")} className="btn-secondary disabled:cursor-wait disabled:opacity-60">{processing ? "Saving…" : "Save draft"}</button>
         <button type="button" disabled={processing || !title.trim() || !instructions.trim() || !validEconomics} onClick={() => submit("available")} className="btn-primary disabled:cursor-wait disabled:opacity-60">{processing ? "Publishing…" : "Publish"} <ArrowRight size={15} /></button>
       </div>
-      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl"><TaskEditorPreview title={title} image={imagePath} overview={overview || instructions} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
+      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl" bodyClassName="p-5 sm:p-6"><TaskEditorPreview title={title} image={imagePath} overview={overview || instructions} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
     </div>
   );
 }
@@ -5857,7 +5860,7 @@ function EditTaskForm({
   );
   const initialContent = task.content || {};
   const [status, setStatus] = useState<"paused" | "available" | "archived">(task.status.toLowerCase() === "available" ? "available" : task.status.toLowerCase() === "archived" ? "archived" : "paused");
-  const [slug, setSlug] = useState("");
+  const [slug, setSlug] = useState(task.slug || "");
   const [imagePath, setImagePath] = useState(task.image || "");
   const [overview, setOverview] = useState(initialContent.overview_html || task.description);
   const [terms, setTerms] = useState(initialContent.terms_html || "");
@@ -5911,6 +5914,11 @@ function EditTaskForm({
           Task title
           <input className="form-field mt-2" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} />
         </label>
+        <label className="text-xs font-semibold text-ink sm:col-span-2">
+          Short summary
+          <textarea className="form-field mt-2 min-h-24 resize-y py-3" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} />
+          <span className="mt-1.5 block text-[10px] font-normal text-subtle">Shown to members before they open the full task details.</span>
+        </label>
         <label className="text-xs font-semibold text-ink">Slug (optional)<input className="form-field mt-2" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder="Keep existing slug" /></label>
         <label className="text-xs font-semibold text-ink">Featured image URL<input className="form-field mt-2" value={imagePath} onChange={(event) => setImagePath(event.target.value)} /></label>
         <label className="text-xs font-semibold text-ink">Task status<select className="form-field mt-2" value={status} onChange={(event) => setStatus(event.target.value as "paused" | "available" | "archived")}><option value="paused">Paused</option><option value="available">Active / published</option><option value="archived">Archived</option></select></label>
@@ -5942,10 +5950,6 @@ function EditTaskForm({
         <EditorItems title="Do’s" items={dos} setItems={setDos} kind="item" />
         <EditorItems title="Don’ts" items={donts} setItems={setDonts} kind="item" />
         <EditorItems title="FAQs (optional)" items={faqs} setItems={setFaqs} kind="faq" />
-        <label className="text-xs font-semibold text-ink sm:col-span-2">
-          Instructions
-          <textarea className="form-field mt-2 h-28 resize-none py-3" value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
       </div>
       <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
@@ -5954,7 +5958,7 @@ function EditTaskForm({
         <button type="button" disabled={!valid || processing} onClick={() => save("archived")} className="btn-ghost text-error disabled:opacity-50">Archive</button>
         <button type="button" disabled={!valid || processing} onClick={() => save("available")} className="btn-primary disabled:opacity-50">{processing ? "Publishing…" : "Publish / update"}<Check size={15} /></button>
       </div>
-      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl"><TaskEditorPreview title={title} image={imagePath} overview={overview || description} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
+      <Modal open={previewOpen} title="Preview task" description="Review the member-facing content before saving or publishing." onClose={() => setPreviewOpen(false)} size="xl" bodyClassName="p-5 sm:p-6"><TaskEditorPreview title={title} image={imagePath} overview={overview || description} terms={terms} price={price} incentive={incentive} verificationTime={verificationTime} steps={steps} requirements={requirements} /></Modal>
     </form>
   );
 }

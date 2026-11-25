@@ -1357,6 +1357,9 @@ export function Modal({
           ? "max-w-[1180px]"
           : "max-w-xl";
   const isWorkspace = size === "xl";
+  const workspaceBodyOverflow = bodyClassName.includes("overflow-hidden")
+    ? ""
+    : "overflow-y-auto overscroll-contain";
   const dialog = (
     <div
       className={`fixed inset-0 z-[70] flex justify-center bg-[#10192B]/60 backdrop-blur-[4px] ${centered ? "items-center p-4 sm:p-6" : "items-end p-0 sm:items-center sm:p-4 lg:p-6"}`}
@@ -1406,7 +1409,7 @@ export function Modal({
         <div
           className={
             isWorkspace
-              ? `min-h-0 flex-1 ${bodyClassName}`
+              ? `min-h-0 flex-1 ${workspaceBodyOverflow} ${bodyClassName}`
               : `overflow-y-auto p-5 sm:p-6 ${bodyClassName}`
           }
         >

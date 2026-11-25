@@ -1,5 +1,6 @@
 export type Task = {
   id: string;
+  slug?: string | null;
   title: string;
   shortDescription: string;
   description: string;
@@ -269,6 +270,7 @@ export let adminNotificationStats = {
 
 type BackendTask = {
   id: number;
+  slug?: string | null;
   title: string;
   short_description?: string;
   description: string;
@@ -381,6 +383,7 @@ function mapTask(task: BackendTask): Task {
     );
   return {
     id: String(task.id),
+    slug: task.slug || null,
     title: task.title,
     shortDescription: task.short_description || task.description,
     description: task.description,

@@ -52,6 +52,7 @@ export type ApiUser = {
 
 export type ApiTask = {
   id: number;
+  slug?: string | null;
   title: string;
   short_description: string;
   description: string;
